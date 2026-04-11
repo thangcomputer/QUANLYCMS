@@ -123,8 +123,14 @@ router.get('/revenue', guard, async (req, res) => {
     });
 
     // ── Tổng toàn thời gian (all-time, theo branchFilter) ──────────
+    const mongoose = require('mongoose');
+    const aggFilter = { ...baseFilter, paid: true };
+    if (aggFilter.branchId && typeof aggFilter.branchId === 'string' && mongoose.Types.ObjectId.isValid(aggFilter.branchId)) {
+      aggFilter.branchId = new mongoose.Types.ObjectId(aggFilter.branchId);
+    }
+
     const allTimeResult = await Student.aggregate([
-      { $match: { ...baseFilter, paid: true } },
+      { $match: aggFilter },
       { $group: { _id: null, total: { $sum: '$price' } } },
     ]);
     const allTimeRevenue = allTimeResult[0]?.total || 0;

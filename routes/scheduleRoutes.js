@@ -186,6 +186,21 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Thiếu thông tin khóa học (course)' });
     }
 
+    // ✅ ARCHITECTURAL UPGRADE: Anti-Clash Logic (Chống trùng lịch Giảng viên)
+    const existingClash = await Schedule.findOne({
+      teacherId,
+      date: new Date(date),
+      startTime,
+      status: { $ne: 'cancelled' }
+    });
+    
+    if (existingClash) {
+      return res.status(409).json({ 
+        success: false, 
+        message: `TRÙNG LỊCH: Giảng viên đã có lịch dạy vào ${startTime} ngày ${new Date(date).toLocaleDateString('vi-VN')} (Học viên: ${existingClash.studentName}).` 
+      });
+    }
+
     let finalPaidToTeacher = false;
     let paymentStatus = 'pending';
     const studentDoc = await Student.findById(studentId).lean();

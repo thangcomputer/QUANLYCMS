@@ -1,322 +1,284 @@
-/**
- * AdminLoginPage.jsx — Cổng Đăng Nhập Nội Bộ (Admin & Nhân viên)
- * /admin/login — Dark mode, CAPTCHA server-side, không có Social Login
- */
-import React, { useState, useEffect, useRef } from 'react';
-import { Eye, EyeOff, Shield, Lock, RefreshCw, Loader2, XCircle, AlertTriangle } from 'lucide-react';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ShieldCheck, Lock, User, Eye, EyeOff, AlertTriangle, ChevronRight, Fingerprint, Activity } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import { setTokens } from '../services/api';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const AdminLoginPage = ({ onLogin }) => {
+  const navigate = useNavigate();
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-export default function AdminLoginPage({ onLogin }) {
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword]     = useState('');
-  const [showPw, setShowPw]         = useState(false);
-  const [captcha, setCaptcha]       = useState({ cid: '', svg: '' });
-  const [captchaAnswer, setCaptchaAnswer] = useState('');
-  const [captchaLoading, setCaptchaLoading] = useState(false);
-  const [error, setError]           = useState('');
-  const [captchaError, setCaptchaError] = useState('');
-  const [loading, setLoading]       = useState(false);
-  const [attempts, setAttempts]     = useState(0);
-  const [dynLogo, setDynLogo]       = useState('');
-  const inputRef = useRef(null);
+  const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-  // Luôn tải CAPTCHA khi mount — không auto-redirect
-  useEffect(() => {
-    fetchCaptcha();
-    inputRef.current?.focus();
-    // Fetch dynamic logo
-    fetch(`${API}/api/settings/web`)
-      .then(r => r.json())
-      .then(res => {
-        if (res.success && res.data?.logoUrl) {
-          const url = res.data.logoUrl;
-          setDynLogo(url.startsWith('http') ? url : `${API}${url}`);
-        }
-      })
-      .catch(() => {});
-  }, []);
+  const [captcha, setCaptcha] = useState('');
+  const [userInputCaptcha, setUserInputCaptcha] = useState('');
+  const [captchaCode, setCaptchaCode] = useState('');
 
-  const fetchCaptcha = async () => {
-    setCaptchaLoading(true);
-    setCaptchaAnswer('');
-    setCaptchaError('');
-    try {
-      const res = await fetch(`${API}/api/auth/captcha`).then(r => r.json());
-      if (res.success) setCaptcha({ cid: res.cid, svg: res.svg });
-    } catch { setCaptchaError('Không thể tải mã bảo vệ'); }
-    finally { setCaptchaLoading(false); }
+  // Hàm tạo mã bảo vệ ngẫu nhiên
+  const generateCaptcha = () => {
+    const chars = '23456789abcdefghkmnpqrstuvwxyzABCDEFGHKLMNPQRSTUVWXYZ';
+    const code = Array.from({ length: 6 }, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+    setCaptchaCode(code);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setCaptchaError('');
+  React.useEffect(() => {
+    generateCaptcha();
+  }, []);
 
-    if (!captchaAnswer.trim()) {
-      setCaptchaError('Vui lòng nhập mã bảo vệ');
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    
+    // 1. Kiểm tra trường trống
+    if (!username || !password) {
+      setError('VUI LÒNG NHẬP TÀI KHOẢN VÀ MẬT KHẨU');
+      toast.error('Cảnh báo: Thông tin trống');
       return;
     }
+
+    // 2. Kiểm tra mã CAPTCHA
+    if (userInputCaptcha.toLowerCase() !== captchaCode.toLowerCase()) {
+      setError('MÃ BẢO VỆ KHÔNG CHÍNH XÁC');
+      toast.error('Mã bảo vệ sai!');
+      generateCaptcha();
+      setUserInputCaptcha('');
+      return;
+    }
+
     setLoading(true);
+    setError(null);
 
     try {
-      const res = await fetch(`${API}/api/auth/login/internal`, {
+      const response = await fetch(`${API}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          identifier: identifier.trim(),
-          password,
-          captchaId: captcha.cid,
-          captchaAnswer: captchaAnswer.trim(),
-        }),
-      }).then(r => r.json());
+        body: JSON.stringify({ identifier: username, password }),
+      });
 
-      if (!res.success) {
-        setAttempts(a => a + 1);
-        // Luôn refresh CAPTCHA sau mỗi lần sai
-        await fetchCaptcha();
-        if (res.captchaError) {
-          setCaptchaError(res.message);
-        } else {
-          setError(res.message || 'Đăng nhập thất bại');
-        }
-        return;
+      const data = await response.json();
+
+      if (data.success) {
+        // Extract real user object from wrapped structure if it exists
+        const actualUser = data.data.user || data.data;
+        const accessToken = data.data.accessToken || actualUser.token || actualUser.accessToken;
+        const refreshToken = data.data.refreshToken || actualUser.refreshToken;
+        
+        const role = actualUser.role || 'admin';
+        
+        // Merge tokens into the user object for compatibility
+        const finalUserObj = { ...actualUser, token: accessToken, refreshToken };
+
+        // Save properly with correct role prefix
+        localStorage.setItem(`${role}_user`, JSON.stringify(finalUserObj));
+        setTokens(accessToken, refreshToken, role);
+        
+        onLogin(finalUserObj);
+        toast.success(`Hệ thống đã sẵn sàng, chào mừng ${actualUser.name}!`);
+        navigate(role === 'student' ? '/student' : '/admin');
+      } else {
+        // 3. Lỗi từ Server (Sai mật khẩu hoặc tài khoản)
+        setError(data.message?.toUpperCase() || 'TÀI KHOẢN HOẶC MẬT KHẨU KHÔNG ĐÚNG');
+        toast.error('Truy cập bị từ chối!');
+        setPassword(''); // Xóa mật khẩu sai
       }
-
-      // Thành công
-      const u = res.data?.user || res.data;
-      const userRole = u?.role || 'admin';
-      const session = {
-        id:           u._id || u.id,
-        role:         userRole,
-        name:         u.name,
-        token:        res.data.accessToken,
-        refreshToken: res.data.refreshToken || '',
-        loginAt:      Date.now(),
-        status:       u.status,
-        adminRole:    u.adminRole   || null,
-        permissions:  u.permissions || [],
-        branchId:     u.branchId    || null,
-        branchCode:   u.branchCode  || '',
-      };
-      localStorage.setItem(`${userRole}_user`, JSON.stringify(session));
-      localStorage.setItem(`${userRole}_access_token`, session.token);
-      onLogin(session);
-
-    } catch {
-      setError('Không thể kết nối máy chủ. Vui lòng thử lại.');
-      await fetchCaptcha();
+    } catch (err) {
+      setError('LỖI KẾT NỐI HỆ THỐNG BẢO MẬT');
+      toast.error('Server gặp sự cố');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-stretch font-sans">
+    <div className="min-h-screen bg-[#020617] flex items-center justify-center p-0 font-sans overflow-hidden selection:bg-red-500/30">
+      
+      {/* Background Decor - Cyber Dots */}
+      <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(#1e293b 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
 
-      {/* ── Brand Panel (trái) ─────────────────────────────────────── */}
-      <div className="hidden lg:flex flex-col justify-between w-80 xl:w-96 bg-gradient-to-b from-gray-900 to-gray-950 border-r border-gray-800 p-10">
-        <div>
-          {/* Logo */}
-          <div className="flex items-center gap-3 mb-12">
-            <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-red-900/50 overflow-hidden">
-              {dynLogo ? (
-                <img src={dynLogo} alt="Logo" className="w-full h-full object-contain p-0.5" />
-              ) : (
-                <span className="text-white font-black text-lg">T</span>
-              )}
+      <div className="w-full h-screen flex flex-col md:flex-row relative z-10">
+        
+        {/* LEFT COLUMN: CYBER COMMAND CENTER */}
+        <div className="hidden md:flex md:w-[60%] bg-transparent p-20 flex-col justify-center relative border-r border-white/5">
+          <div className="relative z-10 space-y-12 animate-in fade-in slide-in-from-left-20 duration-1000">
+            <div className="inline-flex items-center gap-3 bg-red-600/10 border border-red-500/20 px-4 py-2 rounded-xl">
+               <ShieldCheck size={18} className="text-red-500" />
+               <span className="text-xs font-black text-red-500 uppercase tracking-[0.3em]">Hệ thống quản trị tối cao</span>
             </div>
-            <div>
-              <p className="text-white font-black text-sm">THẮNG TIN HỌC</p>
-              <p className="text-gray-500 text-[10px]">CMS v3.0</p>
+
+            <div className="space-y-4">
+               <h1 className="text-6xl lg:text-8xl font-black text-white leading-none tracking-tighter">
+                CMS <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-600 via-rose-500 to-red-800">CENTRAL</span>
+              </h1>
+              <p className="text-slate-400 text-xl font-medium max-w-xl leading-relaxed">
+                Trung tâm điều hành nền tảng Đào tạo Tin học văn phòng. 
+                Kiểm soát dữ liệu, phân quyền giảng viên và theo dõi tăng trưởng doanh thu theo thời gian thực.
+              </p>
+            </div>
+
+            {/* Quick Stats Grid - Premium Feel */}
+            <div className="grid grid-cols-2 gap-6 max-w-lg pt-10">
+               <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-6 rounded-[32px] group hover:border-red-500/50 transition-all duration-500">
+                  <Activity size={24} className="text-red-500 mb-4 group-hover:scale-110 transition-transform" />
+                  <p className="text-3xl font-black text-white">99.9%</p>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Uptime System</p>
+               </div>
+               <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-6 rounded-[32px] group hover:border-red-500/50 transition-all duration-500">
+                  <Fingerprint size={24} className="text-red-500 mb-4 group-hover:scale-110 transition-transform" />
+                  <p className="text-3xl font-black text-white">AES-256</p>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">Data Security</p>
+               </div>
             </div>
           </div>
 
-          <div className="space-y-6">
-            <h1 className="text-2xl font-black text-white leading-tight">
-              Cổng truy cập<br/>
-              <span className="text-red-500">Nội bộ</span>
-            </h1>
-            <p className="text-gray-500 text-sm leading-relaxed">
-              Dành riêng cho Quản trị viên và Nhân viên. Khu vực này được bảo vệ bởi CAPTCHA và xác thực 2 lớp.
-            </p>
-          </div>
-
-          {/* Security badges */}
-          <div className="mt-10 space-y-3">
-            {[
-              { label: 'CAPTCHA bảo vệ', desc: 'Ngăn chặn bot tự động' },
-              { label: 'JWT Audience', desc: 'Token phân tách luồng' },
-              { label: 'Branch Isolation', desc: 'Dữ liệu cách ly chi nhánh' },
-            ].map((s, i) => (
-              <div key={i} className="flex items-start gap-3">
-                <div className="w-6 h-6 rounded-lg bg-green-900/40 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Shield size={12} className="text-green-400" />
-                </div>
-                <div>
-                  <p className="text-white text-xs font-bold">{s.label}</p>
-                  <p className="text-gray-600 text-[10px]">{s.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+          {/* Glowing Orbs */}
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-red-600/10 rounded-full blur-[120px] animate-pulse" />
+          <div className="absolute bottom-1/4 right-0 w-64 h-64 bg-blue-600/5 rounded-full blur-[100px]" />
         </div>
 
-        <p className="text-gray-700 text-[10px]">© 2026 Thắng Tin Học. Confidential.</p>
-      </div>
-
-      {/* ── Login Form Panel (phải) ───────────────────────────────── */}
-      <div className="flex-1 flex items-center justify-center p-6">
-        <div className="w-full max-w-sm">
-
-          {/* Mobile logo */}
-          <div className="flex lg:hidden items-center gap-3 mb-8">
-            <div className="w-9 h-9 bg-red-600 rounded-xl flex items-center justify-center overflow-hidden">
-              {dynLogo ? (
-                <img src={dynLogo} alt="Logo" className="w-full h-full object-contain p-0.5" />
-              ) : (
-                <span className="text-white font-black">T</span>
-              )}
-            </div>
-            <p className="text-white font-black text-sm">THẮNG TIN HỌC — NỘI BỘ</p>
-          </div>
-
-          {/* Attempt warning */}
-          {attempts >= 3 && (
-            <div className="mb-4 bg-amber-900/30 border border-amber-700/50 rounded-xl p-3 flex items-center gap-2 text-amber-400 text-xs">
-              <AlertTriangle size={14} />
-              Đã thử {attempts} lần. Liên hệ quản trị nếu cần hỗ trợ.
-            </div>
-          )}
-
-          <div className="bg-gray-900 rounded-2xl border border-gray-800 p-8 shadow-2xl">
-            <div className="mb-6">
-              <div className="flex items-center gap-2 mb-1">
-                <Lock size={16} className="text-red-500" />
-                <h2 className="text-white font-black text-lg">Đăng nhập nội bộ</h2>
+        {/* RIGHT COLUMN: ADMIN GATEWAY */}
+        <div className="w-full md:w-[40%] flex items-center justify-center p-8 lg:p-14 relative bg-[#020617]/50 backdrop-blur-3xl">
+          
+          <div className="w-full max-w-md space-y-12 z-10">
+            <div className="text-center space-y-6 animate-in fade-in zoom-in duration-700">
+              <div className="relative inline-block">
+                <div className="absolute inset-0 bg-red-600 rounded-full blur-2xl opacity-20 animate-pulse"></div>
+                <img src="/logo_thangtinhoc.png" alt="Logo" className="h-20 relative z-10" onError={(e) => e.target.src = 'https://i.ibb.co/68H8LzG/logo.png'} />
               </div>
-              <p className="text-gray-500 text-xs">Chỉ dành cho Admin & Nhân viên chi nhánh</p>
+              
+              <div className="space-y-3">
+                <h2 className="text-4xl font-black text-white tracking-tight">Cổng Admin</h2>
+                <p className="text-slate-500 font-bold uppercase text-[10px] tracking-[0.4em]">Xác thực quyền truy cập hệ thống</p>
+              </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Identifier */}
-              <div>
-                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">
-                  Số điện thoại hoặc Email
-                </label>
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={identifier}
-                  onChange={e => { setIdentifier(e.target.value); setError(''); }}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600/30 transition placeholder:text-gray-600"
-                  placeholder="0935758462 hoặc admin"
-                  autoComplete="username"
-                />
-              </div>
-
-              {/* Password */}
-              <div>
-                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">Mật khẩu</label>
-                <div className="relative">
-                  <input
-                    type={showPw ? 'text' : 'password'}
-                    value={password}
-                    onChange={e => { setPassword(e.target.value); setError(''); }}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600/30 transition pr-11 placeholder:text-gray-600"
-                    placeholder="••••••••"
-                    autoComplete="current-password"
-                  />
-                  <button type="button" onClick={() => setShowPw(p => !p)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition">
-                    {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
-
-              {/* CAPTCHA */}
-              <div>
-                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">
-                  Mã bảo vệ
-                </label>
-                <div className="flex gap-2 items-stretch mb-2">
-                  {/* SVG CAPTCHA display */}
-                  <div className="flex-1 bg-gray-800 border border-gray-700 rounded-xl overflow-hidden flex items-center justify-center min-h-[52px]">
-                    {captchaLoading ? (
-                      <Loader2 size={20} className="animate-spin text-gray-500" />
-                    ) : captcha.svg ? (
-                      <div
-                        dangerouslySetInnerHTML={{ __html: captcha.svg }}
-                        className="w-full h-full flex items-center justify-center [&>svg]:w-full [&>svg]:h-full"
-                      />
-                    ) : (
-                      <span className="text-gray-600 text-xs">Không tải được mã</span>
-                    )}
-                  </div>
-                  {/* Refresh button */}
-                  <button type="button" onClick={fetchCaptcha} disabled={captchaLoading}
-                    title="Làm mới mã bảo vệ"
-                    className="w-12 bg-gray-800 border border-gray-700 rounded-xl flex items-center justify-center text-gray-400 hover:text-white hover:border-gray-500 transition disabled:opacity-40">
-                    <RefreshCw size={16} className={captchaLoading ? 'animate-spin' : ''} />
-                  </button>
-                </div>
-                <input
-                  type="text"
-                  value={captchaAnswer}
-                  onChange={e => { setCaptchaAnswer(e.target.value); setCaptchaError(''); }}
-                  className={`w-full bg-gray-800 border rounded-xl px-4 py-3 text-sm text-white outline-none focus:ring-1 transition placeholder:text-gray-600 tracking-widest font-mono uppercase ${
-                    captchaError ? 'border-red-600 focus:border-red-600 focus:ring-red-600/30' : 'border-gray-700 focus:border-red-600 focus:ring-red-600/30'
-                  }`}
-                  placeholder="Nhập mã hiển thị ở trên"
-                  maxLength={6}
-                  autoComplete="off"
-                />
-                {captchaError && (
-                  <p className="text-red-500 text-[11px] mt-1 flex items-center gap-1">
-                    <XCircle size={11} /> {captchaError}
-                  </p>
-                )}
-              </div>
-
-              {/* General error */}
+            <form onSubmit={handleLogin} className="space-y-6 animate-in fade-in slide-in-from-right-10 duration-1000 delay-200">
               {error && (
-                <div className="bg-red-950/50 border border-red-800/50 text-red-400 rounded-xl px-4 py-3 text-xs flex items-start gap-2">
-                  <XCircle size={14} className="flex-shrink-0 mt-0.5" />
-                  {error}
+                <div className="bg-[#1a0505] border-l-4 border-red-600 p-5 rounded-2xl flex items-center gap-4 text-red-500 text-[11px] font-black tracking-widest animate-bounce-horizontal shadow-2xl">
+                  <AlertTriangle size={20} className="flex-shrink-0" />
+                  <span>{error}</span>
+                  <style>{`
+                    @keyframes bounce-horizontal {
+                      0%, 100% { transform: translateX(0); }
+                      25% { transform: translateX(-5px); }
+                      75% { transform: translateX(5px); }
+                    }
+                    .animate-bounce-horizontal {
+                      animation: bounce-horizontal 0.4s ease-in-out;
+                    }
+                  `}</style>
                 </div>
               )}
 
-              {/* Submit */}
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Username / Identifier</label>
+                <div className="relative group">
+                  <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-red-500 transition-colors">
+                    <User size={20} />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full bg-white/[0.03] border-2 border-white/5 rounded-3xl pl-14 pr-5 py-5 text-white outline-none focus:border-red-600/50 focus:bg-white/[0.05] transition-all font-black placeholder:text-slate-700 shadow-inner"
+                    placeholder="Nhập tài khoản quản trị"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Master Password</label>
+                <div className="relative group">
+                  <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-600 group-focus-within:text-red-500 transition-colors">
+                    <Lock size={20} />
+                  </div>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-white/[0.03] border-2 border-white/5 rounded-3xl pl-14 pr-5 py-5 text-white outline-none focus:border-red-600/50 focus:bg-white/[0.05] transition-all font-black placeholder:text-slate-700 shadow-inner"
+                    placeholder="••••••••••••"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-600 hover:text-white transition-colors"
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-1">Mã bảo vệ</label>
+                <div className="flex gap-3">
+                  <div className="flex-1 bg-white/5 border-2 border-white/5 rounded-3xl p-4 flex items-center justify-center relative overflow-hidden h-16 select-none shadow-inner">
+                    {/* Captcha Noise Strokes */}
+                    <div className="absolute inset-x-0 top-1/2 h-[1px] bg-red-500/30 -rotate-3" />
+                    <div className="absolute inset-x-0 top-1/3 h-[1px] bg-blue-500/30 rotate-2" />
+                    
+                    <span className="text-2xl font-black tracking-[0.4em] italic text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-purple-500 to-blue-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.4)]">
+                      {captchaCode}
+                    </span>
+                  </div>
+                  <button 
+                    type="button" 
+                    onClick={generateCaptcha}
+                    className="w-16 h-16 rounded-3xl bg-white/5 border-2 border-white/5 flex items-center justify-center text-slate-500 hover:text-white transition-all hover:bg-white/10 active:scale-95"
+                  >
+                    <Activity size={24} className={loading ? 'animate-pulse' : ''} />
+                  </button>
+                </div>
+                
+                <input
+                  type="text"
+                  required
+                  value={userInputCaptcha}
+                  onChange={(e) => setUserInputCaptcha(e.target.value)}
+                  className="w-full bg-white/[0.03] border-2 border-white/5 rounded-2xl px-5 py-4 text-white text-center text-xs font-black outline-none focus:border-red-600/50 focus:bg-white/[0.05] transition-all placeholder:text-slate-700 uppercase tracking-widest"
+                  placeholder="Nhập mã hiển thị ở trên"
+                />
+              </div>
+
               <button
                 type="submit"
-                disabled={loading || !identifier || !password || !captchaAnswer || captchaLoading}
-                className="w-full bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 text-white font-black py-3.5 rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-red-900/30 mt-2"
+                disabled={loading}
+                className="group w-full bg-gradient-to-r from-red-600 to-rose-700 text-white rounded-3xl py-5 font-black uppercase tracking-[0.2em] shadow-2xl shadow-red-900/40 hover:from-red-700 hover:to-rose-800 hover:-translate-y-1 active:translate-y-0 transition-all disabled:opacity-70 flex items-center justify-center gap-4 border border-white/10"
               >
-                {loading
-                  ? <><Loader2 size={16} className="animate-spin" /> Đang xác thực...</>
-                  : <><Lock size={15} /> ĐĂNG NHẬP NỘI BỘ</>
-                }
+                {loading ? (
+                  <div className="w-6 h-6 border-4 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>
+                    Khởi tạo truy cập
+                    <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                  </>
+                )}
               </button>
             </form>
 
-            {/* Redirect to public */}
-            <div className="mt-5 pt-4 border-t border-gray-800 text-center">
-              <p className="text-gray-600 text-[11px]">
-                Là học viên hoặc giảng viên?{' '}
-                <a href="/login" className="text-gray-400 hover:text-white underline transition">
-                  Đăng nhập tại đây
-                </a>
-              </p>
+            {/* Terminal Style Footer */}
+            <div className="text-center pt-10 animate-in fade-in duration-1000 delay-500">
+               <div className="bg-slate-900/50 border border-white/5 rounded-2xl p-4 inline-block">
+                  <p className="text-[10px] font-mono text-slate-600">
+                    TERMINAL ID: <span className="text-red-500/70">ADMIN-01X8</span> <br />
+                    LOCATION: <span className="text-slate-400">VIETNAM CENTRAL HUB</span>
+                  </p>
+               </div>
             </div>
           </div>
 
-          {/* Security note */}
-          <div className="mt-4 flex items-center gap-2 justify-center">
-            <Shield size={12} className="text-green-600" />
-            <p className="text-gray-700 text-[10px]">Kết nối được bảo mật · Mã hoá HTTPS</p>
+          <div className="absolute bottom-6 text-[9px] font-black text-slate-700 uppercase tracking-[0.5em]">
+            Authorized Personnel Only © 2026
           </div>
         </div>
       </div>
     </div>
   );
-}
+};
+
+export default AdminLoginPage;

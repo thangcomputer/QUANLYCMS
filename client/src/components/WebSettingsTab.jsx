@@ -12,6 +12,8 @@ const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 function getToken() {
   for (const role of ['admin','staff']) {
+    const directToken = localStorage.getItem(`${role}_access_token`);
+    if (directToken) return directToken;
     const s = localStorage.getItem(`${role}_user`);
     if (s) { try { const u = JSON.parse(s); if (u?.token) return u.token; } catch {} }
   }

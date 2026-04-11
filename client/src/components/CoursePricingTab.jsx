@@ -19,7 +19,13 @@ const calcEffective = (price, pct) =>
   pct > 0 ? Math.round(Number(price) * (1 - Number(pct) / 100)) : Number(price);
 
 function getToken() {
-  try { return JSON.parse(localStorage.getItem('admin_user') || '{}').token || ''; } catch { return ''; }
+  for (const role of ['admin','staff']) {
+    const directToken = localStorage.getItem(`${role}_access_token`);
+    if (directToken) return directToken;
+    const s = localStorage.getItem(`${role}_user`);
+    if (s) { try { const u = JSON.parse(s); if (u?.token) return u.token; } catch {} }
+  }
+  return '';
 }
 
 // ── Modal Thêm/Sửa ────────────────────────────────────────────────────────────

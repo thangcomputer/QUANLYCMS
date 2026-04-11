@@ -252,7 +252,7 @@ const Employee = require('../models/Employee');
 const mongoose = require('mongoose');
 
 router.post('/reset-data', authMiddleware, isAdmin, async (req, res) => {
-  const { phrase, password } = req.body;
+  const { phrase, password, options = { all: true } } = req.body;
   const userId = req.user.id;
 
   if (phrase !== 'XOA_DU_LIEU') {
@@ -276,44 +276,61 @@ router.post('/reset-data', authMiddleware, isAdmin, async (req, res) => {
       }
     }
 
-    try {
-      // NHÓM 1 - DỮ LIỆU BỊ XÓA SẠCH
+    // 2. Thực hiện xóa theo tùy chọn
+    const isAll = options.all === true;
+    
+    // NHÓM: HỌC VIÊN
+    if (isAll || options.students) {
       await Student.deleteMany({});
-      await Schedule.deleteMany({});
-      await Transaction.deleteMany({});
-      await Invoice.deleteMany({});
-      await Message.deleteMany({});
-      await Group.deleteMany({});
-      await ConversationVisibility.deleteMany({});
-      await SystemLog.deleteMany({});
-      await Notification.deleteMany({});
-      await Assignment.deleteMany({});
+      await ExamResult.deleteMany({});
       await Submission.deleteMany({});
       await Evaluation.deleteMany({});
-      await ExamResult.deleteMany({});
-      await PayrollLog.deleteMany({});
-      await Employee.deleteMany({});
-
-      // NHÓM 2 - DỮ LIỆU GIỮ NGUYÊN
-      // Không gọi deleteMany trên: Teacher (Users), SystemSettings, Branch, Course.
-      
-      // Auto-unlock tất cả giáo viên bị khóa trong quá trình test
-      await Teacher.updateMany({}, { $set: { isLocked: false, loginAttempts: 0, lockReason: null } });
-
-      // 3. Clear Caches
-      // Clear mọi rooms trên Socket.io hoặc phát 1 event cho tất cả
-      const io = req.app.get('io');
-      if (io) {
-         io.emit('SYSTEM_RESET'); // Frontend sẽ bắt event này để reload
-      }
-
-      return res.json({ success: true, message: 'Làm mới dữ liệu hệ thống thành công' });
-
-    } catch (dbError) {
-      await session.abortTransaction();
-      session.endSession();
-      throw dbError; // rethrow to outer catch
+      await Assignment.deleteMany({});
     }
+
+    // NHÓM: TÀI CHÍNH
+    if (isAll || options.finance) {
+      await Transaction.deleteMany({});
+      await Invoice.deleteMany({});
+      await PayrollLog.deleteMany({});
+    }
+
+    // NHÓM: LỊCH DẠY
+    if (isAll || options.schedules) {
+      await Schedule.deleteMany({});
+    }
+
+    // NHÓM: TIN NHẮN & THÔNG BÁO
+    if (isAll || options.communication) {
+      await Message.deleteMany({});
+      await Notification.deleteMany({});
+      await Group.deleteMany({});
+      await ConversationVisibility.deleteMany({});
+    }
+
+    // NHÓM: NHÂN SỰ (STAFF)
+    if (isAll || options.hr) {
+      await Employee.deleteMany({});
+    }
+
+    // NHÓM: LOGS
+    if (isAll || options.logs) {
+      await SystemLog.deleteMany({});
+    }
+    
+    // NHÓM 2 - DỮ LIỆU GIỮ NGUYÊN
+    // Không bao giờ xóa: Teacher (Users), SystemSettings, Branch, Course.
+    
+    // Auto-unlock tất cả giáo viên
+    await Teacher.updateMany({}, { $set: { isLocked: false, loginAttempts: 0, lockReason: null } });
+
+    // 3. Thông báo cho Socket
+    const io = req.app.get('io');
+    if (io) {
+       io.emit('SYSTEM_RESET');
+    }
+
+    return res.json({ success: true, message: 'Làm mới dữ liệu hệ thống thành công' });
 
   } catch (err) {
     console.error('[RESET DATA ERROR]', err);

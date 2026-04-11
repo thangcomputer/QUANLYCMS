@@ -22,19 +22,29 @@ import LoadingScreen                         from './components/LoadingScreen';
 import StaffPopup                            from './components/StaffPopup';
 import './App.css';
 
-// ── Session helpers (localStorage thay vì sessionStorage → survive reload) ────
-
-const saveSession = (user) => {
-  if (user) localStorage.setItem(`${user.role}_user`, JSON.stringify(user));
-  else      localStorage.removeItem(`${getRolePrefix()}_user`);
-};
+// ── Session helpers ──────────────────────────────────────────────────────────
 
 const loadSession = () => {
   try {
-    const prefix = getRolePrefix();
-    const userStr = localStorage.getItem(`${prefix}_user`);
-    return userStr ? JSON.parse(userStr) : null;
+    // Ưu tiên quét tìm bất kỳ Role nào đang có Token active
+    const roles = ['admin', 'staff', 'teacher', 'student'];
+    for (const role of roles) {
+      const userStr = localStorage.getItem(`${role}_user`);
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        if (localStorage.getItem(`${role}_access_token`) || user.token) {
+          return user;
+        }
+      }
+    }
+    return null;
   } catch { return null; }
+};
+
+const saveSession = (user) => {
+  if (user && user.role) {
+    localStorage.setItem(`${user.role}_user`, JSON.stringify(user));
+  }
 };
 
 // ── Protected Route ───────────────────────────────────────────────────────────
@@ -200,53 +210,42 @@ function AppRoutes({ session, onSessionChange, isAuthLoading, onLogin, onLogout 
 function App() {
   const [session, setSession]           = useState(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const navigate = useNavigate();
 
   // ── Khôi phục session khi reload ──────────────────────────────────────────
-  // Thứ tự ưu tiên: localStorage token → gọi /me → lấy data mới nhất từ DB
   useEffect(() => {
     const restoreSession = async () => {
-      const savedSession = loadSession();
+      const savedUser = loadSession();
+      console.log('[Auth] Initializing session restoration...', { hasSavedUser: !!savedUser });
 
-      if (!savedSession) {
-        setIsAuthLoading(false);
-        return;
-      }
-
-      // Kiểm tra token (cho tất cả role kể cả admin)
-      const prefix = getRolePrefix();
-      const savedToken = localStorage.getItem(`${prefix}_access_token`)
-                      || savedSession?.token
-                      || null;
-      
-      if (!savedToken) {
-        setSession(null);
-        saveSession(null);
+      if (!savedUser) {
+        console.log('[Auth] No saved session found.');
         setIsAuthLoading(false);
         return;
       }
 
       try {
-        // Verify token + lấy data mới nhất
+        console.log('[Auth] Verifying session with server...', { role: savedUser.role });
         const res = await api.auth.me();
+        
         if (res.success && res.data) {
-          const freshUser = { ...savedSession, ...res.data };
-          saveSession(freshUser);
+          console.log('[Auth] Session verified successfully.');
+          const freshUser = { ...savedUser, ...res.data };
           setSession(freshUser);
+          saveSession(freshUser);
         } else {
-          // Token hết hạn → xóa session
-          saveSession(null);
-          clearTokens(savedSession.role);
+          console.warn('[Auth] Server rejected session:', res.message);
+          clearTokens(savedUser.role);
           setSession(null);
         }
       } catch (err) {
-        // Nếu lỗi 401 (Unauthorized) thì xóa session
+        console.error('[Auth] Restoration error:', err);
         if (err.status === 401) {
-          saveSession(null);
-          clearTokens(savedSession.role);
+          clearTokens(savedUser.role);
           setSession(null);
         } else {
-          // Lỗi khác (offline?) thì tạm thời dùng cached
-          setSession(savedSession);
+          console.log('[Auth] Network error, falling back to cached session.');
+          setSession(savedUser);
         }
       } finally {
         setIsAuthLoading(false);
@@ -255,8 +254,6 @@ function App() {
 
     restoreSession();
   }, []);
-
-  const nav = useNavigate();
 
   const handleLogout = useCallback(() => {
     setSession(prev => {
@@ -270,20 +267,20 @@ function App() {
         sessionStorage.clear();      // Xóa sạch session storage
 
         setSession(null);
-        nav('/login');
+        navigate('/login');
         return null;
       }
       return prev;
     });
-  }, [nav]);
+  }, [navigate]);
 
   const handleLogin = useCallback((account) => {
     saveSession(account);
     setSession(account);
     // 'staff' role dùng chung dashboard với admin
     const redirects = { admin: '/admin', staff: '/admin', teacher: '/teacher', student: '/student' };
-    nav(redirects[account.role] || '/');
-  }, [nav]);
+    navigate(redirects[account.role] || '/');
+  }, [navigate]);
 
   const handleSessionChange = useCallback((newSession) => {
     setSession(newSession);

@@ -34,10 +34,21 @@ export function BranchProvider({ session, children }) {
   const [isLoadingBranches,  setIsLoadingBranches]   = useState(false);
 
   const isSuperAdmin = session?.id === 'admin' || session?.adminRole === 'SUPER_ADMIN';
+  const isStaff      = session?.adminRole === 'STAFF';
+  const staffBranchId = session?.branchId;
 
-  // Load branches khi mount (chỉ cho SUPER_ADMIN)
+  // 🛡️ ARCHITECTURAL LOCK: STAFF luôn bị khóa tại chi nhánh của họ
   useEffect(() => {
-    if (!isSuperAdmin) return;
+    if (isStaff && staffBranchId) {
+      setSelectedBranchId(staffBranchId);
+      // Tìm tên chi nhánh nếu có trong list
+      const br = branches.find(b => String(b._id) === String(staffBranchId));
+      if (br) setSelectedBranchName(br.name);
+    }
+  }, [isStaff, staffBranchId, branches]);
+
+  // Load branches khi mount (dùng chung để map tên chi nhánh)
+  useEffect(() => {
     setIsLoadingBranches(true);
     fetch(`${API}/api/branches`, {
       headers: { Authorization: `Bearer ${getToken()}` },
@@ -46,20 +57,21 @@ export function BranchProvider({ session, children }) {
       .then(res => {
         if (res.success) {
           setBranches(res.data || []);
-          // Cache để form tạo GV đọc dropdown
           localStorage.setItem('thvp_branches', JSON.stringify(res.data || []));
         }
       })
       .catch(() => {})
       .finally(() => setIsLoadingBranches(false));
-  }, [isSuperAdmin]);
-
-  const setSelectedBranch = useCallback((id, name) => {
-    setSelectedBranchId(id || 'all');
-    setSelectedBranchName(name || 'Tất cả chi nhánh');
   }, []);
 
-  // branchQueryParam: chuỗi query param đính kèm vào mọi API call
+  const setSelectedBranch = useCallback((id, name) => {
+    // Nếu là STAFF, không cho phép đổi chi nhánh
+    if (isStaff) return;
+    
+    setSelectedBranchId(id || 'all');
+    setSelectedBranchName(name || 'Tất cả chi nhánh');
+  }, [isStaff]);
+
   const branchQueryParam = selectedBranchId && selectedBranchId !== 'all'
     ? `branch_id=${selectedBranchId}`
     : '';
@@ -73,6 +85,7 @@ export function BranchProvider({ session, children }) {
       branchQueryParam,
       isLoadingBranches,
       isSuperAdmin,
+      isStaff,
     }}>
       {children}
     </BranchContext.Provider>

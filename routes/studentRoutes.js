@@ -199,6 +199,96 @@ router.get('/:id', [authMiddleware, branchFilter], async (req, res) => {
   }
 });
 
+// ─── GET /api/students/:id/full-detail (MEGA ENDPOINT) ───────────────────────
+// Tổng hợp toàn bộ hồ sơ học viên: Thông tin cá nhân, Lịch sử điểm danh, Hóa đơn, Điểm thi
+router.get('/:id/full-detail', [authMiddleware, branchFilter], async (req, res) => {
+  try {
+    const student = await Student.findById(req.params.id)
+      .populate('teacherId', 'name phone specialty avatar');
+
+    if (!student) return res.status(404).json({ success: false, message: 'Không tìm thấy học viên' });
+
+    // 🛡️ 403 guard: STAFF chỉ được xem HV của chi nhánh mình
+    if (req.userBranchId && student.branchId && String(student.branchId) !== String(req.userBranchId)) {
+      return res.status(403).json({ success: false, message: 'Không có quyền truy cập dữ liệu học viên cơ sở khác' });
+    }
+
+    // 1. Lịch sử điểm danh/học tập
+    const schedules = await Schedule.find({ studentId: req.params.id }).sort({ date: -1 });
+
+    // 2. Lịch sử hóa đơn học phí
+    const invoices = await Invoice.find({ hocVien: req.params.id }).sort({ createdAt: -1 });
+
+    // 3. Kết quả thi (nếu có)
+    const ExamResult = require('../models/ExamResult');
+    const examResults = await ExamResult.find({ 
+      $or: [
+        { studentId: req.params.id },
+        { sbd: student.sbd } // Fallback cho dữ liệu cũ dùng SBD
+      ]
+    }).sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      data: {
+        student,
+        schedules: schedules || [],
+        invoices: invoices || [],
+        examResults: examResults || []
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─── POST /api/students/import (BẢN GHI HÀNG LOẠT) ──────────────────────────
+// Nhập danh sách học viên từ file Excel (Array of Objects)
+router.post('/import', [authMiddleware, branchFilter], async (req, res) => {
+  try {
+    const { students: rawStudents } = req.body;
+    if (!Array.isArray(rawStudents) || rawStudents.length === 0) {
+      return res.status(400).json({ success: false, message: 'Dữ liệu không hợp lệ hoặc rỗng.' });
+    }
+
+    // Gán chi nhánh tự động: STAFF chỉ được nhập vào CS của mình
+    const branchId = req.userBranchId || null;
+
+    const studentsToInsert = rawStudents.map(s => ({
+      ...s,
+      name: s.name?.toUpperCase()?.trim(),
+      branchId: branchId || s.branchId || null,
+      status: s.status || 'Chờ xếp lớp',
+      paid: s.paid === true || s.paid === 'Đã đóng phí',
+      learningMode: ['ONLINE', 'OFFLINE'].includes(s.learningMode?.toUpperCase()) 
+        ? s.learningMode.toUpperCase() 
+        : 'OFFLINE'
+    })).filter(s => s.name && (s.phone || s.zalo));
+
+    if (studentsToInsert.length === 0) {
+      return res.status(400).json({ success: false, message: 'Không có bản ghi nào hợp lệ để nhập (Thiếu Tên hoặc SĐT/Zalo).' });
+    }
+
+    const result = await Student.insertMany(studentsToInsert, { ordered: false });
+
+    res.json({
+      success: true,
+      message: `Đã nhập thành công ${result.length} học viên.`,
+      count: result.length
+    });
+  } catch (err) {
+    if (err.name === 'BulkWriteError' || err.code === 11000) {
+      const inserted = err.result?.nInserted || 0;
+      return res.json({ 
+        success: true, 
+        message: `Đã nhập ${inserted} bản ghi (Một số bản ghi bị trùng SĐT đã được bỏ qua).`,
+        count: inserted
+      });
+    }
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // ─── POST /api/students ────────────────────────────────────────────────────────
 // Admin thêm học viên mới
 // ─── POST /api/students ──────────────────────────────────────────────────────────────────

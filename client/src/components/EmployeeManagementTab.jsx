@@ -15,6 +15,8 @@ const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 function getToken() {
   for (const role of ['admin','staff','teacher','student']) {
+    const directToken = localStorage.getItem(`${role}_access_token`);
+    if (directToken) return directToken;
     const s = localStorage.getItem(`${role}_user`);
     if (s) { try { const u = JSON.parse(s); if (u?.token) return u.token; } catch {} }
   }
@@ -128,6 +130,13 @@ export default function EmployeeManagementTab() {
         .catch(() => {});
     }
   }, []);
+
+  const [showSalaries, setShowSalaries] = useState(false);
+
+  const fmtSalary = (n) => {
+    if (!showSalaries) return '••••••';
+    return fmt(n);
+  };
 
   // ── Fetch all data ──
   const fetchAll = useCallback(async () => {
@@ -263,6 +272,15 @@ export default function EmployeeManagementTab() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* 👁️ Nút ẩn hiện lương */}
+          <button onClick={() => setShowSalaries(!showSalaries)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold transition-all shadow-sm ${
+              showSalaries ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-gray-100 text-gray-600 border border-gray-200'
+            }`}>
+            {showSalaries ? <X size={14} /> : <QrCode size={14} />}
+            {showSalaries ? 'Khóa bảo mật' : 'Xem số liệu'}
+          </button>
+          
           <button onClick={fetchAll} disabled={loading}
             className="flex items-center gap-1.5 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 transition disabled:opacity-50">
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Làm mới
@@ -284,21 +302,23 @@ export default function EmployeeManagementTab() {
             <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center"><DollarSign size={18} className="text-emerald-600" /></div>
             </div>
-            <p className="text-2xl font-black text-gray-800">{fmt(stats.totalSalary)}</p>
+            <p className="text-2xl font-black text-gray-800">{fmtSalary(stats.totalSalary)}</p>
             <p className="text-xs text-gray-400 mt-1">Tổng quỹ lương/tháng</p>
           </div>
           <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center"><CheckCircle2 size={18} className="text-amber-600" /></div>
             </div>
-            <p className="text-2xl font-black text-gray-800">{fmt(stats.paidThisMonth)}</p>
+            <p className="text-2xl font-black text-gray-800">{fmtSalary(stats.paidThisMonth)}</p>
             <p className="text-xs text-gray-400 mt-1">Đã trả tháng này</p>
           </div>
           <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center"><AlertCircle size={18} className="text-red-500" /></div>
             </div>
-            <p className="text-2xl font-black text-gray-800">{fmt(Math.max(0, (stats.totalSalary || 0) - (stats.paidThisMonth || 0)))}</p>
+            <p className="text-2xl font-black text-gray-800 text-red-600">
+              {fmtSalary(Math.max(0, (stats.totalSalary || 0) - (stats.paidThisMonth || 0)))}
+            </p>
             <p className="text-xs text-gray-400 mt-1">Còn nợ tháng này</p>
           </div>
         </div>
@@ -395,7 +415,7 @@ export default function EmployeeManagementTab() {
                         </span>
                       </td>
                     )}
-                    <td className="px-4 py-4 text-right font-black text-gray-800">{fmt(emp.baseSalary)}</td>
+                    <td className="px-4 py-4 text-right font-black text-gray-800">{fmtSalary(emp.baseSalary)}</td>
                     <td className="px-4 py-4 text-center">
                       {emp.bankAccount?.bankCode ? (
                         <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-bold border border-blue-100">
@@ -428,7 +448,7 @@ export default function EmployeeManagementTab() {
               <div className="flex flex-wrap gap-2">
                 {stats.byPosition.map(bp => (
                   <span key={bp._id} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-white border border-gray-200 text-gray-600">
-                    {POSITION_MAP[bp._id]?.emoji || '📋'} {POSITION_MAP[bp._id]?.label || bp._id}: {bp.count} ({fmt(bp.salary)})
+                    {POSITION_MAP[bp._id]?.emoji || '📋'} {POSITION_MAP[bp._id]?.label || bp._id}: {bp.count} ({fmtSalary(bp.salary)})
                   </span>
                 ))}
               </div>
@@ -461,7 +481,7 @@ export default function EmployeeManagementTab() {
                       <p className="text-xs text-gray-400">
                         {POSITION_MAP[emp.position]?.label || emp.position}
                         {emp.branchCode && ` · ${emp.branchCode}`}
-                        {emp.baseSalary > 0 && ` · Lương: ${fmt(emp.baseSalary)}`}
+                        {emp.baseSalary > 0 && ` · Lương: ${fmtSalary(emp.baseSalary)}`}
                         {emp.bankAccount?.bankCode && ` · 🏦 ${BANK_MAP[emp.bankAccount.bankCode]?.shortName || ''}`}
                       </p>
                     </div>
@@ -507,7 +527,7 @@ export default function EmployeeManagementTab() {
                           {POSITION_MAP[log.position]?.emoji || ''} {POSITION_MAP[log.position]?.label || log.position}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right font-black text-emerald-700">{fmt(log.amount)}</td>
+                      <td className="px-4 py-4 text-right font-black text-emerald-700">{fmtSalary(log.amount)}</td>
                       <td className="px-4 py-3 text-center">
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${log.salaryType === 'LUONG_CUNG' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
                           {log.salaryType === 'LUONG_CUNG' ? '💼 Lương cứng' : '🏫 Ca dạy'}

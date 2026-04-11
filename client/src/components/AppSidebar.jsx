@@ -24,7 +24,7 @@ const formatTime = (date) => {
 // ─── Cấu hình menu theo role ──────────────────────────────────────────────────
 const MENU_CONFIG = {
   student: {
-    brand: { label: 'HỌC VIÊN', color: 'from-teal-700 to-teal-900' },
+    brand: { label: 'HỌC VIÊN', color: 'from-slate-900 to-indigo-950' },
     items: [
       { key: 'dashboard',  icon: LayoutDashboard, label: 'Tổng quan',      path: '/student' },
       { key: 'exam',       icon: Trophy,           label: 'Phòng Thi',      path: '/student/exam' },
@@ -37,11 +37,11 @@ const MENU_CONFIG = {
       { key: 'profile',   icon: User,    label: 'Hồ sơ',      path: '/student', hash: 'profile' },
       { key: 'logout',    icon: LogOut,  label: 'Đăng xuất',  isLogout: true },
     ],
-    accentColor: 'bg-teal-600',
-    activeClass: 'bg-teal-600 text-white shadow-lg shadow-teal-900/30',
+    accentColor: 'bg-indigo-600',
+    activeClass: 'bg-white/20 text-white shadow-lg backdrop-blur-md border-r-4 border-white',
   },
   teacher: {
-    brand: { label: 'GIẢNG VIÊN', color: 'from-blue-800 to-blue-950' },
+    brand: { label: 'GIẢNG VIÊN', color: 'from-slate-900 to-indigo-950' },
     items: [
       { key: 'dashboard',  icon: LayoutDashboard, label: 'Tổng quan',      path: '/teacher' },
       { key: 'students',   icon: Users,            label: 'Quản lý học viên', path: '/teacher', hash: 'students' },
@@ -55,16 +55,16 @@ const MENU_CONFIG = {
       { key: 'profile', icon: User,   label: 'Hồ sơ cá nhân', path: '/teacher', hash: 'profile' },
       { key: 'logout',  icon: LogOut, label: 'Đăng xuất',      isLogout: true },
     ],
-    accentColor: 'bg-blue-600',
-    activeClass: 'bg-blue-600 text-white shadow-lg shadow-blue-900/30',
+    accentColor: 'bg-indigo-600',
+    activeClass: 'bg-white/20 text-white shadow-lg backdrop-blur-md border-r-4 border-white',
   },
   admin: {
-    brand: { label: 'QUẢN TRỊ', color: 'from-gray-800 to-gray-950' },
+    brand: { label: 'QUẢN TRỊ', color: 'from-slate-900 to-indigo-950' },
     items: [
       { key: 'dashboard',        icon: LayoutDashboard, label: 'Tổng quan',        path: '/admin', hash: 'dashboard'                                                         },
-      { key: 'students',         icon: Users,         label: 'Học Viên',           path: '/admin', hash: 'students',            permission: PERMISSIONS.MANAGE_STUDENTS  },
-      { key: 'teachers',         icon: GraduationCap, label: 'Giảng Viên',         path: '/admin', hash: 'teachers',            permission: PERMISSIONS.VIEW_TEACHERS                          },
-      { key: 'evaluations',      icon: AlertTriangle, label: 'Đánh giá nội bộ',    path: '/admin', hash: 'evaluations',         permission: PERMISSIONS.VIEW_EVALUATIONS },
+      { key: 'students',         icon: Users,         label: 'Hoc Viên',           path: '/admin', hash: 'students',            permission: PERMISSIONS.MANAGE_STUDENTS  },
+      { key: 'teachers',         icon: GraduationCap, label: 'Giang Viên',         path: '/admin', hash: 'teachers',            permission: PERMISSIONS.VIEW_TEACHERS                          },
+      { key: 'evaluations',      icon: AlertTriangle, label: 'Dánh giá nội bộ',    path: '/admin', hash: 'evaluations',         permission: PERMISSIONS.VIEW_EVALUATIONS },
       { key: 'finance',          icon: DollarSign,    label: 'Tài chính',           path: '/admin', hash: 'finance',             permission: PERMISSIONS.MANAGE_FINANCE   },
       { key: 'training',         icon: BookOpen,      label: 'Đào tạo GV',          path: '/admin', hash: 'training',            permission: PERMISSIONS.MANAGE_TRAINING  },
       { key: 'student-training', icon: BookOpen,      label: 'Đào tạo HV',          path: '/admin', hash: 'student-training',    permission: PERMISSIONS.MANAGE_TRAINING  },
@@ -78,8 +78,8 @@ const MENU_CONFIG = {
     bottomItems: [
       { key: 'logout', icon: LogOut, label: 'Đăng xuất', isLogout: true },
     ],
-    accentColor: 'bg-red-600',
-    activeClass: 'bg-red-600 text-white shadow-lg shadow-red-900/30',
+    accentColor: 'bg-indigo-600',
+    activeClass: 'bg-white/10 text-white shadow-xl backdrop-blur-lg border-r-[4px] border-white font-bold',
   },
 };
 

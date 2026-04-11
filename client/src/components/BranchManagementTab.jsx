@@ -14,12 +14,11 @@ import { useToast } from '../utils/toast';
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 function getToken() {
-  const keys = ['admin_user', 'staff_user', 'teacher_user'];
-  for (const key of keys) {
-    try {
-      const data = JSON.parse(localStorage.getItem(key) || '{}');
-      if (data.token) return data.token;
-    } catch {}
+  for (const role of ['admin','staff','teacher']) {
+    const directToken = localStorage.getItem(`${role}_access_token`);
+    if (directToken) return directToken;
+    const s = localStorage.getItem(`${role}_user`);
+    if (s) { try { const u = JSON.parse(s); if (u?.token) return u.token; } catch {} }
   }
   return '';
 }

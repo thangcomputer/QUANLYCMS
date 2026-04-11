@@ -1,79 +1,103 @@
-// ═══════════════════════════════════════════════════════════════════════════════
-// API Service — Kết nối Frontend ↔ Backend (v3.0)
-// ═══════════════════════════════════════════════════════════════════════════════
+// ─── API Service - Hệ thống CMS Thắng Tin Học ───────────────────────────────
 
-export const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-export const SOCKET_BASE = API_BASE.replace('/api', '');
+export const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000') + '/api';
+export const SOCKET_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000');
 
-// ── Token Management ──────────────────────────────────────────────────────────
+/**
+ * Xác định Role dựa trên dữ liệu đang có trong LocalStorage hoặc URL.
+ */
 export const getRolePrefix = (overrideRole = null) => {
   if (overrideRole) return overrideRole;
   if (typeof window === 'undefined') return 'thvp';
+  
   const path = window.location.pathname;
 
-  // Cho route /admin, phân biệt admin vs staff dựa trên session lưu trong localStorage
-  if (path.startsWith('/admin')) {
-    // Staff login lưu dưới staff_user, admin lưu dưới admin_user
-    // Ưu tiên: nếu có staff_user và không có admin_user → đây là staff
-    if (localStorage.getItem('staff_user') && !localStorage.getItem('admin_user')) return 'staff';
-    if (localStorage.getItem('admin_user')) return 'admin';
-    // Fallback: check staff trước
-    if (localStorage.getItem('staff_access_token')) return 'staff';
-    return 'admin';
+  // 1. Kiểm tra Token của từng vai trò (Dấu hiệu mạnh nhất)
+  const roles = ['admin', 'staff', 'teacher', 'student'];
+  for (const r of roles) {
+    if (localStorage.getItem(`${r}_access_token`)) return r;
+    
+    // Kiểm tra legacy user object
+    const uStr = localStorage.getItem(`${r}_user`);
+    if (uStr) {
+      try {
+        const u = JSON.parse(uStr);
+        if (u.token || u.accessToken) return r;
+      } catch(e) {}
+    }
   }
+
+  // 2. Fallback dựa trên URL
+  if (path.startsWith('/admin'))   return 'admin';
   if (path.startsWith('/teacher')) return 'teacher';
   if (path.startsWith('/student')) return 'student';
-  
-  // Fallback: tìm session nào đang tồn tại
-  if (localStorage.getItem('admin_user')) return 'admin';
-  if (localStorage.getItem('staff_user')) return 'staff';
-  if (localStorage.getItem('teacher_user')) return 'teacher';
-  if (localStorage.getItem('student_user')) return 'student';
-  
+
   return 'thvp';
 };
 
-const getAccessToken = (role) => {
+/**
+ * Lấy Access Token từ LocalStorage.
+ */
+export const getAccessToken = (role = null) => {
   const prefix = getRolePrefix(role);
-  // Ưu tiên key cũ (prefix_access_token)
   const directToken = localStorage.getItem(`${prefix}_access_token`);
   if (directToken) return directToken;
-  // Fallback: đọc từ session object (format mới: role_user.token)
+
+  // Fallback: đọc từ object session user
   try {
     const session = JSON.parse(localStorage.getItem(`${prefix}_user`) || 'null');
-    if (session?.token) return session.token;
-  } catch {}
-  return null;
-};
-const getRefreshToken = (role) => {
-  const prefix = getRolePrefix(role);
-  const directToken = localStorage.getItem(`${prefix}_refresh_token`);
-  if (directToken) return directToken;
-  try {
-    const session = JSON.parse(localStorage.getItem(`${prefix}_user`) || 'null');
-    if (session?.refreshToken) return session.refreshToken;
-  } catch {}
-  return null;
+    return session?.token || session?.accessToken || null;
+  } catch {
+    return null;
+  }
 };
 
+/**
+ * Lưu trữ Token một cách tường minh vào LocalStorage.
+ */
 export const setTokens = (access, refresh, role) => {
-  const prefix = getRolePrefix(role);
+  if (!role) return;
+  const prefix = role.toLowerCase();
+  
   if (access)  localStorage.setItem(`${prefix}_access_token`, access);
   else         localStorage.removeItem(`${prefix}_access_token`);
+  
   if (refresh) localStorage.setItem(`${prefix}_refresh_token`, refresh);
   else         localStorage.removeItem(`${prefix}_refresh_token`);
 };
 
+/**
+ * Xóa sạch thông tin phiên đăng nhập của Role.
+ */
 export const clearTokens = (role) => {
-  const prefix = getRolePrefix(role);
+  if (!role) return;
+  const prefix = role.toLowerCase();
   localStorage.removeItem(`${prefix}_access_token`);
   localStorage.removeItem(`${prefix}_refresh_token`);
   localStorage.removeItem(`${prefix}_user`);
 };
 
-// ── Core Fetch Helper ─────────────────────────────────────────────────────────
+/**
+ * Lấy thông tin Refresh Token.
+ */
+export const getRefreshToken = (role = null) => {
+  const prefix = getRolePrefix(role);
+  const directToken = localStorage.getItem(`${prefix}_refresh_token`);
+  if (directToken) return directToken;
+  
+  try {
+    const session = JSON.parse(localStorage.getItem(`${prefix}_user`) || 'null');
+    return session?.refreshToken || null;
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * CORE FETCH HELPER: Tự động đính kèm Auth Header và xử lý lỗi hệ thống.
+ */
 export const apiFetch = async (endpoint, options = {}) => {
-  const url     = `${API_BASE}${endpoint}`;
+  const url     = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
   const headers = { 'Content-Type': 'application/json', ...options.headers };
 
   const activeToken = getAccessToken();
@@ -84,162 +108,71 @@ export const apiFetch = async (endpoint, options = {}) => {
   try {
     const res = await fetch(url, { ...options, headers });
 
-    // ⭐ Fix 1: Detect concurrent login / token revoked BEFORE trying refresh
+    // Xử lý khi Token hết hạn (401)
     if (res.status === 401 && !options.skipAuth) {
       const cloned = res.clone();
       try {
         const errBody = await cloned.json();
-        if (errBody.code === 'TOKEN_VERSION_MISMATCH') {
-          // Tài khoản đăng nhập ở thiết bị khác → văng ra login
-          localStorage.clear();
-          sessionStorage.clear();
-          alert('⚠️ Tài khoản đã đăng nhập ở thiết bị khác. Phiên này bị vô hiệu.');
-          window.location.href = '/login';
-          return res; // won't reach
+        if (errBody.code === 'TOKEN_VERSION_MISMATCH' || errBody.code === 'UNAUTHORIZED') {
+          const prefix = getRolePrefix();
+          clearTokens(prefix);
+          // Redirect về trang login tương ứng
+          window.location.href = prefix === 'admin' || prefix === 'staff' ? '/admin/login' : '/login';
         }
-        if (errBody.code === 'TOKEN_REVOKED') {
-          localStorage.clear();
-          sessionStorage.clear();
-          window.location.href = '/login';
-          return res;
-        }
-      } catch { /* body parse failed, continue with normal flow */ }
-    }
-
-    // Token expired — try silent refresh (Fix 4: đã có sẵn)
-    if (res.status === 401 && getRefreshToken() && !options._retried) {
-      const refreshed = await refreshAccessToken();
-      if (refreshed) {
-        headers['Authorization'] = `Bearer ${getAccessToken()}`;
-        return fetch(url, { ...options, headers, _retried: true });
+      } catch (e) {
+        // Fallback: Nếu 401 mà không có body JSON, cũng coi như phiên hết hạn
+        const prefix = getRolePrefix();
+        clearTokens(prefix);
+        window.location.href = prefix === 'admin' || prefix === 'staff' ? '/admin/login' : '/login';
       }
-    }
-
-    if (res.status === 401 && !options.skipAuth) {
-      const error = new Error('Unauthorized');
-      error.status = 401;
-      throw error;
     }
 
     return res;
   } catch (err) {
-    if (err.status !== 401 || options.skipAuth) {
-      console.error(`[API] ${options.method || 'GET'} ${endpoint} failed:`, err);
-    }
+    console.error('FETCH_EXCEPTION:', err);
     throw err;
   }
 };
 
-const refreshAccessToken = async () => {
-  try {
-    const res = await fetch(`${API_BASE}/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refreshToken: getRefreshToken() }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setTokens(data.data.accessToken, data.data.refreshToken);
-      return true;
-    }
-    clearTokens();
-    return false;
-  } catch {
-    clearTokens();
-    return false;
-  }
-};
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// AUTH API
-// ═══════════════════════════════════════════════════════════════════════════════
-
+// ─── AUTH API ───────────────────────────────────────────────────────────────
 export const authAPI = {
-  login: async (phone, password, role = 'teacher') => {
+  login: async (identifier, password) => {
     const res = await apiFetch('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ phone, password, role }),
-      skipAuth: true,
+      body: JSON.stringify({ identifier, password }),
+      skipAuth: true
     });
-    if (!res.ok) {
-       const errData = await res.json().catch(() => ({}));
-       return { success: false, message: errData.message || 'Sai tài khoản hoặc mật khẩu', isBan: errData.isBan };
-    }
-    const data = await res.json();
-    if (data.success && data.data) {
-      const actualRole = data.data.user?.role || data.data.role || role;
-      setTokens(data.data.accessToken, data.data.refreshToken, actualRole);
-    }
-    return data;
+    return res.json();
   },
-
-  registerTeacher: async (formData) => {
-    const res = await apiFetch('/auth/register-teacher', {
-      method: 'POST',
-      body: JSON.stringify(formData),
-      skipAuth: true,
-    });
+  
+  me: async () => {
+    const res = await apiFetch('/auth/me');
     return res.json();
   },
 
   logout: async () => {
-    const prefix = getRolePrefix();
-    const session = JSON.parse(localStorage.getItem(`${prefix}_user`) || '{}');
-    try {
-      await apiFetch('/auth/logout', {
-        method: 'POST',
-        body: JSON.stringify({ userId: session.id, role: session.role }),
-      });
-    } catch { /* ignore */ }
-    clearTokens();
-  },
-
-  // Verify token on mount — khôi phục session sau reload
-  me: async () => {
-    const res = await apiFetch('/auth/me');
-    if (!res.ok) return { success: false };
-    return res.json();
-  },
-
-  changePassword: async (userId, role, oldPassword, newPassword) => {
-    const res = await apiFetch('/auth/change-password', {
-      method: 'POST',
-      body: JSON.stringify({ userId, role, oldPassword, newPassword }),
-    });
-    return res.json();
-  },
+    const role = getRolePrefix();
+    const res = await apiFetch('/auth/logout', { method: 'POST' });
+    clearTokens(role);
+    return res;
+  }
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// STUDENTS API
-// ═══════════════════════════════════════════════════════════════════════════════
-
+// ─── STUDENT API ────────────────────────────────────────────────────────────
 export const studentsAPI = {
   getAll: async (params = {}) => {
     const q = new URLSearchParams(params).toString();
     const res = await apiFetch(`/students${q ? `?${q}` : ''}`);
     return res.json();
   },
-
-  payTeacher: async (id, action) => {
-    const res = await apiFetch(`/students/${id}/pay-teacher`, {
-      method: 'PUT',
-      body: JSON.stringify({ action }),
-    });
-    return res.json();
-  },
-
-  getStats: async (params = {}) => {
-    const q = new URLSearchParams(params).toString();
-    const res = await apiFetch(`/students/stats${q ? `?${q}` : ''}`);
-    return res.json();
-  },
-
   getById: async (id) => {
     const res = await apiFetch(`/students/${id}`);
     return res.json();
   },
-
+  getFullDetail: async (id) => {
+    const res = await apiFetch(`/students/${id}/full-detail`);
+    return res.json();
+  },
   create: async (student) => {
     const res = await apiFetch('/students', {
       method: 'POST',
@@ -247,7 +180,13 @@ export const studentsAPI = {
     });
     return res.json();
   },
-
+  importBulk: async (students) => {
+    const res = await apiFetch('/students/import', {
+      method: 'POST',
+      body: JSON.stringify({ students }),
+    });
+    return res.json();
+  },
   update: async (id, updates) => {
     const res = await apiFetch(`/students/${id}`, {
       method: 'PUT',
@@ -255,101 +194,42 @@ export const studentsAPI = {
     });
     return res.json();
   },
-
-  delete: async (id) => {
+  remove: async (id) => {
     const res = await apiFetch(`/students/${id}`, { method: 'DELETE' });
     return res.json();
   },
-
-  // Workflow 4: Xác nhận thu học phí → tự động tạo hóa đơn
-  pay: async (id, paymentMethod = 'transfer', note = '') => {
-    const res = await apiFetch(`/students/${id}/pay`, {
-      method: 'PUT',
-      body: JSON.stringify({ paymentMethod, note }),
+  payTeacher: async (studentId, action) => {
+    const res = await apiFetch(`/students/${studentId}/pay-teacher`, {
+      method: 'POST',
+      body: JSON.stringify({ action }),
     });
     return res.json();
   },
-
-  // Workflow 2: Mở khóa phòng thi thủ công (Admin)
-  unlockExam: async (id) => {
-    const res = await apiFetch(`/students/${id}/unlock-exam`, { method: 'PUT' });
-    return res.json();
-  },
-
-  // Workflow 2: Khóa phòng thi (vi phạm)
-  lockExam: async (id, reason = '') => {
-    const res = await apiFetch(`/students/${id}/lock-exam`, {
-      method: 'PUT',
-      body: JSON.stringify({ reason }),
-    });
-    return res.json();
-  },
-
-  // Gán giảng viên
-  assignTeacher: async (studentId, teacherId) => {
-    const res = await apiFetch(`/students/${studentId}/assign-teacher`, {
-      method: 'PUT',
-      body: JSON.stringify({ teacherId }),
-    });
+  getStats: async (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    const res = await apiFetch(`/students/stats${q ? `?${q}` : ''}`);
     return res.json();
   },
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// TEACHERS API
-// ═══════════════════════════════════════════════════════════════════════════════
-
+// ─── TEACHER API ────────────────────────────────────────────────────────────
 export const teachersAPI = {
   getAll: async (params = {}) => {
     const q = new URLSearchParams(params).toString();
     const res = await apiFetch(`/teachers${q ? `?${q}` : ''}`);
     return res.json();
   },
-
-  getStats: async () => {
-    const res = await apiFetch('/teachers/stats/summary');
-    return res.json();
-  },
-
-  getById: async (id) => {
-    const res = await apiFetch(`/teachers/${id}`);
-    return res.json();
-  },
-
-  // Admin tạo giảng viên mới trực tiếp
-  create: async (teacher) => {
-    const res = await apiFetch('/teachers', {
-      method: 'POST',
-      body: JSON.stringify(teacher),
-    });
-    return res.json();
-  },
-
-  getFinance: async (id) => {
-    const res = await apiFetch(`/teachers/${id}/finance`);
-    return res.json();
-  },
-
-  // Lấy số buổi còn nợ + thông tin ngân hàng (cho modal Step 1)
   getPendingSessions: async (id) => {
-    const res = await apiFetch(`/teachers/${id}/finance/pending`);
+    const res = await apiFetch(`/teachers/${id}/pending-sessions`);
     return res.json();
   },
-
-  payAllFinance: async (id) => {
-    const res = await apiFetch(`/teachers/${id}/finance/pay-all`, { method: 'PUT' });
-    return res.json();
-  },
-
-  // Thanh toán linh hoạt: Admin tự nhập số buổi + số tiền (FIFO)
-  payFlexible: async (id, sessionsCount, amount, note) => {
-    const res = await apiFetch(`/teachers/${id}/finance/pay-flexible`, {
-      method: 'PUT',
-      body: JSON.stringify({ sessionsCount, amount, note }),
+  payFlexible: async (teacherId, sessions, amount, note) => {
+    const res = await apiFetch(`/teachers/${teacherId}/pay-flexible`, {
+      method: 'POST',
+      body: JSON.stringify({ sessions, amount, note }),
     });
     return res.json();
   },
-
   update: async (id, updates) => {
     const res = await apiFetch(`/teachers/${id}`, {
       method: 'PUT',
@@ -357,89 +237,21 @@ export const teachersAPI = {
     });
     return res.json();
   },
-
-  delete: async (id) => {
-    const res = await apiFetch(`/teachers/${id}`, { method: 'DELETE' });
-    return res.json();
-  },
-
-  // Workflow 1: Admin nhập điểm onboarding test
-  submitScore: async (id, testScore, testNotes = '') => {
-    const res = await apiFetch(`/teachers/${id}/score`, {
-      method: 'PUT',
-      body: JSON.stringify({ testScore, testNotes }),
-    });
-    return res.json();
-  },
-
-  // Workflow 1: Phê duyệt (chỉ khi score >= 80)
-  approve: async (id) => {
-    const res = await apiFetch(`/teachers/${id}/approve`, { method: 'PUT' });
-    return res.json();
-  },
-
-  reject: async (id, reason) => {
-    const res = await apiFetch(`/teachers/${id}/reject`, {
-      method: 'PUT',
-      body: JSON.stringify({ reason }),
-    });
-    return res.json();
-  },
-
-  // Workflow 1: Giảng viên nộp file thực hành
-  submitPractical: async (id, fileUrl) => {
-    const res = await apiFetch(`/teachers/${id}/submit-practical`, {
-      method: 'POST',
-      body: JSON.stringify({ fileUrl }),
-    });
-    return res.json();
-  },
 };
 
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// INVOICES API
-// ═══════════════════════════════════════════════════════════════════════════════
-
+// ─── FINANCE / INVOICES API ─────────────────────────────────────────────────
 export const invoicesAPI = {
   getAll: async (params = {}) => {
     const q = new URLSearchParams(params).toString();
     const res = await apiFetch(`/invoices${q ? `?${q}` : ''}`);
     return res.json();
   },
-
-  getStats: async () => {
-    const res = await apiFetch('/invoices/stats');
+  getStats: async (params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    const res = await apiFetch(`/invoices/stats${q ? `?${q}` : ''}`);
     return res.json();
-  },
-
-  getById: async (id) => {
-    const res = await apiFetch(`/invoices/${id}`);
-    return res.json();
-  },
-
-  create: async (invoice) => {
-    const res = await apiFetch('/invoices', {
-      method: 'POST',
-      body: JSON.stringify(invoice),
-    });
-    return res.json();
-  },
-
-  delete: async (id) => {
-    const res = await apiFetch(`/invoices/${id}`, { method: 'DELETE' });
-    return res.json();
-  },
-
-  exportPdf: async (id) => {
-    const res = await apiFetch(`/invoices/${id}/pdf`);
-    return res.blob();
   },
 };
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// TRANSACTIONS API (Workflow 4 — Lương Giảng Viên)
-// ═══════════════════════════════════════════════════════════════════════════════
 
 export const transactionsAPI = {
   getAll: async (params = {}) => {
@@ -447,243 +259,52 @@ export const transactionsAPI = {
     const res = await apiFetch(`/transactions${q ? `?${q}` : ''}`);
     return res.json();
   },
-
-  getStats: async () => {
-    const res = await apiFetch('/transactions/stats');
-    return res.json();
-  },
-
-  getByTeacher: async (teacherId) => {
-    const res = await apiFetch(`/transactions/teacher/${teacherId}`);
-    return res.json();
-  },
-
-  // Tính lương tự động theo buổi dạy
-  calculate: async (teacherId, month) => {
-    const res = await apiFetch('/transactions/calculate', {
-      method: 'POST',
-      body: JSON.stringify({ teacherId, month }),
-    });
-    return res.json();
-  },
-
-  // Admin tạo phiếu chi
-  create: async (data) => {
-    const res = await apiFetch('/transactions', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    return res.json();
-  },
-
-  // Admin xác nhận đã trả lương
-  confirm: async (id, confirmedBy = 'Admin') => {
-    const res = await apiFetch(`/transactions/${id}/confirm`, {
-      method: 'PUT',
-      body: JSON.stringify({ confirmedBy }),
-    });
-    return res.json();
-  },
-
-  cancel: async (id) => {
-    const res = await apiFetch(`/transactions/${id}/cancel`, { method: 'PUT' });
-    return res.json();
-  },
-
-  delete: async (id) => {
-    const res = await apiFetch(`/transactions/${id}`, { method: 'DELETE' });
-    return res.json();
-  },
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MESSAGES API
-// ═══════════════════════════════════════════════════════════════════════════════
-
+// ─── MESSAGE API ────────────────────────────────────────────────────────────
 export const messagesAPI = {
-  getConversations: async (userId) => {
-    const res = await apiFetch(`/messages/conversations/${userId}`);
+  getGroups: async () => {
+    const res = await apiFetch('/messages/groups');
     return res.json();
   },
-
-  getMessages: async (conversationId) => {
-    const res = await apiFetch(`/messages/${conversationId}`);
-    return res.json();
-  },
-
-  syncByUser: async (userId) => {
-    const res = await apiFetch(`/messages/sync/${userId}`);
-    return res.json();
-  },
-
-  send: async (message) => {
-    const res = await apiFetch('/messages', {
-      method: 'POST',
-      body: JSON.stringify(message),
-    });
-    return res.json();
-  },
-
-  markRead: async (conversationId, readerId) => {
-    const res = await apiFetch(`/messages/read/${conversationId}`, {
-      method: 'PUT',
-      body: JSON.stringify({ readerId }),
-    });
-    return res.json();
-  },
-
-  toggleReaction: async (messageId, type) => {
-    const res = await apiFetch(`/messages/${messageId}/reaction`, {
-      method: 'PATCH',
-      body: JSON.stringify({ type }),
-    });
-    return res.json();
-  },
-
-  recall: async (messageId) => {
-    const res = await apiFetch(`/messages/${messageId}/recall`, {
-      method: 'PATCH',
-    });
-    return res.json();
-  },
-
-  softDelete: async (messageId) => {
-    const res = await apiFetch(`/messages/${messageId}/soft-delete`, {
-      method: 'PATCH',
-    });
-    return res.json();
-  },
-
-  createGroup: async (name, participants) => {
-    const res = await apiFetch('/messages/groups', {
-      method: 'POST',
-      body: JSON.stringify({ name, participants }),
-    });
-    return res.json();
-  },
-
-  getContacts: async () => {
-    const res = await apiFetch('/messages/contacts');
-    return res.json();
-  },
-
-  getHiddenConversations: async () => {
-    const res = await apiFetch('/messages/hidden');
-    return res.json();
-  },
-
-  hideConversation: async (conversationId) => {
-    const res = await apiFetch(`/messages/hide/${conversationId}`, {
-      method: 'POST',
-    });
-    return res.json();
-  },
-  
-  getGroups: async (userId) => {
-    const res = await apiFetch(`/messages/groups/user/${userId}`);
-    return res.json();
-  },
-
-  deleteGroup: async (groupId) => {
-    const res = await apiFetch(`/messages/groups/${groupId}`, {
-      method: 'DELETE',
-    });
+  getHistory: async (groupId) => {
+    const res = await apiFetch(`/messages/history/${groupId}`);
     return res.json();
   },
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// SCHEDULES API (Workflow 2 — Lịch học & Unlock Thi)
-// ═══════════════════════════════════════════════════════════════════════════════
-
+// ─── SCHEDULE API ───────────────────────────────────────────────────────────
 export const schedulesAPI = {
   getAll: async (params = {}) => {
     const q = new URLSearchParams(params).toString();
     const res = await apiFetch(`/schedules${q ? `?${q}` : ''}`);
     return res.json();
   },
-
-  getStats: async () => {
-    const res = await apiFetch('/schedules/stats');
-    return res.json();
-  },
-
-  getByTeacher: async (teacherId, params = {}) => {
+  getStats: async (params = {}) => {
     const q = new URLSearchParams(params).toString();
-    const res = await apiFetch(`/schedules/teacher/${teacherId}${q ? `?${q}` : ''}`);
-    return res.json();
-  },
-
-  getByStudent: async (studentId) => {
-    const res = await apiFetch(`/schedules/student/${studentId}`);
-    return res.json();
-  },
-
-  create: async (schedule) => {
-    const res = await apiFetch('/schedules', {
-      method: 'POST',
-      body: JSON.stringify(schedule),
-    });
-    return res.json();
-  },
-
-  // Cập nhật lịch (hoàn thành → tự động unlock thi nếu đủ buổi)
-  update: async (id, updates) => {
-    const res = await apiFetch(`/schedules/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(updates),
-    });
-    return res.json();
-  },
-
-  delete: async (id) => {
-    const res = await apiFetch(`/schedules/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`/schedules/stats${q ? `?${q}` : ''}`);
     return res.json();
   },
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// EVALUATIONS API (Workflow 5)
-// ═══════════════════════════════════════════════════════════════════════════════
-
+// ─── EVALUATION API ─────────────────────────────────────────────────────────
 export const evaluationsAPI = {
-  getAdminFeedbacks: async () => {
-    const res = await apiFetch('/evaluations/admin');
+  getPrivate: async () => {
+    const res = await apiFetch('/evaluations/private');
     return res.json();
   },
-
-  getByTeacher: async (teacherId) => {
-    const res = await apiFetch(`/evaluations/teacher/${teacherId}`);
-    return res.json();
-  },
-
-  submit: async (data) => {
-    const res = await apiFetch('/evaluations', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
+  markRead: async (id) => {
+    const res = await apiFetch(`/evaluations/${id}/read`, { method: 'POST' });
     return res.json();
   },
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ASSIGNMENTS API (Workflow 3)
-// ═══════════════════════════════════════════════════════════════════════════════
-
+// ─── ASSIGNMENT API ─────────────────────────────────────────────────────────
 export const assignmentsAPI = {
   getByCourse: async (courseId) => {
     const res = await apiFetch(`/assignments/course/${courseId}`);
     return res.json();
   },
-
-  create: async (data) => {
-    const res = await apiFetch('/assignments', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-    return res.json();
-  },
-
   submit: async (assignmentId, data) => {
     const res = await apiFetch(`/assignments/${assignmentId}/submit`, {
       method: 'POST',
@@ -691,21 +312,9 @@ export const assignmentsAPI = {
     });
     return res.json();
   },
-
-  grade: async (submissionId, grade, teacherFeedback) => {
-    const res = await apiFetch(`/assignments/submissions/${submissionId}/grade`, {
-      method: 'PUT',
-      body: JSON.stringify({ grade, teacherFeedback }),
-    });
-    return res.json();
-  },
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════════════════════════════
-// EXAM RESULTS API — Kết quả thi HV & GV
-// ═══════════════════════════════════════════════════════════════════════════════
-
+// ─── EXAM RESULTS API ───────────────────────────────────────────────────────
 export const examResultsAPI = {
   getAll: async (type = '') => {
     const q = type ? `?type=${type}` : '';
@@ -713,65 +322,9 @@ export const examResultsAPI = {
     const data = await res.json();
     return data.data || [];
   },
-  create: async (payload) => {
-    const res = await apiFetch('/exam-results', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    return data.data;
-  },
-  update: async (id, payload) => {
-    const res = await apiFetch(`/exam-results/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    return data.data;
-  },
-  remove: async (id) => {
-    await apiFetch(`/exam-results/${id}`, { method: 'DELETE' });
-  },
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// HEALTH CHECK
-// ═══════════════════════════════════════════════════════════════════════════════
-
-export const checkAPIHealth = async () => {
-  try {
-    const res  = await fetch(`${API_BASE.replace('/api', '')}/`);
-    const data = await res.json();
-    return { online: true, ...data };
-  } catch {
-    return { online: false };
-  }
-};
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// DEFAULT EXPORT
-// ═══════════════════════════════════════════════════════════════════════════════
-
-export const systemLogsAPI = {
-  getAll: async (page = 1, limit = 50) => {
-    const res = await apiFetch(`/system-logs?page=${page}&limit=${limit}`);
-    const data = await res.json();
-    if (!data.success) throw new Error(data.message);
-    return data;
-  }
-};
-
-export const trainingAPI = {
-  getAll: async (params = {}) => {
-    const q = new URLSearchParams(params).toString();
-    const res = await apiFetch(`/training${q ? `?${q}` : ''}`);
-    return res.json();
-  }
-};
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// SETTINGS API
-// ═══════════════════════════════════════════════════════════════════════════════
+// ─── SETTINGS API ───────────────────────────────────────────────────────────
 export const settingsAPI = {
   getAll: async () => {
     const res = await apiFetch('/settings');
@@ -784,32 +337,40 @@ export const settingsAPI = {
     });
     return res.json();
   },
-  uploadPopupImage: async (file) => {
-    const token = (() => {
-      try {
-        const keys = ['admin_user','teacher_user','student_user'];
-        for (const k of keys) {
-          const d = JSON.parse(localStorage.getItem(k) || 'null');
-          if (d?.token) return d.token;
-        }
-      } catch {}
-      return null;
-    })();
-    const form = new FormData();
-    form.append('image', file);
-    const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/settings/upload-popup-image`, {
+  resetData: async (data) => {
+    const res = await apiFetch('/settings/reset-data', {
       method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: form,
+      body: JSON.stringify(data),
     });
     return res.json();
   },
-  getPopup: async () => {
-    const res = await apiFetch('/settings/popup');
+  uploadLogo: async (file) => {
+    const fd = new FormData();
+    fd.append('logo', file);
+    const res = await fetch(`${API_BASE}/settings/upload-logo`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getAccessToken()}` },
+      body: fd,
+    });
     return res.json();
   },
-  getPayment: async () => {
-    const res = await apiFetch('/settings/payment');
+  uploadPopupImage: async (file) => {
+    const fd = new FormData();
+    fd.append('image', file);
+    const res = await fetch(`${API_BASE}/settings/upload-popup-image`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getAccessToken()}` },
+      body: fd,
+    });
+    return res.json();
+  },
+};
+
+
+// ─── SYSTEM LOGS API ────────────────────────────────────────────────────────
+export const systemLogsAPI = {
+  getAll: async (page = 1, limit = 50) => {
+    const res = await apiFetch(`/system-logs?page=${page}&limit=${limit}`);
     return res.json();
   },
 };
@@ -825,8 +386,6 @@ export default {
   evaluations:  evaluationsAPI,
   assignments:  assignmentsAPI,
   examResults:  examResultsAPI,
-  systemLogs:   systemLogsAPI,
-  training:     trainingAPI,
   settings:     settingsAPI,
-  checkHealth:  checkAPIHealth,
+  systemLogs:   systemLogsAPI,
 };

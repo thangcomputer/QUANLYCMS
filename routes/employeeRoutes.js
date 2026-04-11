@@ -65,7 +65,7 @@ router.get('/stats', [authMiddleware, isAdmin, branchFilter], async (req, res) =
 // ─── POST /api/employees ────────────────────────────────────────────────────────
 router.post('/', [authMiddleware, isAdmin, branchFilter], async (req, res) => {
   try {
-    const { name, phone, position, baseSalary, startDate, note, branchId, branchCode, linkedTeacherId } = req.body;
+    const { name, phone, position, baseSalary, startDate, note, branchId, branchCode, linkedTeacherId, bankAccount } = req.body;
     if (!name) return res.status(400).json({ success: false, message: 'Tên nhân viên là bắt buộc' });
 
     // STAFF: auto-assign branch
@@ -81,6 +81,7 @@ router.post('/', [authMiddleware, isAdmin, branchFilter], async (req, res) => {
       branchId: finalBranchId,
       branchCode: finalBranchCode,
       linkedTeacherId: linkedTeacherId || null,
+      bankAccount: bankAccount || { bankCode: '', accountNumber: '', accountName: '' }
     });
 
     res.status(201).json({ success: true, data: employee });

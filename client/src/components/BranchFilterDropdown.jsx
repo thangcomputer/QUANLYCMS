@@ -29,12 +29,22 @@ const BRANCH_VISIBLE_HASHES = [
 // → Mọi hash KHÔNG nằm trong BRANCH_VISIBLE_HASHES sẽ tự động ẩn.
 
 export default function BranchFilterDropdown() {
-  const { selectedBranchId, selectedBranchName, branches, setSelectedBranch, isSuperAdmin, isLoadingBranches } = useBranch();
+  const { selectedBranchId, selectedBranchName, branches, setSelectedBranch, isSuperAdmin, isStaff, isLoadingBranches } = useBranch();
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const location = useLocation();
 
-  // Chỉ hiện cho SUPER_ADMIN
+  // 🏥 ARCHITECTURAL UPGRADE: Staff thấy badge readonly, Super Admin thấy dropdown
+  if (isStaff) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-xl text-blue-700 shadow-sm animate-in fade-in slide-in-from-right-2 duration-300">
+        <Building2 size={14} className="text-blue-500" />
+        <span className="text-xs font-black tracking-wide uppercase">{selectedBranchName}</span>
+        <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse" />
+      </div>
+    );
+  }
+
   if (!isSuperAdmin) return null;
 
   // ── Xác định route hiện tại để ẩn/hiện ──
