@@ -9,6 +9,7 @@ import {
   CreditCard, Landmark, Copy, Edit3, Shield
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import TeacherAssignmentsView from './TeacherAssignmentsView';
 import { useData } from '../context/DataContext';
 import { useSocket } from '../context/SocketContext';
 import api, { teachersAPI } from '../services/api';
@@ -1146,7 +1147,7 @@ const TeacherProfileSection = ({ teacherId, currentTeacher }) => {
           </h3>
         </div>
         <div className="p-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               {
                 label: 'Trạng thái',
@@ -1469,6 +1470,12 @@ const TeacherDashboard = ({ onNavigate }) => {
             <MonthlyCalendar schedules={mySchedules} onEditSchedule={startEditSchedule} />
           </div>
 
+        ) : currentHash === 'assignments' ? (
+          /* ═══ BÀI TẬP / THỰC HÀNH ═══ */
+          <div className="px-4 md:px-8 py-6 md:py-8">
+            <TeacherAssignmentsView teacherId={TEACHER_ID} myStudents={students} />
+          </div>
+
         ) : currentHash === 'profile' ? (
           /* ═══ HỒ SƠ CÁ NHÂN ═══ */
           <TeacherProfileSection teacherId={TEACHER_ID} currentTeacher={currentTeacher} />
@@ -1477,7 +1484,7 @@ const TeacherDashboard = ({ onNavigate }) => {
           /* ═══ TỔNG QUAN ═══ */
           <div className="px-4 md:px-8 py-6 md:py-8 space-y-6 md:space-y-8">
             {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
                 { icon: Users, label: 'Học viên', value: students.length, sub: 'trong lớp', color: 'from-blue-500 to-blue-600' },
                 { icon: BookOpen, label: 'Buổi đã dạy', value: totalDone, sub: `/ ${totalSess} buổi`, color: 'from-purple-500 to-purple-600' },

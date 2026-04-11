@@ -1,12 +1,13 @@
 const mongoose = require('mongoose');
 
 const SubmissionSchema = new mongoose.Schema({
-  assignment_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Assignment', required: true },
-  student_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
-  submitted_file_url: { type: String, required: true },
-  status: { type: String, enum: ['ON_TIME', 'LATE', 'MISSING'], default: 'ON_TIME' },
+  assignmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Assignment', required: true },
+  studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
+  teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', required: false },
+  submittedFileUrl: { type: String, required: true },
+  status: { type: String, enum: ['submitted', 'late', 'graded'], default: 'submitted' },
   grade: { type: Number, min: 0, max: 10, default: null },
-  teacher_feedback: { type: String, default: '' }
+  teacherFeedback: { type: String, default: '' }
 }, {
   timestamps: true
 });

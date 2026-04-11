@@ -10,6 +10,8 @@ import ClassReminder from './ClassReminder';
 import { useData } from '../context/DataContext';
 import PopupBanner from './PopupBanner';
 import TuitionPaymentModal from './TuitionPaymentModal';
+import StudentProfileUpdateModal from './StudentProfileUpdateModal';
+import api from '../services/api';
 
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
@@ -828,6 +830,23 @@ const StudentDashboard = ({ onNavigate }) => {
   const [uploadDone, setUploadDone] = useState(false);
   const fileRef = useRef(null);
   const [showTuitionModal, setShowTuitionModal] = useState(false);
+  const [showUpdateProfileModal, setShowUpdateProfileModal] = useState(false);
+
+  // ─── Assignments State ───
+  const [myAssignments, setMyAssignments] = useState([]);
+  const [activeAssignment, setActiveAssignment] = useState(null);
+  const [submissionLink, setSubmissionLink] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (studentData && studentData.course) {
+      api.assignments.getByStudentAndCourse(STUDENT_ID, studentData.course)
+        .then(res => {
+          if (res.success) setMyAssignments(res.data);
+        })
+        .catch(console.error);
+    }
+  }, [studentData?.course, STUDENT_ID]);
 
   // Hash-based section
   const currentHash = location.hash?.replace('#', '') || '';
@@ -895,6 +914,67 @@ const StudentDashboard = ({ onNavigate }) => {
         />
       )}
 
+      {/* Modal cập nhật hồ sơ cá nhân */}
+      {showUpdateProfileModal && (
+        <StudentProfileUpdateModal
+          student={studentData}
+          onClose={() => setShowUpdateProfileModal(false)}
+        />
+      )}
+
+      {/* Modal Nộp bài tập */}
+      {activeAssignment && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+              <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                <FileUp size={20} className="text-blue-600" /> Nộp bài tập
+              </h3>
+              <button onClick={() => setActiveAssignment(null)} className="text-slate-400 hover:text-red-500 transition-colors p-1 bg-white hover:bg-red-50 rounded-xl">
+                <XCircle size={24} />
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="mb-6">
+                <p className="text-xs text-slate-500 uppercase font-black tracking-widest mb-1">Tên bài tập</p>
+                <p className="font-bold text-slate-800 text-lg">{activeAssignment.title}</p>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Link bài làm (Google Drive, Dropbox...)</label>
+                  <input 
+                    type="url"
+                    placeholder="https://drive.google.com/..." 
+                    className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-4 py-3 outline-none transition-all placeholder:text-slate-300 font-medium"
+                    value={submissionLink}
+                    onChange={(e) => setSubmissionLink(e.target.value)}
+                  />
+                  <p className="text-[10px] text-slate-400 mt-2 italic">* Hãy chắc chắn bạn đã mở quyền truy cập (Anyone with the link) trước khi nộp.</p>
+                </div>
+                <button
+                  disabled={!submissionLink || isSubmitting}
+                  onClick={() => {
+                    setIsSubmitting(true);
+                    api.assignments.submit(activeAssignment._id, { studentId: STUDENT_ID, teacherId: studentData.teacherId, submittedFileUrl: submissionLink })
+                      .then(res => {
+                        setIsSubmitting(false);
+                        if (res.success) {
+                          setMyAssignments(prev => prev.map(a => a._id === activeAssignment._id ? { ...a, mySubmission: res.data } : a));
+                          setActiveAssignment(null);
+                          setSubmissionLink('');
+                        }
+                      }).catch(err => setIsSubmitting(false));
+                  }}
+                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-[0.98] mt-4"
+                >
+                  {isSubmitting ? 'Đang nộp...' : 'Xác nhận Nộp bài'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="min-w-0">
         {/* ClassReminder */}
         <ClassReminder
@@ -921,6 +1001,40 @@ const StudentDashboard = ({ onNavigate }) => {
               </span>
             </div>
             <ScheduleView schedules={mySchedules} student={studentData} />
+
+            {/* Nhật ký điểm danh & nhận xét */}
+            <div className="mt-8">
+              <div className="flex items-center gap-2 mb-4">
+                <FileText size={20} className="text-emerald-500" />
+                <h3 className="font-bold text-gray-800 text-lg">Nhật ký học tập & Điểm số</h3>
+              </div>
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                {studentData.grades && studentData.grades.length > 0 ? (
+                  <div className="divide-y divide-gray-100">
+                    {studentData.grades.map((g, idx) => (
+                      <div key={idx} className="p-4 hover:bg-gray-50 flex items-start justify-between transition-colors">
+                        <div>
+                          <p className="font-bold text-gray-800 flex items-center gap-2">
+                            {g.date}
+                            <span className="text-[10px] bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-full uppercase">Điểm danh</span>
+                          </p>
+                          <p className="text-sm text-gray-600 mt-1">{g.note}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className={`text-lg font-black ${g.grade >= 5 ? 'text-green-600' : 'text-red-500'}`}>
+                            {g.grade > 0 ? `${g.grade}/10` : '--'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-gray-400 text-sm">
+                    Chưa có dữ liệu điểm danh.
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
         ) : currentHash === 'materials' ? (
@@ -998,6 +1112,80 @@ const StudentDashboard = ({ onNavigate }) => {
               </div>
             </div>
 
+            {/* Bài tập cần làm (To-do) */}
+            {myAssignments && myAssignments.length > 0 && (
+              <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden mb-6">
+                <div className="px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-orange-50 to-white flex items-center justify-between">
+                  <h3 className="font-bold text-orange-800 flex items-center gap-2">
+                    <ClipboardList size={18} className="text-orange-500" /> Bài tập cần làm (To-do)
+                  </h3>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-orange-700 bg-orange-100 px-3 py-1.5 rounded-lg">
+                    {myAssignments.filter(a => !a.mySubmission || a.mySubmission.status !== 'graded').length} BÀI
+                  </span>
+                </div>
+                <div className="p-6">
+                  <div className="grid grid-cols-1 gap-4">
+                    {myAssignments.map(a => {
+                      const isSubmitted = a.mySubmission && a.mySubmission.status !== 'not_submitted';
+                      const isGraded = a.mySubmission?.status === 'graded';
+                      const deadline = new Date(a.deadline);
+                      const isLate = Date.now() > deadline.getTime();
+
+                      const daysRemaining = Math.max(0, Math.floor((deadline - Date.now()) / (1000 * 60 * 60 * 24)));
+                      const hoursRemaining = Math.max(0, Math.floor(((deadline - Date.now()) / (1000 * 60 * 60)) % 24));
+
+                      return (
+                        <div key={a._id} className="border border-slate-100 rounded-2xl p-4 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between hover:bg-slate-50 transition-colors">
+                          <div className="flex-1">
+                            <h4 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                              {a.title}
+                              {isGraded ? (
+                                <span className="bg-green-100 text-green-700 text-[10px] uppercase font-black px-2 py-0.5 rounded-full">Đã chấm: {a.mySubmission.grade}/10</span>
+                              ) : isSubmitted ? (
+                                <span className="bg-blue-100 text-blue-700 text-[10px] uppercase font-black px-2 py-0.5 rounded-full">Đã nộp</span>
+                              ) : isLate ? (
+                                <span className="bg-red-100 text-red-700 text-[10px] uppercase font-black px-2 py-0.5 rounded-full">Quá hạn</span>
+                              ) : (
+                                <span className="bg-orange-100 text-orange-700 text-[10px] uppercase font-black px-2 py-0.5 rounded-full">Chưa nộp</span>
+                              )}
+                            </h4>
+                            <p className="text-sm text-slate-500 mt-1">{a.description}</p>
+                            {!isSubmitted && !isLate && (
+                              <p className="text-xs text-orange-500 font-semibold flex items-center gap-1 mt-2">
+                                <Clock size={12} /> Hạn nộp: Còn {daysRemaining} ngày {hoursRemaining} giờ (tới {deadline.toLocaleDateString()})
+                              </p>
+                            )}
+                            {a.mySubmission?.teacherFeedback && (
+                              <div className="mt-3 p-3 bg-green-50/50 rounded-xl border border-green-100">
+                                <p className="text-xs text-green-700"><span className="font-bold">Nhận xét:</span> {a.mySubmission.teacherFeedback}</p>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                            {a.attachedFileUrl && (
+                              <a href={a.attachedFileUrl} target="_blank" rel="noreferrer" className="flex-1 md:flex-none flex justify-center items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors">
+                                <Download size={14} /> Tải đề bài
+                              </a>
+                            )}
+                            {!isGraded && (
+                              <button 
+                                onClick={() => setActiveAssignment(a)}
+                                className={`flex-1 md:flex-none flex justify-center items-center gap-2 px-4 py-2 font-bold rounded-xl text-xs transition-colors shadow-sm ${
+                                  isSubmitted ? 'bg-blue-50 text-blue-600 hover:bg-blue-100' : 'bg-blue-600 text-white hover:bg-blue-700'
+                                }`}>
+                                <FileUp size={14} /> {isSubmitted ? 'Nộp lại bài' : 'Nộp bài ngay'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Thông tin cá nhân */}
               <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden group">
@@ -1005,7 +1193,10 @@ const StudentDashboard = ({ onNavigate }) => {
                   <h3 className="font-bold text-teal-800 flex items-center gap-2">
                     <User size={18} className="text-teal-500" /> Thông tin cá nhân
                   </h3>
-                  <button className="text-[10px] font-black uppercase tracking-widest text-teal-700 bg-teal-100/50 hover:bg-teal-200 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                  <button 
+                    onClick={() => setShowUpdateProfileModal(true)}
+                    className="text-[10px] font-black uppercase tracking-widest text-teal-700 bg-teal-100/50 hover:bg-teal-200 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100"
+                  >
                     <Settings size={12} /> Cập nhật
                   </button>
                 </div>
@@ -1146,7 +1337,7 @@ const StudentDashboard = ({ onNavigate }) => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     {[
                       { label: 'Buổi đã học', value: studentData.completedSessions, color: 'text-blue-600 bg-blue-50' },
                       { label: 'Buổi còn lại', value: studentData.remainingSessions, color: 'text-purple-600 bg-purple-50' },
@@ -1215,7 +1406,7 @@ const StudentDashboard = ({ onNavigate }) => {
                   </div>
 
                   {/* Stats */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     <StatCard icon={BookOpen} label="Đã học" value={studentData.completedSessions} sub={`/ ${studentData.totalSessions}`} color="from-blue-500 to-blue-600" />
                     <StatCard icon={Clock} label="Còn lại" value={studentData.remainingSessions} sub="buổi" color="from-[#1E3A8A] to-[#203DB5]" />
                     <StatCard icon={Star} label="Điểm TB" value={studentData.avgGrade} sub="/ 10" color="from-orange-400 to-orange-500" />
@@ -1403,10 +1594,11 @@ const StudentDashboard = ({ onNavigate }) => {
 
                   {/* Contact */}
                   <div className="hidden lg:block space-y-3">
-                    <a href={`https://zalo.me/${studentData.teacherZalo}`} target="_blank" rel="noreferrer"
+                    <button 
+                      onClick={() => navigate('/student/inbox', { state: { selectUserId: studentData.teacherId } })}
                       className="w-full flex items-center justify-center gap-3 bg-white border-2 border-slate-100 p-4 rounded-2xl font-bold text-slate-600 hover:border-blue-400 hover:text-blue-600 transition group shadow-sm">
                       <MessageSquare className="group-hover:animate-bounce" size={18} /> Nhắn tin Giảng viên
-                    </a>
+                    </button>
                     <a href="tel:0935758462"
                       className="w-full flex items-center justify-center gap-3 bg-red-50 border-2 border-red-100 p-4 rounded-2xl font-bold text-red-600 hover:bg-red-100 transition shadow-sm text-sm">
                       <Phone size={16} /> Gọi Hotline hỗ trợ
@@ -1419,11 +1611,12 @@ const StudentDashboard = ({ onNavigate }) => {
         )}
       </div>
 
-      {/* FAB */}
-      <a href={`https://zalo.me/${studentData?.teacherZalo || '0935758462'}`} target="_blank" rel="noreferrer"
+      {/* FAB - Thay thay thế Zalo bằng liên kết nội bộ tới Hộp Thư */}
+      <button 
+        onClick={() => navigate('/student/inbox', { state: { selectUserId: studentData.teacherId } })}
         className="lg:hidden fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-full shadow-2xl z-50 active:scale-90 transition">
         <MessageSquare size={24} />
-      </a>
+      </button>
 
       {activeMilestone && (
         <MilestoneEvaluationModal

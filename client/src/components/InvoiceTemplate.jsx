@@ -85,6 +85,21 @@ const InvoiceTemplate = ({ data = {} }) => {
     isPaid = true
   } = data;
 
+  const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const [dynamicLogo, setDynamicLogo] = React.useState('');
+
+  React.useEffect(() => {
+    fetch(`${API}/api/settings/web`)
+      .then(r => r.json())
+      .then(res => {
+        if (res.success && res.data?.logoUrl) {
+          const url = res.data.logoUrl;
+          setDynamicLogo(url.startsWith('http') ? url : `${API}${url}`);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const d = new Date(date);
   const day = d.getDate();
   const month = d.getMonth() + 1;
@@ -118,9 +133,9 @@ const InvoiceTemplate = ({ data = {} }) => {
           {/* --- Logo bên trái (logo gốc từ thangcomputer.com) --- */}
           <div className="flex items-center">
             <img
-              src="/logo-thang-tin-hoc.svg"
+              src={dynamicLogo || "/logo-thang-tin-hoc.svg"}
               alt="Thắng Tin Học - Phát Triển Tri Thức Việt"
-              style={{ height: '18mm' }}
+              style={{ height: '18mm', objectFit: 'contain' }}
               crossOrigin="anonymous"
             />
           </div>

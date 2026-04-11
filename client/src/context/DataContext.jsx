@@ -253,13 +253,13 @@ export const DataProvider = ({ children, user, onLogout }) => {
       }
 
       if (isStudent) {
-        promises.push(api.students.getById(currentUser.id).catch(() => ({ success: false })));
-        promises.push(api.schedules.getByStudent(currentUser.id).catch(() => ({ success: false })));
-        promises.push(api.messages.getGroups(currentUser.id).catch(() => ({ success: false })));
+        promises.push(api.students.getById(currentUser.id || currentUser._id).catch(() => ({ success: false })));
+        promises.push(api.schedules.getByStudent(currentUser.id || currentUser._id).catch(() => ({ success: false })));
+        promises.push(api.messages.getGroups(currentUser.id || currentUser._id).catch(() => ({ success: false })));
       }
 
       if (!isStudent) {
-        promises.push(api.messages.getGroups(currentUser.id).catch(() => ({ success: false })));
+        promises.push(api.messages.getGroups(currentUser.id || currentUser._id).catch(() => ({ success: false })));
       }
 
       const results = await Promise.all(promises);
@@ -478,16 +478,18 @@ export const DataProvider = ({ children, user, onLogout }) => {
 
   const removeTeacher = useCallback(async (teacherId) => {
     try {
-      const res = await api.teachers.delete(teacherId);
+      const res = await api.teachers.remove(teacherId);
       if (res?.success) {
         setTeachers(prev => prev.filter(t => String(t.id) !== String(teacherId) && String(t._id) !== String(teacherId)));
         setStudents(prev => prev.map(s => String(typeof s.teacherId === 'object' && s.teacherId !== null ? s.teacherId._id || s.teacherId.id : s.teacherId) === String(teacherId) ? { ...s, teacherId: null, teacherName: null } : s));
+        return true;
       } else {
         console.error('[removeTeacher] API failed:', res?.message);
+        throw new Error(res?.message || 'Xoá thất bại');
       }
     } catch (err) {
       console.error('[removeTeacher] Error:', err);
-      setTeachers(prev => prev.filter(t => String(t.id) !== String(teacherId) && String(t._id) !== String(teacherId)));
+      throw err;
     }
   }, []);
 
@@ -595,18 +597,20 @@ export const DataProvider = ({ children, user, onLogout }) => {
   // Xóa học viên
   const removeStudent = useCallback(async (studentId) => {
     try {
-      const res = await api.students.delete(studentId);
+      const res = await api.students.remove(studentId);
       if (res?.success) {
         setStudents(prev => prev.filter(s => String(s.id) !== String(studentId) && String(s._id) !== String(studentId)));
         setTeachers(prev => prev.map(t => ({
           ...t, assignedStudents: (t.assignedStudents || []).filter(id => String(id) !== String(studentId))
         })));
+        return true;
       } else {
         console.error('[removeStudent] API failed:', res?.message);
+        throw new Error(res?.message || 'Xoá thất bại');
       }
     } catch (err) {
       console.error('[removeStudent] Error:', err);
-      setStudents(prev => prev.filter(s => String(s.id) !== String(studentId) && String(s._id) !== String(studentId)));
+      throw err;
     }
   }, []);
 
@@ -632,29 +636,70 @@ export const DataProvider = ({ children, user, onLogout }) => {
 
   // Điểm danh
   const markAttendance = useCallback((studentId, note, grade) => {
-    let newCompleted, newRemaining, newGrades, avg;
+    let wasAlreadyAttendedToday = false;
     
+    // Check synchronously to avoid race conditions with React state updates when spam-clicking
+    const targetStudentSync = students.find(s => String(s.id) === String(studentId) || String(s._id) === String(studentId));
+    const todaySync = new Date().toLocaleDateString('vi-VN');
+    const hasAttendedSync = targetStudentSync ? (targetStudentSync.grades || []).some(g => g.date === todaySync) : false;
+
     setStudents(prev => prev.map(s => {
-      // Correctly check if the current student in map is the one we want to update
       const isTargetStudent = String(s.id) === String(studentId) || String(s._id) === String(studentId);
-      
-      if (!isTargetStudent || s.remainingSessions <= 0) return s;
+      if (!isTargetStudent) return s;
+
+      const todayStr = new Date().toLocaleDateString('vi-VN');
+      const existingGradeIndex = (s.grades || []).findIndex(g => g.date === todayStr);
+      wasAlreadyAttendedToday = existingGradeIndex !== -1;
+
+      // Nếu đã điểm danh rồi, thì chỉ CẬP NHẬT điểm/ghi chú, không tăng buổi đã học
+      if (wasAlreadyAttendedToday) {
+        const newGrades = [...(s.grades || [])];
+        newGrades[existingGradeIndex] = {
+          ...newGrades[existingGradeIndex],
+          note: note || newGrades[existingGradeIndex].note || 'Đã điểm danh',
+          grade: grade !== undefined ? grade : newGrades[existingGradeIndex].grade,
+        };
+        
+        const validGrades = newGrades.filter(g => g.grade > 0);
+        const avg = validGrades.length > 0
+          ? Math.round((validGrades.reduce((sum, g) => sum + g.grade, 0) / validGrades.length) * 10) / 10
+          : 0;
+
+        api.students?.update(studentId, {
+          lastGrade: grade !== undefined ? grade : s.lastGrade,
+          avgGrade: avg,
+          grades: newGrades
+        }).then(() => triggerBackgroundSync());
+
+        return {
+          ...s,
+          lastGrade: grade !== undefined ? grade : s.lastGrade,
+          avgGrade: avg,
+          grades: newGrades
+        };
+      }
+
+      // NẾU CHƯA ĐIỂM DANH HÔM NAY: Tạo mới
+      if (s.remainingSessions <= 0) return s;
 
       const newGrade = {
-        date: new Date().toLocaleDateString('vi-VN'),
+        date: todayStr,
         note: note || 'Đã điểm danh',
         grade: grade || 0,
       };
-      newGrades = [newGrade, ...(s.grades || [])];
+      
+      const newGrades = [newGrade, ...(s.grades || [])];
       const validGrades = newGrades.filter(g => g.grade > 0);
-      avg = validGrades.length > 0
+      const avg = validGrades.length > 0
         ? Math.round((validGrades.reduce((sum, g) => sum + g.grade, 0) / validGrades.length) * 10) / 10
         : 0;
       
-      newCompleted = (s.completedSessions || 0) + 1;
-      newRemaining = s.remainingSessions - 1;
+      const newCompleted = (s.completedSessions || 0) + 1;
+      const newRemaining = s.remainingSessions - 1;
       
       api.students?.update(studentId, {
+        completedSessions: newCompleted,
+        remainingSessions: newRemaining,
         lastGrade: grade || s.lastGrade,
         avgGrade: avg,
         grades: newGrades,
@@ -690,7 +735,8 @@ export const DataProvider = ({ children, user, onLogout }) => {
         return sch;
       });
 
-      if (!found) {
+      // We use hasAttendedSync to prevent firing multiple API requests if the user spams the button before setSchedules runs again
+      if (!found && !hasAttendedSync) {
         // Fix: read from correct localStorage key (teacher_user or admin_user)
         const getActiveSession = () => {
           try {
@@ -699,54 +745,62 @@ export const DataProvider = ({ children, user, onLogout }) => {
         };
         const activeSession = getActiveSession();
 
-        setStudents(currentStudents => {
-          const targetStudent = currentStudents.find(s => String(s.id) === String(studentId) || String(s._id) === String(studentId));
-          if (targetStudent) {
-            const rawTeacherId = typeof targetStudent.teacherId === 'object' && targetStudent.teacherId !== null
-              ? (targetStudent.teacherId._id || targetStudent.teacherId.id)
-              : (targetStudent.teacherId || null);
-            const effectiveTeacherId = rawTeacherId || activeSession.id || activeSession._id;
+        let effectiveTeacherId = activeSession.id || activeSession._id;
+        let studentDisplayName = `HV-${String(studentId).slice(-4)}`;
+        let courseName = '';
 
-            if (!effectiveTeacherId) {
-              console.error('[markAttendance] Cannot auto-create schedule: no teacherId found');
-              return currentStudents;
-            }
-
-            const studentDisplayName = (targetStudent.name && !/^\d{5,}$/.test(targetStudent.name))
+        // Safely extract info synchronously without using setStudents callback
+        const targetStudent = students.find(s => String(s.id) === String(studentId) || String(s._id) === String(studentId));
+        if (targetStudent) {
+          const rawTeacherId = typeof targetStudent.teacherId === 'object' && targetStudent.teacherId !== null
+            ? (targetStudent.teacherId._id || targetStudent.teacherId.id)
+            : (targetStudent.teacherId || null);
+          effectiveTeacherId = rawTeacherId || effectiveTeacherId;
+          studentDisplayName = (targetStudent.name && !/^\d{5,}$/.test(targetStudent.name))
               ? targetStudent.name
-              : targetStudent.email || targetStudent.phone || `HV-${String(studentId).slice(-4)}`;
+              : targetStudent.email || targetStudent.phone || studentDisplayName;
+          courseName = targetStudent.course || '';
+        }
 
-            const now = new Date();
-            const newSch = {
-              teacherId: String(effectiveTeacherId),
-              teacherName: activeSession.name || 'Giảng viên',
-              studentId: String(studentId),
-              studentName: studentDisplayName,
-              date: now.toISOString().split('T')[0],
-              startTime: now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-              endTime: new Date(now.getTime() + 2 * 60 * 60 * 1000).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-              course: targetStudent.course || '',
-              status: 'completed',
-              paymentStatus: 'pending',
-            };
+        if (effectiveTeacherId) {
+          const now = new Date();
+          const newSch = {
+            id: 'temp-' + Date.now(), // Thêm ID ảo để chống click đúp
+            teacherId: String(effectiveTeacherId),
+            teacherName: activeSession.name || 'Giảng viên',
+            studentId: String(studentId),
+            studentName: studentDisplayName,
+            date: now.toISOString().split('T')[0],
+            startTime: now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+            endTime: new Date(now.getTime() + 2 * 60 * 60 * 1000).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+            course: courseName,
+            status: 'completed',
+            paymentStatus: 'pending',
+          };
 
-            api.schedules?.create(newSch).then(res => {
-              if (res?.success && res.data) {
-                setSchedules(currentSch => [...currentSch, { ...res.data, id: res.data._id }]);
-                triggerBackgroundSync();
-              } else {
-                console.error('[markAttendance] Failed to create schedule:', res?.message);
-              }
-            }).catch(err => {
-              console.error('[markAttendance] Schedule create error:', err);
-            });
-          }
-          return currentStudents;
-        });
+          // Chèn (lạc quan) vào mảng UI ngay lập tức để block những cú spam click tiếp theo!
+          nextPrev.push(newSch);
+
+          api.schedules?.create(newSch).then(res => {
+            if (res?.success && res.data) {
+              setSchedules(currentSch => currentSch.map(s => s.id === newSch.id ? { ...res.data, id: res.data._id } : s));
+              triggerBackgroundSync();
+            } else {
+              console.error('[markAttendance] Failed to create schedule:', res?.message);
+              // Xóa fallback nếu lỗi
+              setSchedules(currentSch => currentSch.filter(s => s.id !== newSch.id));
+            }
+          }).catch(err => {
+            console.error('[markAttendance] Schedule create error:', err);
+             setSchedules(currentSch => currentSch.filter(s => s.id !== newSch.id));
+          });
+        } else {
+           console.error('[markAttendance] Cannot auto-create schedule: no teacherId found');
+        }
       }
       return nextPrev;
     });
-  }, [triggerBackgroundSync, addNotification]);
+  }, [students, triggerBackgroundSync, addNotification]);
 
   const updateStudentLink = useCallback((studentId, linkHoc) => {
     setStudents(prev => prev.map(s =>
@@ -797,7 +851,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
 
     // Gọi backend
     try {
-      await api.students?.unlockExam(studentId);
+      await api.students?.update(studentId, { studentExamUnlocked: true, examApproved: true });
     } catch (e) {
       console.error('[approveStudentExam] API error:', e);
     }
@@ -811,7 +865,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
         : s
     ));
     try {
-      await api.students?.lockExam(studentId, reason);
+      await api.students?.update(studentId, { studentExamUnlocked: false, examApproved: false });
     } catch (e) {
       console.error('[revokeStudentExam] API error:', e);
     }

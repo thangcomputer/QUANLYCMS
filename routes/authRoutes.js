@@ -383,21 +383,25 @@ router.post('/login', async (req, res) => {
 });
 
 // ─── Helper: Lookup user bằng identifier ─────────────────────────────────────
-async function lookupUser(rawId) {
+async function lookupUser(rawId, requestedRole = null) {
   const isEmail = rawId.includes('@');
   const isAdminHardcoded = rawId === 'admin';
 
-  if (isAdminHardcoded) return { type: 'hardcoded', role: 'admin' };
+  if (isAdminHardcoded && (!requestedRole || requestedRole === 'admin')) return { type: 'hardcoded', role: 'admin' };
 
   // Teacher/Admin/Staff
-  const teacherQ = isEmail ? { email: rawId } : { phone: rawId };
-  const teacher = await Teacher.findOne(teacherQ).select('+password +refreshToken');
-  if (teacher) return { type: 'teacher', user: teacher, role: teacher.role };
+  if (!requestedRole || requestedRole === 'teacher' || requestedRole === 'admin' || requestedRole === 'staff') {
+    const teacherQ = isEmail ? { email: rawId } : { phone: rawId };
+    const teacher = await Teacher.findOne(teacherQ).select('+password +refreshToken');
+    if (teacher) return { type: 'teacher', user: teacher, role: teacher.role };
+  }
 
   // Student
-  const studentQ = isEmail ? { email: rawId } : { $or: [{ phone: rawId }, { zalo: rawId }] };
-  const student = await Student.findOne(studentQ).select('+password');
-  if (student) return { type: 'student', user: student, role: 'student' };
+  if (!requestedRole || requestedRole === 'student') {
+    const studentQ = isEmail ? { email: rawId } : { $or: [{ phone: rawId }, { zalo: rawId }] };
+    const student = await Student.findOne(studentQ).select('+password');
+    if (student) return { type: 'student', user: student, role: 'student' };
+  }
 
   return null;
 }
@@ -406,13 +410,13 @@ async function lookupUser(rawId) {
 // Cổng đăng nhập dành cho HỌC VIÊN & GIẢNG VIÊN (Social Login hợp lệ với route này)
 router.post('/login/public', async (req, res) => {
   try {
-    const { identifier, password } = req.body;
+    const { identifier, password, role } = req.body;
     const rawId = (identifier || '').trim();
     if (!rawId || !password) {
       return res.status(400).json({ success: false, message: 'Vui lòng nhập tài khoản và mật khẩu' });
     }
 
-    const found = await lookupUser(rawId);
+    const found = await lookupUser(rawId, role);
     if (!found) {
       return res.status(401).json({ success: false, message: 'Tài khoản chưa được đăng ký trong hệ thống' });
     }
@@ -421,7 +425,7 @@ router.post('/login/public', async (req, res) => {
     if (['admin', 'staff'].includes(found.role) || found.type === 'hardcoded') {
       return res.status(403).json({
         success: false,
-        message: 'Vui lòng sử dụng cổng đăng nhập nội bộ.',
+        message: 'Tài khoản này thuộc nhóm Nhân Viên/Quản Trị. Vui lòng chuyển sang Cổng nội bộ (Admin) để đăng nhập!',
         redirect: '/admin/login',
       });
     }

@@ -219,6 +219,13 @@ export const teachersAPI = {
     const res = await apiFetch(`/teachers${q ? `?${q}` : ''}`);
     return res.json();
   },
+  create: async (teacher) => {
+    const res = await apiFetch('/teachers', {
+      method: 'POST',
+      body: JSON.stringify(teacher),
+    });
+    return res.json();
+  },
   getPendingSessions: async (id) => {
     const res = await apiFetch(`/teachers/${id}/pending-sessions`);
     return res.json();
@@ -235,6 +242,14 @@ export const teachersAPI = {
       method: 'PUT',
       body: JSON.stringify(updates),
     });
+    return res.json();
+  },
+  remove: async (id) => {
+    const res = await apiFetch(`/teachers/${id}`, { method: 'DELETE' });
+    return res.json();
+  },
+  getFinance: async (teacherId) => {
+    const res = await apiFetch(`/teachers/${teacherId}/finance`);
     return res.json();
   },
 };
@@ -259,18 +274,69 @@ export const transactionsAPI = {
     const res = await apiFetch(`/transactions${q ? `?${q}` : ''}`);
     return res.json();
   },
+  getByTeacher: async (teacherId) => {
+    const res = await apiFetch(`/transactions/teacher/${teacherId}`);
+    return res.json();
+  },
 };
 
 // ─── MESSAGE API ────────────────────────────────────────────────────────────
 export const messagesAPI = {
-  getGroups: async () => {
-    const res = await apiFetch('/messages/groups');
+  getGroups: async (userId) => {
+    // Nếu có userId thì gọi route đúng, nếu không thì fallback về /groups
+    const url = userId ? `/messages/groups/user/${userId}` : '/messages/groups';
+    const res = await apiFetch(url);
     return res.json();
   },
   getHistory: async (groupId) => {
     const res = await apiFetch(`/messages/history/${groupId}`);
     return res.json();
   },
+  send: async (data) => {
+    const res = await apiFetch('/messages', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    return res.json();
+  },
+  syncByUser: async (userId) => {
+    const res = await apiFetch(`/messages/sync/${userId}`);
+    return res.json();
+  },
+  toggleReaction: async (messageId, type) => {
+    const res = await apiFetch(`/messages/${messageId}/reaction`, {
+      method: 'PATCH',
+      body: JSON.stringify({ type })
+    });
+    return res.json();
+  },
+  recall: async (messageId) => {
+    const res = await apiFetch(`/messages/${messageId}/recall`, { method: 'PATCH' });
+    return res.json();
+  },
+  softDelete: async (messageId) => {
+    const res = await apiFetch(`/messages/${messageId}/soft-delete`, { method: 'PATCH' });
+    return res.json();
+  },
+  getGroups: async (userId) => {
+    const res = await apiFetch(`/messages/groups/user/${userId}`);
+    return res.json();
+  },
+  createGroup: async (name, participants) => {
+    const res = await apiFetch('/messages/groups', {
+      method: 'POST',
+      body: JSON.stringify({ name, participants })
+    });
+    return res.json();
+  },
+  deleteGroup: async (groupId) => {
+    const res = await apiFetch(`/messages/groups/${groupId}`, { method: 'DELETE' });
+    return res.json();
+  },
+  markRead: async (conversationId) => {
+    const res = await apiFetch(`/messages/read/${conversationId}`, { method: 'PUT' });
+    return res.json();
+  }
 };
 
 // ─── SCHEDULE API ───────────────────────────────────────────────────────────
@@ -285,6 +351,33 @@ export const schedulesAPI = {
     const res = await apiFetch(`/schedules/stats${q ? `?${q}` : ''}`);
     return res.json();
   },
+  getByTeacher: async (teacherId, params = {}) => {
+    const q = new URLSearchParams(params).toString();
+    const res = await apiFetch(`/schedules/teacher/${teacherId}${q ? `?${q}` : ''}`);
+    return res.json();
+  },
+  getByStudent: async (studentId) => {
+    const res = await apiFetch(`/schedules/student/${studentId}`);
+    return res.json();
+  },
+  create: async (data) => {
+    const res = await apiFetch('/schedules', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    return res.json();
+  },
+  update: async (id, data) => {
+    const res = await apiFetch(`/schedules/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+    return res.json();
+  },
+  remove: async (id) => {
+    const res = await apiFetch(`/schedules/${id}`, { method: 'DELETE' });
+    return res.json();
+  }
 };
 
 // ─── EVALUATION API ─────────────────────────────────────────────────────────
@@ -305,9 +398,27 @@ export const assignmentsAPI = {
     const res = await apiFetch(`/assignments/course/${courseId}`);
     return res.json();
   },
+  getByStudentAndCourse: async (studentId, courseId) => {
+    const res = await apiFetch(`/assignments/student/${studentId}/course/${courseId}`);
+    return res.json();
+  },
+  create: async (data) => {
+    const res = await apiFetch(`/assignments`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
   submit: async (assignmentId, data) => {
     const res = await apiFetch(`/assignments/${assignmentId}/submit`, {
       method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+  grade: async (submissionId, data) => {
+    const res = await apiFetch(`/assignments/submissions/${submissionId}/grade`, {
+      method: 'PUT',
       body: JSON.stringify(data),
     });
     return res.json();
@@ -362,6 +473,10 @@ export const settingsAPI = {
       headers: { Authorization: `Bearer ${getAccessToken()}` },
       body: fd,
     });
+    return res.json();
+  },
+  getPopup: async () => {
+    const res = await apiFetch('/settings/popup');
     return res.json();
   },
 };

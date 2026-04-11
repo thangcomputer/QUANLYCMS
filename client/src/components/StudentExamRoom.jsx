@@ -10,6 +10,7 @@ import { useData } from '../context/DataContext';
 // Keeping for backward compatibility if needed, but should use DataContext instead.
 
 const SUBJECT_ICONS = {
+  coban:       { icon: '💻', bg: 'bg-slate-600', label: 'Máy vi tính (Cơ bản)' },
   word:        { icon: '🅦', bg: 'bg-blue-600', label: 'Microsoft Word' },
   excel:       { icon: '🅔', bg: 'bg-green-600', label: 'Microsoft Excel' },
   powerpoint:  { icon: '🅟', bg: 'bg-orange-500', label: 'Microsoft PowerPoint' },
@@ -17,6 +18,7 @@ const SUBJECT_ICONS = {
 
 // ─── Default clean state cho học viên mới ─────────────────────────────────────
 const DEFAULT_SUBJECTS = [
+  { id: 'coban',       status: 'chua_thi', tracNghiem: null, thucHanh: 'chua_nop', lockUntil: null },
   { id: 'word',        status: 'chua_thi', tracNghiem: null, thucHanh: 'chua_nop', lockUntil: null },
   { id: 'excel',       status: 'chua_thi', tracNghiem: null, thucHanh: 'chua_nop', lockUntil: null },
   { id: 'powerpoint',  status: 'chua_thi', tracNghiem: null, thucHanh: 'chua_nop', lockUntil: null },
@@ -48,7 +50,7 @@ const SubjectCard = ({ subject, onStart, isGlobalApproved }) => {
   const meta = SUBJECT_ICONS[subject.id];
   const countdown = useCountdown(subject.lockUntil);
 
-  const isApproved = subject.approved || isGlobalApproved;
+    const isApproved = isGlobalApproved || subject.meetsMilestone;
 
   const statusBadge = () => {
     switch (subject.status) {
@@ -82,18 +84,18 @@ const SubjectCard = ({ subject, onStart, isGlobalApproved }) => {
   const isPassed  = subject.status === 'dat';
 
   return (
-    <div className={`bg-white rounded-2xl border shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden ${
-      isLocked ? 'opacity-70' : ''
+    <div className={`bg-white rounded-2xl border shadow-sm transition-all duration-200 overflow-hidden ${
+      !isApproved || isLocked ? 'opacity-80 border-gray-200 bg-gray-50' : 'hover:shadow-md'
     }`}>
       {/* Card header */}
       <div className="p-5 pb-4">
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-3">
             {/* Subject Icon */}
-            <div className={`w-12 h-12 ${meta.bg} rounded-xl flex items-center justify-center shadow-sm`}>
-              {subject.id === 'word' && <span className="text-white font-black text-xl">W</span>}
-              {subject.id === 'excel' && <span className="text-white font-black text-xl">X</span>}
-              {subject.id === 'powerpoint' && <span className="text-white font-black text-xl">P</span>}
+            <div className={`w-12 h-12 ${(!isApproved || isLocked) ? 'bg-gray-200' : meta.bg} rounded-xl flex items-center justify-center shadow-sm transition-colors`}>
+              <span className={`font-black text-xl ${(!isApproved || isLocked) ? 'text-gray-400' : 'text-white'}`}>
+                  {subject.id === 'word' ? 'W' : subject.id === 'excel' ? 'X' : subject.id === 'powerpoint' ? 'P' : 'C'}
+              </span>
             </div>
             <div>
               <h3 className="font-bold text-gray-800 text-base leading-tight">{meta.label}</h3>
@@ -129,27 +131,27 @@ const SubjectCard = ({ subject, onStart, isGlobalApproved }) => {
         </div>
       )}
 
-      {/* Admin chưa duyệt */}
+      {/* Admin chưa duyệt hoặc chưa đủ mốc */}
       {!isApproved && (
-        <div className="mx-5 mb-3 flex items-center gap-2 bg-yellow-50 border border-yellow-100 rounded-xl px-3 py-2">
-          <Lock size={13} className="text-yellow-600 flex-shrink-0" />
-          <span className="text-xs text-yellow-700 font-medium">Chờ Admin duyệt để thi</span>
+        <div className="mx-5 mb-3 flex items-center justify-center gap-2 bg-gray-100 border border-gray-200 rounded-xl px-3 py-2.5">
+          <Lock size={14} className="text-gray-500 flex-shrink-0" />
+          <span className="text-xs text-gray-600 font-bold">Mở khóa sau {subject.requiredSessions || 0} buổi học</span>
         </div>
       )}
       {/* Action buttons */}
-      <div className="px-5 pb-5 space-y-3">
+      <div className="px-5 pb-5 pt-2">
         {canStart && (
           <button
             onClick={() => onStart(subject.id)}
-            className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-red-100"
+            className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm transition-all active:scale-95 flex items-center justify-center gap-2 shadow-md shadow-blue-100"
           >
-            <Play size={15} /> Thi ngay
+            Vào thi ngay
           </button>
         )}
         {canRetry && (
           <button
             onClick={() => onStart(subject.id)}
-            className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2"
+            className="w-full py-2.5 bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2"
           >
             <Play size={15} /> Thi lại
           </button>
@@ -159,23 +161,7 @@ const SubjectCard = ({ subject, onStart, isGlobalApproved }) => {
             onClick={() => onStart(subject.id)}
             className="w-full py-2.5 bg-green-100 hover:bg-green-200 text-green-700 font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2"
           >
-            <CheckCircle size={15} /> Thi lại (Cải thiện)
-          </button>
-        )}
-        {isLocked && (
-          <button
-            disabled
-            className="w-full py-2.5 bg-gray-100 text-gray-400 font-bold rounded-xl text-sm cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            <Lock size={14} /> Đang tạm khóa
-          </button>
-        )}
-        {!isApproved && !isLocked && !isPassed && (
-          <button
-            disabled
-            className="w-full py-2.5 bg-gray-50 text-gray-300 font-bold rounded-xl text-sm cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            <Lock size={14} /> Chờ duyệt
+            <CheckCircle size={15} /> Đã qua môn (Thi lại)
           </button>
         )}
       </div>
@@ -202,7 +188,7 @@ const ScoreModal = ({ subjects, onClose }) => (
             <div key={s.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border">
               <div className="flex items-center gap-3">
                 <div className={`w-8 h-8 ${meta.bg} rounded-lg flex items-center justify-center`}>
-                  <span className="text-white font-black text-xs">{s.id === 'word' ? 'W' : s.id === 'excel' ? 'X' : 'P'}</span>
+                  <span className="text-white font-black text-xs">{s.id === 'word' ? 'W' : s.id === 'excel' ? 'X' : s.id === 'powerpoint' ? 'P' : 'C'}</span>
                 </div>
                 <span className="font-semibold text-gray-700 text-sm">{meta.label}</span>
               </div>
@@ -249,50 +235,27 @@ const StudentExamRoom = ({ onNavigate, onStartExam }) => {
     }
   }, [subjects]);
 
-  // Điều kiện mở phòng thi: hoàn thành hết buổi học HOẶC Admin đã duyệt studentExamUnlocked
-  const isCompleted = student && student.remainingSessions <= 0;
-  const isAdminApproved = student?.studentExamUnlocked === true || student?.examApproved === true;
-  const canAccessExam = isCompleted || isAdminApproved;
+  // Luồng 1: Admin ghi đè mở toàn bộ
+  const isAdminApproved = student?.studentExamUnlocked === true;
+
+  // Luồng 2: Mở khóa dựa trên tỷ lệ "cuốn chiếu" Milestone
+  const totalSessions = student?.totalSessions || 12;
+  const completedSessions = student?.completedSessions || 0;
+  // Công thức: tổng buổi / 4 (vì có 4 môn logic tuần tự)
+  const milestoneInterval = Math.max(1, Math.floor(totalSessions / 4));
+
+  const subjectsWithMilestones = subjects.map((subj, idx) => {
+    const requiredSessions = milestoneInterval * (idx + 1);
+    const meetsMilestone = completedSessions >= requiredSessions;
+    return { ...subj, requiredSessions, meetsMilestone };
+  });
 
   const handleStart = (subjectId) => {
     if (onStartExam) onStartExam(subjectId);
   };
 
 
-  // ── LOCKED SCREEN ──
-  if (!canAccessExam) {
-    return (
-      <div className="min-h-screen bg-gray-50 font-sans flex items-center justify-center p-4">
-        <div className="max-w-md w-full text-center">
-          <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8 md:p-12">
-            <div className="w-20 h-20 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-              <Lock size={36} className="text-red-500" />
-            </div>
-            <h2 className="text-2xl font-black text-gray-800 mb-3">Phòng thi chưa mở</h2>
-            <p className="text-gray-500 text-sm mb-6">
-              Bạn cần <strong>hoàn thành tất cả buổi học</strong> đã đăng ký hoặc được <strong>Admin duyệt</strong> trước khi vào phòng thi.
-            </p>
-            {student && (
-              <div className="bg-gray-50 rounded-2xl p-4 mb-6 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Đã học</span>
-                  <span className="font-bold text-gray-800">{(student.completedSessions || 0)}/{student.totalSessions || 12} buổi</span>
-                </div>
-                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${Math.min(100, Math.round(((student.completedSessions || 0) / (student.totalSessions || 12)) * 100))}%` }} />
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Còn lại</span>
-                  <span className="font-bold text-orange-600">{Math.max(0, (student.totalSessions || 12) - (student.completedSessions || 0))} buổi</span>
-                </div>
-              </div>
-            )}
-            <p className="text-xs text-gray-400">Liên hệ Admin (Hotline: 093-5758-462) nếu bạn cần hỗ trợ.</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
@@ -316,9 +279,9 @@ const StudentExamRoom = ({ onNavigate, onStartExam }) => {
         </div>
 
         {/* Subject Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {subjects.map(s => (
-            <SubjectCard key={s.id} subject={s} onStart={handleStart} isGlobalApproved={canAccessExam} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-5">
+          {subjectsWithMilestones.map(s => (
+            <SubjectCard key={s.id} subject={s} onStart={handleStart} isGlobalApproved={isAdminApproved} />
           ))}
         </div>
 

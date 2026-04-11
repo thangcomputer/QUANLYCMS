@@ -148,19 +148,19 @@ const DashboardLayout = ({ role, session, onLogout }) => {
       />
 
       <main className="flex-1 min-w-0 overflow-x-hidden flex flex-col">
-        <header className="h-20 bg-white/80 border-b border-gray-100 flex items-center justify-between px-8 sticky top-0 z-40 backdrop-blur-xl">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-3">
-              <nav className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest text-gray-400">
-                 <span className="hover:text-red-600 transition-colors cursor-pointer">Dashboard</span>
-                 <ChevronRight size={12} className="opacity-50" />
+        <header className="h-16 md:h-20 bg-white/80 border-b border-gray-100 flex items-center justify-between px-4 pl-14 md:px-8 md:pl-8 sticky top-0 z-40 backdrop-blur-xl">
+          <div className="flex items-center gap-2 md:gap-4">
+            <div className="flex items-center gap-1 md:gap-3">
+              <nav className="flex items-center gap-1 md:gap-2 text-[10px] md:text-[11px] font-black uppercase tracking-widest text-gray-400">
+                 <span className="hidden sm:inline hover:text-red-600 transition-colors cursor-pointer">Dashboard</span>
+                 <ChevronRight size={12} className="hidden sm:block opacity-50" />
                  <span className="text-red-600">
                     {role === 'admin' ? 'Hệ thống' : role === 'teacher' ? 'Giảng dạy' : 'Học tập'}
                  </span>
                  {location.hash && (
                    <>
                      <ChevronRight size={12} className="opacity-50" />
-                     <span className="text-white bg-red-600 px-2 py-0.5 rounded shadow-sm text-[10px]">
+                     <span className="text-white bg-red-600 px-1.5 md:px-2 py-0.5 rounded shadow-sm text-[9px] md:text-[10px]">
                        {location.hash.replace('#','').toUpperCase()}
                      </span>
                    </>
@@ -247,14 +247,14 @@ const DashboardLayout = ({ role, session, onLogout }) => {
               )}
             </div>
 
-            <div className="h-10 w-px bg-gray-100 mx-1" />
-            <button onClick={handleLogout} className="px-5 py-3 bg-red-600 text-white rounded-2xl text-[11px] font-black hover:bg-red-700 transition shadow-lg shadow-red-200 active:scale-95 flex items-center gap-3">
-              <LogOut size={16} /> ĐĂNG XUẤT
+            <div className="h-10 w-px bg-gray-100 mx-1 hidden sm:block" />
+            <button onClick={handleLogout} className="px-3 md:px-5 py-2 md:py-3 bg-red-600 text-white rounded-xl md:rounded-2xl text-[11px] font-black hover:bg-red-700 transition shadow-lg shadow-red-200 active:scale-95 flex items-center gap-2 md:gap-3">
+              <LogOut size={16} /> <span className="hidden sm:inline">ĐĂNG XUẤT</span>
             </button>
           </div>
         </header>
 
-        <div className="flex-1 p-6 md:p-10">
+        <div className="flex-1 p-4 sm:p-6 md:p-10 w-full overflow-x-hidden">
           <Outlet />
         </div>
       </main>

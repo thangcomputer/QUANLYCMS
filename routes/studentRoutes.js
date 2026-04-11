@@ -184,15 +184,20 @@ router.get('/:id', [authMiddleware, branchFilter], async (req, res) => {
       return res.status(403).json({ success: false, message: 'Bạn không có quyền xem thông tin này' });
     }
 
-    // Lấy thêm thống kê lịch học
-    const completedSessions = await Schedule.countDocuments({
+    // Lấy thêm thống kê lịch học (Single Source of Truth)
+    const realCompleted = await Schedule.countDocuments({
       studentId: req.params.id,
+      course: student.course || '',
       status: 'completed',
     });
 
+    const doc = student.toObject();
+    doc.completedSessions = realCompleted;
+    doc.remainingSessions = Math.max(0, (student.totalSessions || 12) - realCompleted);
+
     res.json({
       success: true,
-      data: { ...student.toObject(), completedSessionsFromDB: completedSessions },
+      data: doc,
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -332,14 +337,27 @@ router.post('/', [authMiddleware, branchFilter], async (req, res) => {
 });
 
 // ─── PUT /api/students/:id ─────────────────────────────────────────────────────
-// Cập nhật thông tin học viên (Admin & Teacher)
-router.put('/:id', authMiddleware, isTeacher, async (req, res) => {
+// Cập nhật thông tin học viên (Admin, Teacher, Student tự cập nhật)
+router.put('/:id', authMiddleware, async (req, res) => {
   try {
     const safeBody = { ...req.body };
     
     // Nếu là Teacher, chỉ cho phép cập nhật thông tin điểm danh, thành tích
     if (req.user.role === 'teacher') {
       const allowedKeys = ['completedSessions', 'remainingSessions', 'lastGrade', 'avgGrade', 'grades', 'status', 'notes', 'linkHoc', 'nextClass', 'nextClassTime'];
+      Object.keys(safeBody).forEach(key => {
+        if (!allowedKeys.includes(key)) {
+          delete safeBody[key];
+        }
+      });
+    }
+
+    // Nếu là Student, chỉ cho phép cập nhật hồ sơ cá nhân CỦA CHÍNH MÌNH
+    if (req.user.role === 'student') {
+      if (req.user.id !== req.params.id) {
+        return res.status(403).json({ success: false, message: 'Bạn chỉ có thể cập nhật hồ sơ của chính mình' });
+      }
+      const allowedKeys = ['name', 'email', 'phone', 'zalo', 'address', 'password', 'avatar'];
       Object.keys(safeBody).forEach(key => {
         if (!allowedKeys.includes(key)) {
           delete safeBody[key];

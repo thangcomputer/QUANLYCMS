@@ -1,6 +1,8 @@
 const express = require('express');
 const Assignment = require('../models/Assignment');
 const Submission = require('../models/Submission');
+const Student = require('../models/Student');
+const Teacher = require('../models/Teacher');
 
 const router = express.Router();
 
@@ -8,7 +10,27 @@ const router = express.Router();
 router.get('/course/:courseId', async (req, res) => {
   try {
     const assignments = await Assignment.find({ courseId: req.params.courseId }).sort({ createdAt: -1 });
-    return res.json({ success: true, data: assignments });
+    // Dành cho giáo viên: kèm theo submissions của bài đó
+    const data = await Promise.all(assignments.map(async (a) => {
+      const subs = await Submission.find({ assignmentId: a._id }).populate('studentId', 'name email avatar');
+      return { ...a.toObject(), submissions: subs };
+    }));
+    return res.json({ success: true, data });
+  } catch (err) {
+    console.error("error GET /course/:courseId:", err);
+    return res.status(500).json({ success: false, message: 'Lỗi server', err: err.message });
+  }
+});
+
+// ─── Lấy Bài tập cho Học viên (Kèm Submission cá nhân) ─────────────────────
+router.get('/student/:studentId/course/:courseId', async (req, res) => {
+  try {
+    const assignments = await Assignment.find({ courseId: req.params.courseId }).sort({ createdAt: -1 });
+    const data = await Promise.all(assignments.map(async (a) => {
+      const sub = await Submission.findOne({ assignmentId: a._id, studentId: req.params.studentId });
+      return { ...a.toObject(), mySubmission: sub };
+    }));
+    return res.json({ success: true, data });
   } catch (err) {
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
@@ -64,6 +86,20 @@ router.put('/submissions/:submissionId/grade', async (req, res) => {
 
     if (!submission) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy bài nộp' });
+    }
+
+    // Lấy thông tin Assignment để làm "note" (VD: Chấm bài: Thực hành Excel Buổi 3)
+    const assignment = await Assignment.findById(submission.assignmentId);
+    if (assignment) {
+      await Student.findByIdAndUpdate(submission.studentId, {
+        $push: {
+          grades: {
+            date: new Date().toISOString(),
+            note: `Bài nộp: ${assignment.title} - ${teacherFeedback}`,
+            grade: grade
+          }
+        }
+      });
     }
 
     const io = req.app.get('io');

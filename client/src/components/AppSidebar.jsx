@@ -62,9 +62,9 @@ const MENU_CONFIG = {
     brand: { label: 'QUẢN TRỊ', color: 'from-slate-900 to-indigo-950' },
     items: [
       { key: 'dashboard',        icon: LayoutDashboard, label: 'Tổng quan',        path: '/admin', hash: 'dashboard'                                                         },
-      { key: 'students',         icon: Users,         label: 'Hoc Viên',           path: '/admin', hash: 'students',            permission: PERMISSIONS.MANAGE_STUDENTS  },
-      { key: 'teachers',         icon: GraduationCap, label: 'Giang Viên',         path: '/admin', hash: 'teachers',            permission: PERMISSIONS.VIEW_TEACHERS                          },
-      { key: 'evaluations',      icon: AlertTriangle, label: 'Dánh giá nội bộ',    path: '/admin', hash: 'evaluations',         permission: PERMISSIONS.VIEW_EVALUATIONS },
+      { key: 'students',         icon: Users,         label: 'Học Viên',           path: '/admin', hash: 'students',            permission: PERMISSIONS.MANAGE_STUDENTS  },
+      { key: 'teachers',         icon: GraduationCap, label: 'Giảng Viên',         path: '/admin', hash: 'teachers',            permission: PERMISSIONS.VIEW_TEACHERS                          },
+      { key: 'evaluations',      icon: AlertTriangle, label: 'Đánh giá nội bộ',    path: '/admin', hash: 'evaluations',         permission: PERMISSIONS.VIEW_EVALUATIONS },
       { key: 'finance',          icon: DollarSign,    label: 'Tài chính',           path: '/admin', hash: 'finance',             permission: PERMISSIONS.MANAGE_FINANCE   },
       { key: 'training',         icon: BookOpen,      label: 'Đào tạo GV',          path: '/admin', hash: 'training',            permission: PERMISSIONS.MANAGE_TRAINING  },
       { key: 'student-training', icon: BookOpen,      label: 'Đào tạo HV',          path: '/admin', hash: 'student-training',    permission: PERMISSIONS.MANAGE_TRAINING  },

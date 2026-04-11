@@ -42,7 +42,8 @@ const TeacherFinanceAndTraining = () => {
         if (finRes && finRes.success) setFinanceStats(finRes.data || { totalSessions: 0, unpaidAmount: 0, paidAmount: 0, salaryPerSession: 0 });
       }).finally(() => setIsLoadingFinance(false));
     } else {
-      api.training.getAll().then(res => {
+      // NOTE: Tính năng Đào tạo chưa có API Backend. Dùng dữ liệu trống tạm thời.
+      Promise.resolve({ success: true, data: [] }).then(res => {
          if (res.success) {
             const data = res.data || [];
             setMyTrainingData({

@@ -900,7 +900,7 @@ const EditStudentModal = ({ student, onSave, onClose, teachers }) => {
               <label className="flex items-center gap-3 cursor-pointer select-none p-3.5 bg-blue-50 border-2 border-blue-200 rounded-2xl transition hover:bg-blue-100/70 hover:shadow-sm">
                 <input type="checkbox" name="studentExamUnlocked" checked={studentExamUnlocked} onChange={handleChange} className="w-5 h-5 accent-blue-600 rounded cursor-pointer" />
                 <div>
-                  <span className="text-sm font-black text-blue-800 block">Cho phép thi kết khóa</span>
+                  <span className="text-sm font-black text-blue-800 block">[Mở khóa phòng thi đặc cách]</span>
                 </div>
               </label>
             </div>
@@ -1465,7 +1465,7 @@ const AdminDashboard = ({ onNavigate }) => {
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
               
               {/* STAT CARDS - PREMIUM RED THEME */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard 
                   icon={Users} 
                   label="Tổng học viên" 
@@ -2114,6 +2114,13 @@ const AdminDashboard = ({ onNavigate }) => {
                       <p className="text-gray-400 font-bold">Không tìm thấy giảng viên nào</p>
                     </div>
                   )}
+                </div>
+                
+                {/* Teacher list footer */}
+                <div className="px-6 py-4 bg-gray-50/60 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <p className="text-[11px] font-bold text-gray-400">
+                    Hiển thị {filteredTeachers.length} / {teachers.length} giảng viên
+                  </p>
                 </div>
               </div>
             </div>

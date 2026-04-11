@@ -13,6 +13,20 @@ const AdminLoginPage = ({ onLogin }) => {
   const [error, setError] = useState(null);
 
   const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const [dynamicLogo, setDynamicLogo] = useState('');
+
+  // Fetch dynamic logo from web settings
+  React.useEffect(() => {
+    fetch(`${API}/api/settings/web`)
+      .then(r => r.json())
+      .then(res => {
+        if (res.success && res.data?.logoUrl) {
+          const url = res.data.logoUrl;
+          setDynamicLogo(url.startsWith('http') ? url : `${API}${url}`);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const [captcha, setCaptcha] = useState('');
   const [userInputCaptcha, setUserInputCaptcha] = useState('');
@@ -146,7 +160,7 @@ const AdminLoginPage = ({ onLogin }) => {
             <div className="text-center space-y-6 animate-in fade-in zoom-in duration-700">
               <div className="relative inline-block">
                 <div className="absolute inset-0 bg-red-600 rounded-full blur-2xl opacity-20 animate-pulse"></div>
-                <img src="/logo_thangtinhoc.png" alt="Logo" className="h-20 relative z-10" onError={(e) => e.target.src = 'https://i.ibb.co/68H8LzG/logo.png'} />
+                <img src={dynamicLogo || "/logo_thangtinhoc.png"} alt="Logo" className="h-20 relative z-10 object-contain" onError={(e) => { if (!dynamicLogo) e.target.src = 'https://i.ibb.co/68H8LzG/logo.png'; }} />
               </div>
               
               <div className="space-y-3">

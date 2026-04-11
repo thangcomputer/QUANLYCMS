@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, CheckCircle2, AlertCircle, Phone, Mail, ShieldCheck, Database, BookOpen, Monitor } from 'lucide-react';
+import { Eye, EyeOff, CheckCircle2, AlertCircle, Phone, Mail, ShieldCheck, Database, BookOpen, Monitor, Lock, User } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { setTokens } from '../services/api';
 
@@ -14,6 +14,20 @@ const LoginPage = ({ onLogin }) => {
   const [error, setError] = useState(null);
 
   const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const [dynamicLogo, setDynamicLogo] = useState('');
+
+  // Fetch dynamic logo from web settings
+  useEffect(() => {
+    fetch(`${API}/api/settings/web`)
+      .then(r => r.json())
+      .then(res => {
+        if (res.success && res.data?.logoUrl) {
+          const url = res.data.logoUrl;
+          setDynamicLogo(url.startsWith('http') ? url : `${API}${url}`);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -30,7 +44,11 @@ const LoginPage = ({ onLogin }) => {
       const data = await response.json();
 
       if (data.success) {
-        const user = data.data;
+        // Hỗ trợ cả 2 chuẩn response của public và internal login
+        const user = data.data.user ? { ...data.data.user } : { ...data.data };
+        user.accessToken = data.data.accessToken || user.accessToken;
+        user.refreshToken = data.data.refreshToken || user.refreshToken;
+
         // Lưu dữ liệu user
         localStorage.setItem(`${role}_user`, JSON.stringify(user));
         setTokens(user.token || user.accessToken, user.refreshToken, role);
@@ -66,8 +84,8 @@ const LoginPage = ({ onLogin }) => {
 
           <div className="relative z-10 space-y-8 animate-in fade-in slide-in-from-left-10 duration-1000">
             <h1 className="text-5xl lg:text-7xl font-black text-white leading-[1.1]">
-              Nền tảng <span className="text-red-500 block md:inline">Đào tạo</span> <br />
-              Chuyên nghiệp
+              Nền tảng <span className="text-red-500 block md:inline">Học Tin Học</span> <br />
+              Văn Phòng Chuyên Nghiệp
             </h1>
             <p className="text-gray-400 text-lg leading-relaxed max-w-lg">
               Tổ chức đào tạo, thi cử và cấp chứng nhận tin học văn phòng với công nghệ hiện đại. 
@@ -97,7 +115,7 @@ const LoginPage = ({ onLogin }) => {
           {/* Logo & Branding */}
           <div className="w-full max-w-md space-y-10 z-10">
             <div className="text-center md:text-left flex flex-col items-center md:items-start animate-in fade-in zoom-in duration-700">
-              <img src="/logo_thangtinhoc.png" alt="Logo" className="h-16 mb-8 brightness-110" onError={(e) => e.target.src = 'https://i.ibb.co/68H8LzG/logo.png'} />
+              <img src={dynamicLogo || "/logo_thangtinhoc.png"} alt="Logo" className="h-16 mb-8 brightness-110 object-contain" onError={(e) => { if (!dynamicLogo) e.target.src = 'https://i.ibb.co/68H8LzG/logo.png'; }} />
               
               <div className="space-y-4">
                  {/* Role Switcher */}
@@ -128,44 +146,46 @@ const LoginPage = ({ onLogin }) => {
                 </div>
               )}
 
-              <div className="space-y-2">
-                <label className="text-[11px] font-black text-gray-500 uppercase tracking-widest block ml-1">Số điện thoại hoặc Email</label>
-                <div className="relative group">
-                  <input
-                    type="text"
-                    required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full bg-[#1e293b]/50 border-2 border-white/5 rounded-2xl px-5 py-4 text-white outline-none focus:border-red-600 focus:bg-[#1e293b] transition-all font-bold placeholder:text-gray-600"
-                    placeholder="Nhập SĐT hoặc Email của bạn"
-                  />
-                  <div className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-500 text-[10px] font-bold group-focus-within:text-red-500 transition-colors uppercase">
-                    Cơ bản
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-400 block ml-1">{role === 'student' ? 'SỐ ĐIỆN THOẠI HOẶC EMAIL' : 'TÀI KHOẢN GIẢNG VIÊN'}</label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <User size={18} className="text-gray-500 group-focus-within:text-red-500 transition-colors" />
+                    </div>
+                    <input
+                      type="text"
+                      required
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="w-full bg-[#1e293b]/50 border-2 border-white/5 rounded-2xl pl-11 pr-5 py-4 text-white outline-none focus:border-red-600 focus:bg-[#1e293b] transition-all font-bold placeholder:text-gray-600"
+                      placeholder="Nhập thông tin tài khoản..."
+                    />
                   </div>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between ml-1">
-                  <label className="text-[11px] font-black text-gray-500 uppercase tracking-widest block">Mật khẩu</label>
-                  <button type="button" className="text-[10px] font-black text-red-500 hover:underline uppercase tracking-tight">Quên mật khẩu?</button>
-                </div>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full bg-[#1e293b]/50 border-2 border-white/5 rounded-2xl px-5 py-4 text-white outline-none focus:border-red-600 focus:bg-[#1e293b] transition-all font-bold placeholder:text-gray-600"
-                    placeholder="••••••••"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white transition-colors"
-                  >
-                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                  </button>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-gray-400 block ml-1">MẬT KHẨU</label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Lock size={18} className="text-gray-500 group-focus-within:text-red-500 transition-colors" />
+                    </div>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full bg-[#1e293b]/50 border-2 border-white/5 rounded-2xl pl-11 pr-12 py-4 text-white outline-none focus:border-red-600 focus:bg-[#1e293b] transition-all font-bold placeholder:text-gray-600"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-500 hover:text-white transition-colors"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
