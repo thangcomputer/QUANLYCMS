@@ -1,0 +1,69 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    font-family: 'Roboto', -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  body {
+    @apply bg-gray-100 min-h-screen text-slate-800;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+/* Print styles */
+@media print {
+  body {
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}
+
+/* Step transition animations */
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out;
+}
+
+.animate-bounce-once {
+  animation: bounceOnce 0.6s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bounceOnce {
+  0% { transform: scale(0.5); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+/* Rich text content from Quill editor */
+.ql-desc p { margin: 2px 0; }
+.ql-desc strong { font-weight: 700; }
+.ql-desc em { font-style: italic; }
+.ql-desc u { text-decoration: underline; }
+.ql-desc s { text-decoration: line-through; }
+.ql-desc ul, .ql-desc ol { padding-left: 1.5em; margin: 4px 0; }
+.ql-desc li { margin: 2px 0; }
+.ql-desc a { color: #6366f1; text-decoration: underline; }
+.ql-desc img { max-width: 100%; border-radius: 8px; margin: 6px 0; }
+.ql-desc h1, .ql-desc h2, .ql-desc h3 { font-weight: 700; margin: 4px 0; }
+.ql-desc h1 { font-size: 1.2em; }
+.ql-desc h2 { font-size: 1.1em; }
+.ql-desc h3 { font-size: 1em; }

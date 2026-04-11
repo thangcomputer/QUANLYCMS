@@ -1,0 +1,1272 @@
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { QUESTION_BANK } from '../data/questionBank';
+import { playNotifySound } from '../utils/sound';
+import api, { API_BASE } from '../services/api';
+import { useSocket } from './SocketContext';
+
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Dá»® LIá»†U Gá»C â€” Táº¥t cáº£ module Ä‘á»c/ghi tá»« Ä‘Ã¢y
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+const INITIAL_STUDENTS = [];
+
+const INITIAL_TEACHERS = [];
+
+const INITIAL_TRANSACTIONS = [];
+
+// â”€â”€ Lá»ŠCH Há»ŒC â€” Äá»“ng bá»™ giá»¯a GV â†” HV â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const INITIAL_SCHEDULES = [];
+
+const INITIAL_NOTIFICATIONS = [];
+
+const INITIAL_MESSAGES = [];
+
+// â”€â”€ TÃ€I LIá»†U: Video, GiÃ¡o trÃ¬nh, BÃ i táº­p â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const INITIAL_MATERIALS = [];
+
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// CONTEXT
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+const DataContext = createContext(null);
+
+const INITIAL_PRIVATE_EVALUATIONS = [];
+
+// â”€â”€ One-time Reset: XÃ³a dá»¯ liá»‡u cÅ© khi nÃ¢ng version â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const DATA_VERSION = 'v5_clean_production';
+if (localStorage.getItem('thvp_data_version') !== DATA_VERSION) {
+  // XÃ³a toÃ n bá»™ dá»¯ liá»‡u cÅ© (GV/HV test cÅ©ng bá»‹ xÃ³a)
+  const keysToRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith('thvp_') && k !== 'thvp_access_token' && k !== 'thvp_refresh_token' && k !== 'thvp_user') {
+      keysToRemove.push(k);
+    }
+  }
+  keysToRemove.forEach(k => localStorage.removeItem(k));
+  localStorage.setItem('thvp_data_version', DATA_VERSION);
+  console.log('[DataContext] Reset localStorage â€” phiÃªn báº£n má»›i:', DATA_VERSION);
+}
+
+// Helper: Ä‘á»c tá»« localStorage, fallback vá» defaultValue
+const loadState = (key, defaultValue) => {
+  try {
+    const saved = localStorage.getItem(key);
+    if (saved) return JSON.parse(saved);
+  } catch (e) { /* ignore */ }
+  return defaultValue;
+};
+
+export const DataProvider = ({ children, user, onLogout }) => {
+  const [currentUser, setCurrentUser] = useState(user || null);
+
+  useEffect(() => {
+    setCurrentUser(user || null);
+  }, [user]);
+
+  // Sync current user on load
+  useEffect(() => {
+    const savedUser = localStorage.getItem('thvp_user');
+    if (savedUser) {
+      try {
+        setCurrentUser(JSON.parse(savedUser));
+      } catch (e) {
+        console.error('[DataContext] Error parsing saved user:', e);
+      }
+    }
+  }, []);
+
+  const [students, setStudents] = useState(() => loadState('thvp_students', INITIAL_STUDENTS));
+  const [teachers, setTeachers] = useState(() => loadState('thvp_teachers', INITIAL_TEACHERS));
+  const [transactions, setTransactions] = useState(() => loadState('thvp_transactions', INITIAL_TRANSACTIONS));
+  const [schedules, setSchedules] = useState(() => loadState('thvp_schedules', INITIAL_SCHEDULES));
+  const [notifications, setNotifications] = useState(() => loadState('thvp_notifications', INITIAL_NOTIFICATIONS));
+  const [messages, setMessages] = useState(() => loadState('thvp_messages', INITIAL_MESSAGES));
+  const [materials, setMaterials] = useState(() => loadState('thvp_materials', INITIAL_MATERIALS));
+  const [groups, setGroups] = useState(() => loadState('thvp_groups', []));
+  const [privateEvaluations, setPrivateEvaluations] = useState(() => loadState('thvp_privateEvaluations', INITIAL_PRIVATE_EVALUATIONS));
+
+  // â”€â”€ Káº¾T QUáº¢ THI (Admin quáº£n lÃ½, cháº¥m Ä‘iá»ƒm HV & GV) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const [examResults, setExamResults] = useState(() => loadState('thvp_examResults', []));
+
+  // â”€â”€ TRAINING DATA (Admin quáº£n lÃ½, GV xem) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const INITIAL_TRAINING = { videos: [], guides: [], files: [] };
+  const [trainingData, setTrainingData] = useState(() => loadState('thvp_trainingData', INITIAL_TRAINING));
+
+  // â”€â”€ STUDENT TRAINING DATA (Admin quáº£n lÃ½, Há»c viÃªn xem) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const [studentTrainingData, setStudentTrainingData] = useState(() => loadState('thvp_studentTrainingData', INITIAL_TRAINING));
+
+  // â”€â”€ QUESTION BANK (Admin CRUD) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const [questions, setQuestions] = useState(() => loadState('thvp_questions', QUESTION_BANK));
+  const [studentQuestions, setStudentQuestions] = useState(() => loadState('thvp_studentQuestions', []));
+
+  // â”€â”€ SOCKET LISTENERS (Global Data Sync) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const { onGroupNew, onRecallReceive, onReactionReceive } = useSocket();
+
+  useEffect(() => {
+    if (onGroupNew) {
+      onGroupNew((newGroup) => {
+        setGroups(prev => {
+          if (prev.some(g => g._id === newGroup._id)) return prev;
+          return [newGroup, ...prev];
+        });
+      });
+    }
+    
+    if (onRecallReceive) {
+      onRecallReceive((data) => {
+        setMessages(prev => prev.map(m =>
+          String(m.id) === String(data.messageId) ? { ...m, isRecalled: true, content: 'Tin nháº¯n Ä‘Ã£ Ä‘Æ°á»£c thu há»“i' } : m
+        ));
+      });
+    }
+  }, [onGroupNew, onRecallReceive]);
+
+  // â”€â”€ SYSTEM LOGS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const [systemLogs, setSystemLogs] = useState(() => loadState('thvp_systemLogs', []));
+
+  // â”€â”€ Persist táº¥t cáº£ state vÃ o localStorage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  useEffect(() => { localStorage.setItem('thvp_students', JSON.stringify(students)); }, [students]);
+  useEffect(() => { localStorage.setItem('thvp_teachers', JSON.stringify(teachers)); }, [teachers]);
+  useEffect(() => { localStorage.setItem('thvp_transactions', JSON.stringify(transactions)); }, [transactions]);
+  useEffect(() => { localStorage.setItem('thvp_schedules', JSON.stringify(schedules)); }, [schedules]);
+  useEffect(() => { localStorage.setItem('thvp_notifications', JSON.stringify(notifications)); }, [notifications]);
+  useEffect(() => { localStorage.setItem('thvp_messages', JSON.stringify(messages)); }, [messages]);
+  useEffect(() => { localStorage.setItem('thvp_materials', JSON.stringify(materials)); }, [materials]);
+  useEffect(() => { localStorage.setItem('thvp_groups', JSON.stringify(groups)); }, [groups]);
+  useEffect(() => { localStorage.setItem('thvp_privateEvaluations', JSON.stringify(privateEvaluations)); }, [privateEvaluations]);
+  useEffect(() => { localStorage.setItem('thvp_trainingData', JSON.stringify(trainingData)); }, [trainingData]);
+  useEffect(() => { localStorage.setItem('thvp_studentTrainingData', JSON.stringify(studentTrainingData)); }, [studentTrainingData]);
+  useEffect(() => { localStorage.setItem('thvp_questions', JSON.stringify(questions)); }, [questions]);
+  useEffect(() => { localStorage.setItem('thvp_studentQuestions', JSON.stringify(studentQuestions)); }, [studentQuestions]);
+  useEffect(() => { localStorage.setItem('thvp_systemLogs', JSON.stringify(systemLogs)); }, [systemLogs]);
+  useEffect(() => { localStorage.setItem('thvp_examResults', JSON.stringify(examResults)); }, [examResults]);
+
+  const [isRefetching, setIsRefetching] = useState(false);
+
+  const triggerBackgroundSync = useCallback(async () => {
+    if (!currentUser) return;
+    // HV/GV pháº£i cÃ³ token má»›i sync, TrÃ¡nh gá»i bá»‹ 401 khi chÆ°a login xong
+    if (currentUser.role !== 'admin' && !localStorage.getItem('thvp_access_token')) return;
+    
+    setIsRefetching(true);
+    try {
+      const isTeacher = currentUser.role === 'teacher';
+      const isStudent = currentUser.role === 'student';
+      const isAdmin = currentUser.role === 'admin';
+
+      const promises = [];
+      
+
+      // Handle Groups results (admin/teacher)
+      if (!isStudent) {
+        const groupsRes = results[idx++];
+        if (groupsRes?.success) setGroups(groupsRes.data || []);
+      }
+    } catch (e) {
+      if (e.status === 401 && onLogout) {
+        onLogout();
+      }
+      console.error('[SYNC] DataContext auto-sync err:', e);
+    } finally {
+      setTimeout(() => setIsRefetching(false), 500);
+    }
+  }, [currentUser, onLogout]);
+
+  // â”€â”€ BACKGROUND SYNC NGáº¦M (Multi-tab & Window Focus) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  useEffect(() => {
+    const handleStorage = (e) => {
+      // Tá»± Ä‘á»™ng Ä‘á»“ng bá»™ ngay láº­p tá»©c náº¿u tab khÃ¡c thay Ä‘á»•i dá»¯ liá»‡u phá»¥
+      if (e.key === 'thvp_transactions') setTransactions(JSON.parse(e.newValue || '[]'));
+    };
+
+    const handleSync = () => {
+      if (document.visibilityState === 'visible') {
+        triggerBackgroundSync();
+      }
+    };
+
+    // 1. Tá»± Ä‘á»™ng load ngáº§m ngay khi vá»«a má»Ÿ web
+    handleSync();
+
+    // 2. Cháº¡y ngáº§m Ä‘á»‹nh ká»³ má»—i 1 phÃºt Ä‘á»ƒ auto-load (Polling)
+    const interval = setInterval(() => {
+      handleSync();
+    }, 60000);
+
+    window.addEventListener('storage', handleStorage);
+    document.addEventListener('visibilitychange', handleSync);
+    window.addEventListener('focus', handleSync);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', handleStorage);
+      document.removeEventListener('visibilitychange', handleSync);
+      window.removeEventListener('focus', handleSync);
+    };
+  }, [triggerBackgroundSync]);
+  // â”€â”€ ADMIN ACTIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  const addStudent = useCallback(async (student) => {
+    const payload = {
+      name:          student.name,
+      age:           student.age || undefined,
+      phone:         student.phone || '',
+      zalo:          student.zalo || student.phone || '',
+      address:       student.address || '',
+    const payload = {
+      name:      teacher.name,
+      phone:     teacher.phone,
+      specialty: teacher.specialty || '',
+      password:  teacher.password || teacher.phone,
+      status:    teacher.status || 'pending',
+    };
+
+    try {
+      const res = await api.teachers.create(payload);
+      if (res?.success && res.data) {
+        const saved = { ...res.data, id: res.data._id };
+        setTeachers(prev => [...prev, saved]);
+        return saved;
+      } else {
+        console.error('[addTeacher] API failed:', res?.message);
+        const fallback = { ...payload, id: Date.now() };
+        setTeachers(prev => [...prev, fallback]);
+        return fallback;
+      }
+    } catch (err) {
+      console.error('[addTeacher] Error:', err);
+      const fallback = { ...payload, id: Date.now() };
+      setTeachers(prev => [...prev, fallback]);
+      return fallback;
+    }
+  }, []);
+
+
+  // Cáº¥p quyá»n chá» duyá»‡t (Inactive/Locked â†’ Pending): GV Ä‘Äƒng nháº­p Ä‘Æ°á»£c, chá»‰ thi Ä‘Æ°á»£c
+  const grantPending = useCallback(async (teacherId) => {
+    const resetData = {
+      status: 'Pending',
+      testScore: 0,
+      testStatus: null,
+      testDate: null,
+      practicalFile: null,
+      practicalStatus: 'none',
+      lockReason: null,
+    };
+    // Update local state
+    setTeachers(prev => prev.map(t =>
+      String(t.id) === String(teacherId) || String(t._id) === String(teacherId)
+        ? { ...t, ...resetData }
+        : t
+    ));
+    // Sync to MongoDB
+    try {
+      await api.teachers.update(teacherId, resetData);
+      console.log('[grantPending] Synced to DB for teacher:', teacherId);
+    } catch (err) {
+      console.error('[grantPending] API error:', err);
+    }
+  }, []);
+
+  const removeTeacher = useCallback(async (teacherId) => {
+    try {
+      const res = await api.teachers.delete(teacherId);
+      if (res?.success) {
+        setTeachers(prev => prev.filter(t => String(t.id) !== String(teacherId) && String(t._id) !== String(teacherId)));
+        setStudents(prev => prev.map(s => String(s.teacherId) === String(teacherId) ? { ...s, teacherId: null, teacherName: null } : s));
+      } else {
+        console.error('[removeTeacher] API failed:', res?.message);
+      }
+    } catch (err) {
+      console.error('[removeTeacher] Error:', err);
+      setTeachers(prev => prev.filter(t => String(t.id) !== String(teacherId) && String(t._id) !== String(teacherId)));
+    }
+  }, []);
+
+  const updateTeacher = useCallback((teacherId, updates) => {
+    setTeachers(prev => prev.map(t => String(t.id) === String(teacherId) ? { ...t, ...updates } : t));
+    api.teachers?.update(teacherId, updates).then(() => triggerBackgroundSync()).catch(console.error);
+  }, [triggerBackgroundSync]);
+
+  const updateStudent = useCallback((studentId, updates) => {
+    setStudents(prev => prev.map(s => String(s.id) === String(studentId) ? { ...s, ...updates } : s));
+    api.students?.update(studentId, updates).then(() => triggerBackgroundSync()).catch(console.error);
+  }, [triggerBackgroundSync]);
+
+  const assignTeacher = useCallback((studentId, teacherId) => {
+    const teacher = teachers.find(t => String(t.id) === String(teacherId) || String(t._id) === String(teacherId));
+    if (!teacher) return;
+
+    setStudents(prev => prev.map(s => String(s.id) === String(studentId) ? { ...s, teacherId, teacherName: teacher.name, status: 'Äang há»c' } : s));
+    
+    api.students?.update(studentId, { teacherId })
+      .then(() => triggerBackgroundSync())
+      .catch(console.error);
+
+    const student = students.find(s => String(s.id) === String(studentId));
+    addNotification(teacherId, 'teacher', `Admin phÃ¢n cÃ´ng há»c viÃªn ${student?.name} cho báº¡n`);
+  }, [teachers, students, triggerBackgroundSync]);
+
+  const approveTeacher = useCallback((teacherId) => {
+    setTeachers(prev => prev.map(t => String(t.id) === String(teacherId) ? { ...t, status: 'Active', practicalStatus: 'approved' } : t));
+    
+    api.teachers?.approve(teacherId)
+      .then(() => triggerBackgroundSync())
+      .catch(console.error);
+
+    addNotification(teacherId, 'teacher', 'ChÃºc má»«ng! Admin Ä‘Ã£ cáº¥p quyá»n Giáº£ng viÃªn cho báº¡n.');
+  }, [triggerBackgroundSync]);
+
+  // Tá»« chá»‘i giáº£ng viÃªn
+  const rejectTeacher = useCallback((teacherId, reason) => {
+    setTeachers(prev => prev.map(t =>
+      String(t.id) === String(teacherId) ? { ...t, status: 'Locked', practicalStatus: 'rejected' } : t
+    ));
+    addNotification(teacherId, 'teacher', `BÃ i thá»±c hÃ nh bá»‹ tá»« chá»‘i: ${reason}`);
+  }, []);
+
+  // Chuyá»ƒn tiá»n GV â†’ gá»i backend táº¡o Transaction
+  const payTeacher = useCallback(async (teacherId, amount, note) => {
+    const teacher = teachers.find(t => String(t.id) === String(teacherId));
+    if (!teacher) return;
+
+    const now = new Date();
+    const month = `ThÃ¡ng ${now.getMonth() + 1}/${now.getFullYear()}`;
+
+    // Optimistic update
+    const tx = {
+      id: Date.now(), teacherId, teacherName: teacher.name,
+      amount, date: now.toLocaleDateString('vi-VN'),
+      note: note || `ThÃ¹ lao ${month}`,
+      status: 'confirmed',
+    };
+    setTransactions(prev => [...prev, tx]);
+    setTeachers(prev => prev.map(t =>
+      String(t.id) === String(teacherId) ? { ...t, paidAmount: (t.paidAmount || 0) + amount } : t
+    ));
+    addNotification(teacherId, 'teacher', `Admin Ä‘Ã£ chuyá»ƒn ${amount.toLocaleString('vi-VN')}Ä‘ - ${tx.note}`);
+
+    // Gá»i backend táº¡o & xÃ¡c nháº­n transaction
+    try {
+      const res = await api.transactions?.create({
+        teacherId, amount,
+        description: note || `ThÃ¹ lao ${month}`,
+        month,
+      });
+      if (res?.success) {
+        await api.transactions?.confirm(res.data._id);
+        triggerBackgroundSync();
+      }
+    } catch (e) {
+      console.error('[payTeacher] API error:', e);
+    }
+  }, [teachers, triggerBackgroundSync]);
+
+  // XÃ³a há»c viÃªn
+  const removeStudent = useCallback(async (studentId) => {
+    try {
+      const res = await api.students.delete(studentId);
+      if (res?.success) {
+        setStudents(prev => prev.filter(s => String(s.id) !== String(studentId) && String(s._id) !== String(studentId)));
+        setTeachers(prev => prev.map(t => ({
+          ...t, assignedStudents: (t.assignedStudents || []).filter(id => String(id) !== String(studentId))
+        })));
+      } else {
+        console.error('[removeStudent] API failed:', res?.message);
+      }
+    } catch (err) {
+      console.error('[removeStudent] Error:', err);
+      setStudents(prev => prev.filter(s => String(s.id) !== String(studentId) && String(s._id) !== String(studentId)));
+    }
+  }, []);
+
+  // ÄÃ¡nh dáº¥u há»c phÃ­ Ä‘Ã£ thanh toÃ¡n â†’ gá»i backend (tá»± táº¡o hÃ³a Ä‘Æ¡n)
+  const markStudentPaid = useCallback(async (studentId, isPaid = true, paymentMethod = 'transfer') => {
+    // Optimistic update UI ngay
+    setStudents(prev => prev.map(s =>
+      String(s.id) === String(studentId)
+        ? { ...s, paid: isPaid, status: isPaid ? 'Äang há»c' : s.status }
+        : s
+    ));
+    if (isPaid) {
+      try {
+        await api.students?.pay(studentId, paymentMethod);
+        triggerBackgroundSync();
+      } catch (e) {
+        console.error('[markStudentPaid] API error:', e);
+      }
+    }
+  }, [triggerBackgroundSync]);
+
+  // â”€â”€ TEACHER ACTIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  // Äiá»ƒm danh
+  const markAttendance = useCallback((studentId, note, grade) => {
+    setStudents(prev => prev.map(s => {
+      if (s.id !== studentId || s.remainingSessions <= 0) return s;
+      const newGrade = {
+        date: new Date().toLocaleDateString('vi-VN'),
+        note: note || 'ÄÃ£ Ä‘iá»ƒm danh',
+        grade: grade || 0,
+      };
+      const newGrades = [newGrade, ...s.grades];
+      const validGrades = newGrades.filter(g => g.grade > 0);
+      const avg = validGrades.length > 0
+        ? Math.round((validGrades.reduce((sum, g) => sum + g.grade, 0) / validGrades.length) * 10) / 10
+        : 0;
+      return {
+        ...s,
+        completedSessions: s.completedSessions + 1,
+        remainingSessions: s.remainingSessions - 1,
+        lastGrade: grade || s.lastGrade,
+        avgGrade: avg,
+        grades: newGrades,
+        status: s.remainingSessions - 1 <= 0 ? 'HoÃ n thÃ nh' : 'Äang há»c',
+      };
+    }));
+    const student = students.find(s => String(s.id) === String(studentId));
+    addNotification(studentId, 'student', `Giáº£ng viÃªn Ä‘Ã£ Ä‘iá»ƒm danh buá»•i há»c. Äiá»ƒm: ${grade}/10`);
+
+    // Cáº­p nháº­t schedule
+    setSchedules(prev => {
+      const today = new Date().toISOString().split('T')[0];
+      return prev.map(sch =>
+        sch.studentId === studentId && sch.date === today ? { ...sch, status: 'completed' } : sch
+      );
+    });
+  }, [students]);
+
+  // Cáº­p nháº­t link há»c & lá»‹ch â€” tá»± Ä‘á»™ng thÃ´ng bÃ¡o há»c viÃªn
+  const updateStudentLink = useCallback((studentId, linkHoc) => {
+    setStudents(prev => prev.map(s =>
+      String(s.id) === String(studentId) ? { ...s, linkHoc } : s
+    ));
+    addNotification(studentId, 'student',
+      `ðŸ“Ž Giáº£ng viÃªn Ä‘Ã£ cáº­p nháº­t link há»c má»›i. Nháº¥n vÃ o Ä‘Ã¢y Ä‘á»ƒ tham gia.`);
+  }, []);
+
+  // Cáº­p nháº­t lá»‹ch há»c â€” sync sang StudentDashboard
+  const updateStudentSchedule = useCallback((studentId, nextClass, nextClassTime) => {
+    setStudents(prev => prev.map(s =>
+      String(s.id) === String(studentId) ? { ...s, nextClass, nextClassTime } : s
+    ));
+    addNotification(studentId, 'student',
+      `ðŸ“… Lá»‹ch há»c Ä‘Ã£ Ä‘Æ°á»£c cáº­p nháº­t: ${nextClass}. Nhá»› tham gia Ä‘Ãºng giá»!`);
+  }, []);
+
+  // GV ná»™p bÃ i test
+  const submitTestResult = useCallback((teacherId, score, passed) => {
+    setTeachers(prev => prev.map(t =>
+      String(t.id) === String(teacherId) ? { ...t, testScore: score, testStatus: passed ? 'passed' : 'failed' } : t
+    ));
+    addNotification(null, 'admin', `Giáº£ng viÃªn ID ${teacherId} Ä‘Ã£ ná»™p bÃ i test: ${score} Ä‘iá»ƒm - ${passed ? 'Äáº T' : 'KHÃ”NG Äáº T'}`);
+  }, []);
+
+  // â”€â”€ EXAM APPROVAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  // Admin duyá»‡t cho há»c viÃªn thi cuá»‘i khÃ³a â†’ gá»i backend unlock
+  const approveStudentExam = useCallback(async (studentId) => {
+    const student = students.find(s => String(s.id) === String(studentId));
+    if (!student) return;
+
+    // Optimistic update
+    setStudents(prev => prev.map(s =>
+      String(s.id) === String(studentId)
+        ? { ...s, examApproved: true, studentExamUnlocked: true }
+        : s
+    ));
+    addNotification(studentId, 'student',
+      'ðŸŽ“ Admin Ä‘Ã£ duyá»‡t cho báº¡n thi cuá»‘i khÃ³a! VÃ o PhÃ²ng Thi Ä‘á»ƒ báº¯t Ä‘áº§u.');
+    addNotification(null, 'admin',
+      `ÄÃ£ duyá»‡t thi cuá»‘i khÃ³a cho há»c viÃªn ${student.name}`);
+
+    // Gá»i backend
+    try {
+      await api.students?.unlockExam(studentId);
+    } catch (e) {
+      console.error('[approveStudentExam] API error:', e);
+    }
+  }, [students]);
+
+  // Admin thu há»“i quyá»n thi â†’ gá»i backend lock
+  const revokeStudentExam = useCallback(async (studentId, reason = '') => {
+    setStudents(prev => prev.map(s =>
+      String(s.id) === String(studentId)
+        ? { ...s, examApproved: false, studentExamUnlocked: false }
+        : s
+    ));
+    try {
+      await api.students?.lockExam(studentId, reason);
+    } catch (e) {
+      console.error('[revokeStudentExam] API error:', e);
+    }
+  }, []);
+
+  const saveExamResult = useCallback((studentId, subject, score, passed) => {
+    setStudents(prev => prev.map(s =>
+      String(s.id) === String(studentId)
+        ? { ...s, examResults: { ...(s.examResults || {}), [subject]: { score, passed, date: new Date().toLocaleDateString('vi-VN') } } }
+        : s
+    ));
+  }, []);
+
+  // â”€â”€ Káº¾T QUáº¢ THI ADMIN â€” ghi nháº­n & cháº¥m Ä‘iá»ƒm (lÆ°u vÃ o MongoDB) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const addExamResult = useCallback(async (data) => {
+    // Optimistic: cáº­p nháº­t local ngay láº­p tá»©c
+    const tempId = `temp_${Date.now()}`;
+    const newEntry = { ...data, id: tempId, createdAt: new Date().toISOString() };
+    setExamResults(prev => [newEntry, ...prev]);
+    try {
+      const saved = await api.examResults.create(data);
+      if (saved?._id) {
+        // Thay tempId báº±ng _id tháº­t tá»« server
+        setExamResults(prev => prev.map(r => r.id === tempId ? { ...saved, id: saved._id } : r));
+      }
+    } catch (e) {
+      console.error('[addExamResult] API error, giá»¯ local:', e);
+    }
+  }, []);
+
+  const updateExamResult = useCallback(async (id, updates) => {
+    // Optimistic update
+    setExamResults(prev => prev.map(r => (r.id === id || r._id === id) ? { ...r, ...updates } : r));
+    try {
+      // id cÃ³ thá»ƒ lÃ  _id cá»§a MongoDB hoáº·c tempId
+      const mongoId = id.startsWith?.('temp_') ? null : id;
+      if (mongoId) await api.examResults.update(mongoId, updates);
+    } catch (e) {
+      console.error('[updateExamResult] API error, giá»¯ local:', e);
+    }
+  }, []);
+
+  const removeExamResult = useCallback(async (id) => {
+    // Optimistic remove
+    setExamResults(prev => prev.filter(r => r.id !== id && r._id !== id));
+    try {
+      const mongoId = id.startsWith?.('temp_') ? null : id;
+      if (mongoId) await api.examResults.remove(mongoId);
+    } catch (e) {
+      console.error('[removeExamResult] API error, giá»¯ local:', e);
+    }
+  }, []);
+
+  // GV ná»™p file thá»±c hÃ nh
+  const submitPracticalFile = useCallback((teacherId, fileName) => {
+    setTeachers(prev => prev.map(t =>
+      String(t.id) === String(teacherId) ? { ...t, practicalFile: fileName, practicalStatus: 'pending' } : t
+    ));
+    addNotification(null, 'admin', `Giáº£ng viÃªn ID ${teacherId} Ä‘Ã£ ná»™p bÃ i thá»±c hÃ nh: ${fileName}`);
+  }, []);
+
+  // â”€â”€ MESSAGING (Backend API + Real-time) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  const API_URL = API_BASE;
+
+  // Gá»­i tin nháº¯n qua API â†’ lÆ°u MongoDB â†’ phÃ¡t Socket.io
+  const sendMessage = useCallback(async (msg) => {
+    const tempId = `temp_${Date.now()}`;
+    const convId = msg.isGroup && msg.groupId
+      ? `group_${msg.groupId}`
+      : [`${msg.senderRole}_${msg.senderId}`, `${msg.receiverRole}_${msg.receiverId}`].sort().join('__');
+    const newMsg = {
+      id: tempId,
+      convId,
+      senderId: msg.senderId,
+      senderName: msg.senderName,
+      senderRole: msg.senderRole,
+      receiverId: msg.receiverId,
+      receiverName: msg.receiverName,
+      receiverRole: msg.receiverRole,
+      content: msg.content,
+      messageType: msg.messageType || 'text',
+      fileUrl: msg.fileUrl || '',
+      fileName: msg.fileName || '',
+      time: new Date(),
+      read: false,
+      isRecalled: false,
+      reactions: [],
+    };
+    setMessages(prev => [...prev, newMsg]);
+
+    // Gá»­i lÃªn backend lÆ°u vÃ o MongoDB â†’ thay tempId báº±ng _id tháº­t
+    try {
+      const res = await api.messages.send({
+        senderId: String(msg.senderId),
+        senderName: msg.senderName,
+        senderRole: msg.senderRole,
+        receiverId: String(msg.receiverId),
+        receiverName: msg.receiverName,
+        receiverRole: msg.receiverRole,
+        content: msg.content,
+        messageType: msg.messageType || 'text',
+        fileUrl: msg.fileUrl || '',
+        fileName: msg.fileName || '',
+        isGroup: msg.isGroup || false,
+        groupId: msg.groupId || null,
+      });
+      if (res?.success && res?.data?._id) {
+        setMessages(prev => prev.map(m =>
+          m.id === tempId ? { ...m, id: res.data._id } : m
+        ));
+        return { ...newMsg, id: res.data._id };
+      }
+    } catch (err) {
+      console.error('[MSG] Lá»—i gá»­i tin nháº¯n lÃªn server:', err);
+    }
+    return newMsg;
+  }, []);
+
+  const syncMessages = useCallback(async (userId) => {
+    if (!userId) return;
+    try {
+      const json = await api.messages.syncByUser(userId);
+      if (json.success) {
+        const syncedMsgs = json.data.map(m => {
+          // XÃ¡c Ä‘á»‹nh convId Ä‘Ãºng: nhÃ³m hay cÃ¡ nhÃ¢n
+          const convId = m.isGroup && m.groupId
+            ? `group_${m.groupId}`
+            : m.conversationId;
+          return {
+            id: m._id,
+            convId,
+            groupId: m.groupId,
+            isGroup: m.isGroup || false,
+            senderId: m.senderId,
+            senderName: m.senderName,
+            senderRole: m.senderRole,
+            receiverId: m.receiverId,
+            receiverName: m.receiverName,
+            receiverRole: m.receiverRole,
+            content: m.content,
+            messageType: m.messageType || 'text',
+            fileUrl: m.fileUrl || '',
+            fileName: m.fileName || '',
+            time: new Date(m.createdAt),
+            read: m.isRead,
+            isRecalled: m.isRecalled || false,
+            reactions: m.reactions || [],
+          };
+        });
+        setMessages(syncedMsgs);
+      }
+    } catch (err) {
+      console.error('[MSG] Lá»—i Ä‘á»“ng bá»™ tin nháº¯n:', err);
+    }
+  }, []);
+
+  const toggleMessageReaction = useCallback(async (messageId, type) => {
+    try {
+      const json = await api.messages.toggleReaction(messageId, type);
+      if (json.success) {
+        setMessages(prev => prev.map(m => 
+          String(m.id) === String(messageId) ? { ...m, reactions: json.data } : m
+        ));
+      }
+    } catch (err) {
+      console.error('[MSG] Lá»—i cáº­p nháº­t reaction:', err);
+    }
+  }, []);
+
+  const recallMessage = useCallback(async (messageId) => {
+    try {
+      const json = await api.messages.recall(messageId);
+      if (json.success) {
+        setMessages(prev => prev.map(m =>
+          String(m.id) === String(messageId) ? { ...m, isRecalled: true, content: 'Tin nháº¯n Ä‘Ã£ Ä‘Æ°á»£c thu há»“i' } : m
+        ));
+      }
+    } catch (err) {
+      console.error('[MSG] Lá»—i thu há»“i tin nháº¯n:', err);
+    }
+  }, []);
+
+  const createChatGroup = useCallback(async (name, participants) => {
+    try {
+      const json = await api.messages.createGroup(name, participants);
+      if (json.success) {
+        setGroups(prev => [json.data, ...prev]);
+        triggerBackgroundSync();
+        return json.data;
+      }
+    } catch (err) {
+      console.error('[MSG] Lá»—i táº¡o nhÃ³m:', err);
+    }
+    return null;
+  }, [triggerBackgroundSync]);
+
+  const markMessagesRead = useCallback(async (convId, readerId) => {
+    let needsUpdate = false;
+    setMessages(prev => {
+      const hasUnread = prev.some(m => m.convId === convId && String(m.receiverId) === String(readerId) && !m.read);
+      if (!hasUnread) return prev; // Ngáº¯t vÃ²ng láº·p vÃ´ háº¡n náº¿u khÃ´ng cÃ³ tin chÆ°a Ä‘á»c
+      needsUpdate = true;
+      return prev.map(m =>
+        m.convId === convId && String(m.receiverId) === String(readerId) ? { ...m, read: true } : m
+      );
+    });
+
+    if (needsUpdate) {
+      // Äá»“ng bá»™ lÃªn backend thÃ´ng qua centralized api service (cÃ³ token)
+      try {
+        await api.messages.markRead(convId, readerId);
+      } catch (err) {
+        console.error('[MSG] Lá»—i Ä‘Ã¡nh dáº¥u Ä‘Ã£ Ä‘á»c:', err);
+      }
+    }
+  }, []);
+
+  // Helper: Táº¡o conversationId chuáº©n (role_id format, sorted)
+  const makeConvId = (role1, id1, role2, id2) => {
+    return [`${role1}_${id1}`, `${role2}_${id2}`].sort().join('__');
+  };
+
+  const getConversations = useCallback((userId) => {
+    const sId = String(userId);
+    const userRole = (sId === 'admin') ? 'admin' : (students.find(s => String(s.id) === sId) ? 'student' : 'teacher');
+
+    // Filter messages where user is sender or receiver
+    const userMsgs = messages.filter(m => String(m.senderId) === sId || String(m.receiverId) === sId);
+    const convMap = {};
+
+    // 1. Add existing conversations from messages
+    userMsgs.forEach(m => {
+      if (!convMap[m.convId] || m.time > convMap[m.convId].lastTime) {
+        const otherUserId = String(m.senderId) === sId ? m.receiverId : m.senderId;
+        const otherName = String(m.senderId) === sId ? m.receiverName : m.senderName;
+        const otherRole = String(m.senderId) === sId ? m.receiverRole : m.senderRole;
+        convMap[m.convId] = {
+          id: m.convId,
+          user: { id: otherUserId, name: otherName, role: otherRole, avatar: String(otherName || 'U').substring(0, 2).toUpperCase(), online: true },
+          lastMessage: m.content,
+          lastTime: m.time,
+          unread: userMsgs.filter(um => um.convId === m.convId && String(um.receiverId) === sId && !um.read).length,
+        };
+      }
+    });
+
+    // 2. Add potential contacts
+    if (userRole === 'student') {
+      const student = students.find(s => String(s.id) === sId);
+      if (student && student.teacherId) {
+        const t = teachers.find(t => t.id === student.teacherId);
+        const convId = makeConvId('student', sId, 'teacher', student.teacherId);
+        if (t && !convMap[convId]) {
+          convMap[convId] = {
+            id: convId,
+            user: { id: t.id, name: t.name, role: 'teacher', avatar: String(t.name || 'GV').substring(0, 2).toUpperCase(), online: true },
+            lastMessage: 'ChÆ°a cÃ³ tin nháº¯n',
+            lastTime: new Date(0),
+            unread: 0,
+          };
+        }
+      }
+      // ThÃªm Admin vÃ o danh báº¡ cá»§a Há»c viÃªn
+      const adminConvId = makeConvId('student', sId, 'admin', 'admin');
+      if (!convMap[adminConvId]) {
+        convMap[adminConvId] = {
+          id: adminConvId,
+          user: { id: 'admin', name: 'Admin Tháº¯ng Tin Há»c', role: 'admin', avatar: 'AD', online: true },
+          lastMessage: 'ChÆ°a cÃ³ tin nháº¯n',
+          lastTime: new Date(0),
+          unread: 0,
+        };
+      }
+    } else if (userRole === 'teacher') {
+      const myStudents = students.filter(s => String(s.teacherId) === sId);
+      myStudents.forEach(s => {
+        const convId = makeConvId('teacher', sId, 'student', s.id);
+        if (!convMap[convId]) {
+          convMap[convId] = {
+            id: convId,
+            user: { id: s.id, name: s.name, role: 'student', avatar: String(s.name || 'HV').substring(0, 2).toUpperCase(), online: true },
+            lastMessage: 'ChÆ°a cÃ³ tin nháº¯n',
+            lastTime: new Date(0),
+            unread: 0,
+          };
+        }
+      });
+
+      // Admin contact
+      const adminConvId = makeConvId('admin', 'admin', 'teacher', sId);
+      if (!convMap[adminConvId]) {
+        convMap[adminConvId] = {
+          id: adminConvId,
+          user: { id: 'admin', name: 'Admin Tháº¯ng Tin Há»c', role: 'admin', avatar: 'AD', online: true },
+          lastMessage: 'ChÆ°a cÃ³ tin nháº¯n',
+          lastTime: new Date(0),
+          unread: 0,
+        };
+      }
+    } else if (userRole === 'admin') {
+      // All active teachers
+      teachers.filter(t => t.status === 'Active' || t.status === 'active').forEach(t => {
+        const convId = makeConvId('admin', 'admin', 'teacher', t.id);
+        if (!convMap[convId]) {
+          convMap[convId] = {
+            id: convId,
+            user: { id: t.id, name: t.name, role: 'teacher', avatar: String(t.name || 'GV').substring(0, 2).toUpperCase(), online: true },
+            lastMessage: 'ChÆ°a cÃ³ tin nháº¯n',
+            lastTime: new Date(0),
+            unread: 0,
+          };
+        }
+      });
+
+      // All students
+      students.forEach(s => {
+        const convId = makeConvId('admin', 'admin', 'student', s.id);
+        if (!convMap[convId]) {
+          convMap[convId] = {
+            id: convId,
+            user: { id: s.id, name: s.name, role: 'student', avatar: String(s.name || 'HV').substring(0, 2).toUpperCase(), online: true },
+            lastMessage: 'ChÆ°a cÃ³ tin nháº¯n',
+            lastTime: new Date(0),
+            unread: 0,
+          };
+        }
+      });
+    }
+
+    // 3. Add Groups
+    if (groups && Array.isArray(groups)) {
+      groups.filter(g => g.participants?.some(p => String(p.userId) === sId)).forEach(g => {
+        const groupMsgs = messages.filter(m => String(m.groupId) === String(g._id));
+        const lastMsg = groupMsgs.length > 0 ? groupMsgs[groupMsgs.length - 1] : null;
+        const convId = `group_${g._id}`;
+
+        convMap[convId] = {
+          id: convId,
+          isGroup: true,
+          user: { id: g._id, name: g.name, role: 'group', avatar: 'GN', online: true },
+          lastMessage: lastMsg ? lastMsg.content : 'Báº¯t Ä‘áº§u cuá»™c trÃ² chuyá»‡n nhÃ³m',
+          lastTime: lastMsg ? lastMsg.time : new Date(g.createdAt || 0),
+          unread: groupMsgs.filter(m => !m.read && String(m.senderId) !== sId).length,
+        };
+      });
+    }
+
+    return Object.values(convMap).sort((a, b) => b.lastTime - a.lastTime);
+  }, [messages, students, teachers, groups]);
+
+  const getMessages = useCallback((convId) => {
+    return messages.filter(m => m.convId === convId).sort((a, b) => a.time - b.time);
+  }, [messages]);
+
+  // â”€â”€ NOTIFICATIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  const addNotification = useCallback((userId, role, text, type = 'system', path = null) => {
+    playNotifySound();
+    setNotifications(prev => [{
+      id: Date.now(), userId, role, text,
+      time: new Date().toISOString(), read: false, type, path
+    }, ...prev]);
+  }, []);
+
+  const markNotificationRead = useCallback((notifId) => {
+    setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, read: true } : n));
+  }, []);
+
+  const getNotifications = useCallback((userId, role) => {
+    return notifications.filter(n =>
+      (n.userId === userId || n.userId === null) && (n.role === role || n.role === null)
+    );
+  }, [notifications]);
+
+  // â”€â”€ SCHEDULE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  const addSchedule = useCallback((schedule) => {
+    const student = students.find(s => s.id === schedule.studentId);
+    const teacher = teachers.find(t => t.id === schedule.teacherId);
+    const newSched = {
+      ...schedule,
+      id: Date.now(),
+      status: 'scheduled',
+      studentName: student?.name || schedule.studentName || '',
+      teacherName: teacher?.name || schedule.teacherName || '',
+    };
+    setSchedules(prev => [...prev, newSched]);
+    // Äá»“ng bá»™ nextClass cho student
+    if (student) {
+      const dayNames = ['Chá»§ nháº­t', 'Thá»© 2', 'Thá»© 3', 'Thá»© 4', 'Thá»© 5', 'Thá»© 6', 'Thá»© 7'];
+      const d = new Date(schedule.date);
+      const dayName = dayNames[d.getDay()];
+      const dateStr = `${schedule.startTime} - ${dayName} (${d.toLocaleDateString('vi-VN')})`;
+      setStudents(prev => prev.map(s =>
+        s.id === schedule.studentId ? { ...s, nextClass: dateStr, nextClassTime: `${schedule.date}T${schedule.startTime}:00` } : s
+      ));
+    }
+    addNotification(schedule.studentId, 'student', `ðŸ“… Lá»‹ch há»c má»›i: ${schedule.course} lÃºc ${schedule.startTime} ngÃ y ${schedule.date}`);
+    return newSched;
+  }, [students, teachers]);
+
+  // Cáº­p nháº­t lá»‹ch há»c (GV Ä‘á»•i giá»/link/topic)
+  const updateSchedule = useCallback((scheduleId, updates) => {
+    let updatedSched = null;
+    setSchedules(prev => prev.map(sch => {
+      if (sch.id === scheduleId) {
+        updatedSched = { ...sch, ...updates };
+        return updatedSched;
+      }
+      return sch;
+    }));
+    if (updatedSched) {
+      // Äá»“ng bá»™ link há»c sang student náº¿u link thay Ä‘á»•i
+      if (updates.linkHoc) {
+        setStudents(prev => prev.map(s =>
+          s.id === updatedSched.studentId ? { ...s, linkHoc: updates.linkHoc } : s
+        ));
+      }
+      addNotification(updatedSched.studentId, 'student',
+        `ðŸ“… Lá»‹ch há»c Ä‘Ã£ cáº­p nháº­t: ${updates.topic || updatedSched.topic} â€” ${updates.startTime || updatedSched.startTime} ngÃ y ${updates.date || updatedSched.date}`);
+    }
+  }, []);
+
+  // Há»§y buá»•i há»c
+  const cancelSchedule = useCallback((scheduleId, reason) => {
+    let cancelled = null;
+    setSchedules(prev => prev.map(sch => {
+      if (sch.id === scheduleId) {
+        cancelled = { ...sch, status: 'cancelled', cancelReason: reason };
+        return cancelled;
+      }
+      return sch;
+    }));
+    if (cancelled) {
+      addNotification(cancelled.studentId, 'student',
+        `âš ï¸ Buá»•i há»c ngÃ y ${cancelled.date} Ä‘Ã£ bá»‹ há»§y. LÃ½ do: ${reason || 'KhÃ´ng rÃµ'}`);
+      addNotification(cancelled.teacherId, 'teacher',
+        `ÄÃ£ há»§y buá»•i há»c vá»›i ${cancelled.studentName} ngÃ y ${cancelled.date}`);
+    }
+  }, []);
+
+  // â”€â”€ MATERIALS (GV upload tÃ i liá»‡u) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  const addMaterial = useCallback((material) => {
+    const newMat = { ...material, id: Date.now(), uploadDate: new Date().toISOString().split('T')[0] };
+    setMaterials(prev => [...prev, newMat]);
+    // ThÃ´ng bÃ¡o táº¥t cáº£ HV Ä‘ang há»c course Ä‘Ã³
+    students.filter(s => s.course && s.course.includes(material.course || '')).forEach(s => {
+      addNotification(s.id, 'student', `ðŸ“š TÃ i liá»‡u má»›i: ${material.name}`);
+    });
+    return newMat;
+  }, [students, addNotification]);
+
+  const removeMaterial = useCallback((materialId) => {
+    setMaterials(prev => prev.filter(m => m.id !== materialId));
+  }, []);
+
+  // Láº¥y tÃ i liá»‡u theo khÃ³a há»c
+  const getMaterialsByCourse = useCallback((courseName) => {
+    return materials.filter(m => m.course === courseName || courseName.includes(m.course));
+  }, [materials]);
+
+  // Láº¥y tÃ i liá»‡u theo loáº¡i
+  const getMaterialsByCategory = useCallback((category, courseName) => {
+    return materials.filter(m => m.category === category && (m.course === courseName || !courseName || courseName.includes(m.course)));
+  }, [materials]);
+
+  // â”€â”€ HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  const getStudentsByTeacher = useCallback((teacherId) => {
+    return students.filter(s => String(s.teacherId) === String(teacherId));
+  }, [students]);
+
+  const getTeacherStats = useCallback((teacherId) => {
+    const myStudents = students.filter(s => String(s.teacherId) === String(teacherId));
+    const totalSessions = myStudents.reduce((sum, s) => sum + (s.completedSessions || 0), 0);
+    const avgGrade = myStudents.length > 0
+      ? Math.round((myStudents.reduce((sum, s) => sum + (s.avgGrade || 0), 0) / myStudents.length) * 10) / 10
+      : 0;
+    const completed = myStudents.filter(s => s.status === 'HoÃ n thÃ nh').length;
+    return { studentCount: myStudents.length, totalSessions, avgGrade, completed };
+  }, [students]);
+
+  const getAdminStats = useCallback(() => {
+    const totalRevenue = students.filter(s => s.paid).reduce((sum, s) => sum + (s.price || 0), 0);
+    const activeTeachers = teachers.filter(t => t.status === 'Active' || t.status === 'active').length;
+    const pendingTeachers = teachers.filter(t => t.status === 'Pending').length;
+    return {
+      totalStudents: students.length,
+      totalTeachers: teachers.length,
+      activeTeachers,
+      pendingTeachers,
+      totalRevenue,
+    };
+  }, [students, teachers]);
+
+  const getSchedulesByTeacher = useCallback((teacherId) => {
+    return schedules.filter(s => String(s.teacherId) === String(teacherId));
+  }, [schedules]);
+
+  const getSchedulesByStudent = useCallback((studentId) => {
+    return schedules.filter(s => String(s.studentId) === String(studentId));
+  }, [schedules]);
+
+  const getTransactionsByTeacher = useCallback((teacherId) => {
+    return transactions.filter(t => String(t.teacherId) === String(teacherId));
+  }, [transactions]);
+
+  // â”€â”€ RATINGS (criteria-based, auto-calculate stars) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  const RATING_CRITERIA = {
+    teaching: {
+      label: 'PhÆ°Æ¡ng phÃ¡p dáº¡y', options: [
+        { key: 'effective', label: 'Hiá»‡u quáº£', score: 5 },
+        { key: 'normal', label: 'BÃ¬nh thÆ°á»ng', score: 3 },
+        { key: 'limited', label: 'Kiáº¿n thá»©c cÃ²n háº¡n cháº¿', score: 1 },
+      ]
+    },
+    voice: {
+      label: 'Giá»ng nÃ³i', options: [
+        { key: 'good', label: 'á»”n', score: 5 },
+        { key: 'hard', label: 'KhÃ³ nghe', score: 2 },
+      ]
+    },
+    guidance: {
+      label: 'HÆ°á»›ng dáº«n', options: [
+        { key: 'fast', label: 'Nhanh', score: 4 },
+        { key: 'ok', label: 'á»”n', score: 5 },
+        { key: 'slow', label: 'Cháº­m', score: 2 },
+      ]
+    },
+    support: {
+      label: 'Há»— trá»£ há»c viÃªn', options: [
+        { key: 'enthusiastic', label: 'Nhiá»‡t tÃ¬nh', score: 5 },
+        { key: 'moderate', label: 'TÆ°Æ¡ng Ä‘á»‘i', score: 3 },
+        { key: 'none', label: 'KhÃ´ng há»— trá»£', score: 1 },
+      ]
+    },
+  };
+
+  const rateTeacher = useCallback((teacherId, studentId, criteria, comment) => {
+    // criteria = { teaching: 'effective', voice: 'good', guidance: 'ok', support: 'enthusiastic' }
+    const student = students.find(s => s.id === studentId);
+    // Auto-calculate stars from criteria scores
+    const scores = Object.entries(criteria || {}).map(([cat, key]) => {
+      const opt = RATING_CRITERIA[cat]?.options.find(o => o.key === key);
+      return opt ? opt.score : 3;
+    });
+    const stars = Math.round((scores.reduce((s, v) => s + v, 0) / scores.length) * 10) / 10;
+
+    setTeachers(prev => prev.map(t => {
+      if (String(t.id) !== String(teacherId)) return t;
+      const ratings = t.ratings || [];
+      const existingIdx = ratings.findIndex(r => String(r.studentId) === String(studentId));
+      const newRating = {
+        studentId, studentName: student?.name || '', stars, criteria, comment,
+        date: new Date().toISOString().split('T')[0],
+      };
+      const newRatings = [...ratings];
+      if (existingIdx >= 0) newRatings[existingIdx] = newRating;
+      else newRatings.push(newRating);
+      return { ...t, ratings: newRatings };
+    }));
+    addNotification(teacherId, 'teacher',
+      `â­ ${student?.name || 'Há»c viÃªn'} Ä‘Ã£ Ä‘Ã¡nh giÃ¡ báº¡n ${stars}/5 sao`);
+  }, [students, teachers, addNotification]);
+
+  const getTeacherRating = useCallback((teacherId) => {
+    const teacher = teachers.find(t => String(t.id) === String(teacherId));
+    if (!teacher || !teacher.ratings?.length) return { avg: 0, count: 0, ratings: [] };
+    const avg = Math.round((teacher.ratings.reduce((s, r) => s + r.stars, 0) / teacher.ratings.length) * 10) / 10;
+    return { avg, count: teacher.ratings.length, ratings: teacher.ratings };
+  }, [teachers]);
+
+  // â”€â”€ PRIVATE EVALUATIONS (Hidden from Teachers) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  const submitPrivateEvaluation = useCallback((data) => {
+    // data = { studentId, teacherId, milestone, courseName, criteria, comment }
+    const student = students.find(s => s.id === data.studentId);
+    const teacher = teachers.find(t => t.id === data.teacherId);
+
+    setPrivateEvaluations(prev => {
+      // Find matching evaluation: same student AND same courseName AND same specific milestone
+      const existingIdx = prev.findIndex(ev =>
+        String(ev.studentId) === String(data.studentId) &&
+        ev.courseName === data.courseName &&
+        ev.milestone === data.milestone
+      );
+
+      const evalData = {
+        ...data,
+        id: existingIdx >= 0 ? prev[existingIdx].id : Date.now() + Math.random(),
+        studentName: student?.name || 'Há»c viÃªn',
+        teacherName: teacher?.name || 'Giáº£ng viÃªn',
+        date: new Date().toISOString().split('T')[0],
+        read: false
+      };
+
+      if (existingIdx >= 0) {
+        const next = [...prev];
+        next[existingIdx] = evalData;
+        return next;
+      }
+      return [...prev, evalData];
+    });
+
+    // Notify admin
+    addNotification(null, 'admin',
+      `ðŸ“¢ ÄÃ¡nh giÃ¡ RIÃŠNG (Má»‘c: ${data.milestone === 'lesson_1' ? 'Buá»•i 1' : data.milestone === 'manual_feedback' ? 'Theo khÃ³a há»c' : '50% khÃ³a'}): HV ${student?.name} Ä‘Ã¡nh giÃ¡ GV ${teacher?.name}`
+    );
+  }, [students, teachers]);
+
+  const getPrivateEvaluationsForAdmin = useCallback(() => {
+    return [...privateEvaluations].sort((a, b) => b.id - a.id);
+  }, [privateEvaluations]);
+
+  const markEvaluationRead = useCallback((evalId) => {
+    setPrivateEvaluations(prev => prev.map(ev => ev.id === evalId ? { ...ev, read: true } : ev));
+  }, []);
+
+  // â”€â”€ VALUE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+  const value = {
+    // Exam Results
+    examResults, addExamResult, updateExamResult, removeExamResult,
+    // Data
+    students, teachers, transactions, schedules, notifications, messages, materials,
+    currentUser, setCurrentUser,
+
+    // Admin
+    addStudent, addTeacher, removeTeacher, updateTeacher, updateStudent, assignTeacher, approveTeacher, rejectTeacher, payTeacher, removeStudent, grantPending,
+    markStudentPaid,
+    getAdminStats,
+
+
+
+    // Teacher
+    markAttendance, updateStudentLink, updateStudentSchedule,
+    submitTestResult, submitPracticalFile,
+    getStudentsByTeacher, getTeacherStats, getSchedulesByTeacher, getTransactionsByTeacher,
+
+    // Student
+    getSchedulesByStudent,
+
+    // Exam Approval
+    approveStudentExam, revokeStudentExam, saveExamResult,
+
+    // Messaging
+    sendMessage, syncMessages, markMessagesRead, getConversations, getMessages,
+    groups, recallMessage, createChatGroup,
+
+    // Notifications
+    addNotification, markNotificationRead, getNotifications,
+
+    // Schedule
+    addSchedule, updateSchedule, cancelSchedule,
+
+    // Materials
+    addMaterial, removeMaterial, getMaterialsByCourse, getMaterialsByCategory,
+
+    // Ratings
+    rateTeacher, getTeacherRating, RATING_CRITERIA,
+
+    // Private Evaluations
+    submitPrivateEvaluation, getPrivateEvaluationsForAdmin, markEvaluationRead, privateEvaluations,
+
+    // Training (Admin manage, Teacher view)
+    trainingData,
+    studentTrainingData,
+    addStudentTrainingItem: useCallback((category, item) => {
+      setStudentTrainingData(prev => ({
+        ...prev,
+        [category]: [...(prev[category] || []), { ...item, id: Date.now() }]
+      }));
+    }, []),
+    updateStudentTrainingItem: useCallback((category, id, updates) => {
+      setStudentTrainingData(prev => ({
+        ...prev,
+        [category]: (prev[category] || []).map(item => item.id === id ? { ...item, ...updates } : item)
+      }));
+    }, []),
+    removeStudentTrainingItem: useCallback((category, id) => {
+      setStudentTrainingData(prev => ({
+        ...prev,
+        [category]: (prev[category] || []).filter(item => item.id !== id)
+      }));
+    }, []),
+    addTrainingItem: useCallback((category, item) => {
+      setTrainingData(prev => ({
+        ...prev,
+        [category]: [...(prev[category] || []), { ...item, id: Date.now() }]
+      }));
+    }, []),
+    updateTrainingItem: useCallback((category, id, updates) => {
+      setTrainingData(prev => ({
+        ...prev,
+        [category]: (prev[category] || []).map(item => item.id === id ? { ...item, ...updates } : item)
+      }));
+    }, []),
+    removeTrainingItem: useCallback((category, id) => {
+      setTrainingData(prev => ({
+        ...prev,
+        [category]: (prev[category] || []).filter(item => item.id !== id)
+      }));
+    }, []),
+
+    // â”€â”€ Question Bank CRUD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    questions,
+    addQuestion: useCallback((q) => {
+      setQuestions(prev => [...prev, { ...q, id: `q_${Date.now()}` }]);
+    }, []),
+    updateQuestion: useCallback((id, updates) => {
+      setQuestions(prev => prev.map(q => q.id === id ? { ...q, ...updates } : q));
+    }, []),
+    removeQuestion: useCallback((id) => {
+      setQuestions(prev => prev.filter(q => q.id !== id));
+    }, []),
+    resetQuestions: useCallback(() => {
+      setQuestions(QUESTION_BANK);
+    }, []),
+
+    // â”€â”€ Student Question Bank CRUD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    studentQuestions,
+    addStudentQuestion: useCallback((q) => {
+      setStudentQuestions(prev => [...prev, { ...q, id: `sq_${Date.now()}` }]);
+    }, []),
+    updateStudentQuestion: useCallback((id, updates) => {
+      setStudentQuestions(prev => prev.map(q => q.id === id ? { ...q, ...updates } : q));
+    }, []),
+    removeStudentQuestion: useCallback((id) => {
+      setStudentQuestions(prev => prev.filter(q => q.id !== id));
+    }, []),
+    resetStudentQuestions: useCallback(() => {
+      setStudentQuestions([]);
+    }, []),
+
+    // â”€â”€ System Logs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    systemLogs,
+    addSystemLog: useCallback((action, target, adminName = 'Admin', color = 'bg-blue-500 text-white') => {
+      setSystemLogs(prev => {
+        const newLog = {
+          id: Date.now(),
+          action,
+          target,
+          admin: adminName,
+          time: new Date().toLocaleString('vi-VN'),
+          color
+        };
+        return [newLog, ...prev].slice(0, 100); // Giá»¯ tá»‘i Ä‘a 100 logs gáº§n nháº¥t
+      });
+    }, []),
+
+    isRefetching,
+    triggerBackgroundSync,
+    currentUser,
+    setCurrentUser,
+    toggleMessageReaction,
+  };
+
+  return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
+};
+
+export const useData = () => {
+  const ctx = useContext(DataContext);
+  if (!ctx) throw new Error('useData must be inside DataProvider');
+  return ctx;
+};
+
+export default DataContext;
+

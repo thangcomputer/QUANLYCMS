@@ -1,0 +1,322 @@
+const express  = require('express');
+const router   = express.Router();
+const Schedule = require('../models/Schedule');
+const Student  = require('../models/Student');
+const Teacher  = require('../models/Teacher');
+const { authMiddleware, branchFilter } = require('../middleware/auth');
+
+// ─── Helper: Kiểm tra và tự động Unlock Thi cho Học Viên ─────────────────────
+// Workflow 2: Đếm buổi hoàn thành → nếu >= totalSessions thì set studentExamUnlocked = true
+async function checkAndUnlockExam(studentId, io) {
+  try {
+    const student = await Student.findById(studentId);
+    if (!student || student.studentExamUnlocked) return;
+
+    // Đếm số buổi đã hoàn thành
+    const completedSessions = await Schedule.countDocuments({
+      studentId,                 // 1. Đúng định danh học viên
+      course: student.course,    // 2. Đúng khóa học hiện tại
+      status: 'completed',       // 3. Trạng thái Đã điểm danh
+    });
+
+    // Lấy tổng số buổi cần thiết từ học viên
+    const totalRequired = student.totalSessions || 12;
+
+    if (completedSessions >= totalRequired) {
+      await Student.findByIdAndUpdate(studentId, { studentExamUnlocked: true });
+
+      // Thông báo real-time cho học viên
+      if (io) {
+        io.emit('exam:unlocked', {
+          studentId: student._id.toString(),
+          studentName: student.name,
+          message: `🎉 Chúc mừng! Bạn đã hoàn thành ${completedSessions} buổi học. Phòng thi đã được mở khóa!`,
+        });
+      }
+
+      console.log(`✅ [SCHEDULE] Unlock thi cho HV: ${student.name} (${completedSessions}/${totalRequired} buổi)`);
+    }
+  } catch (err) {
+    console.error('[SCHEDULE] checkAndUnlockExam error:', err.message);
+  }
+}
+
+// ─── GET /api/schedules ────────────────────────────────────────────────────────
+// Admin/Staff: Lấy lịch học (STAFF chỉ thấy chi nhánh của mình)
+router.get('/', [authMiddleware, branchFilter], async (req, res) => {
+  try {
+    const { status, date, teacherId, studentId } = req.query;
+    const filter = { ...req.branchFilter }; // {} for admin, {branchId:...} for staff
+
+    if (status)    filter.status    = status;
+    if (teacherId) filter.teacherId = teacherId;
+    if (studentId) filter.studentId = studentId;
+    if (date) {
+      const d = new Date(date);
+      const nextDay = new Date(d);
+      nextDay.setDate(nextDay.getDate() + 1);
+      filter.date = { $gte: d, $lt: nextDay };
+    }
+
+    const schedules = await Schedule.find(filter)
+      .populate('teacherId', 'name phone')
+      .populate('studentId', 'name course phone zalo')
+      .sort({ date: 1, startTime: 1 });
+
+    res.json({ success: true, count: schedules.length, data: schedules });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─── GET /api/schedules/stats (branch-aware, secured) ────────────────────────
+router.get('/stats', [authMiddleware, branchFilter], async (req, res) => {
+  try {
+    const bf = req.branchFilter;  // {} for admin, {branchId:...} for STAFF
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    const [total, scheduled, completed, cancelled, thisMonth] = await Promise.all([
+      Schedule.countDocuments(bf),
+      Schedule.countDocuments({ ...bf, status: 'scheduled' }),
+      Schedule.countDocuments({ ...bf, status: 'completed' }),
+      Schedule.countDocuments({ ...bf, status: 'cancelled' }),
+      Schedule.countDocuments({ ...bf, date: { $gte: startOfMonth, $lte: endOfMonth }, status: { $ne: 'cancelled' } }),
+    ]);
+
+    res.json({ success: true, data: { total, scheduled, completed, cancelled, thisMonth } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─── GET /api/schedules/teacher/:teacherId ─────────────────────────────────────
+// Giảng viên xem lịch dạy của mình
+router.get('/teacher/:teacherId', async (req, res) => {
+  try {
+    const { status, month } = req.query;
+    const filter = { teacherId: req.params.teacherId };
+    if (status) filter.status = status;
+
+    if (month) {
+      // month = "YYYY-MM"
+      const [year, m] = month.split('-').map(Number);
+      filter.date = {
+        $gte: new Date(year, m - 1, 1),
+        $lt:  new Date(year, m,     1),
+      };
+    }
+
+    const schedules = await Schedule.find(filter)
+      .populate('studentId', 'name course zalo')
+      .sort({ date: 1, startTime: 1 });
+
+    res.json({ success: true, count: schedules.length, data: schedules });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─── GET /api/schedules/student/:studentId ─────────────────────────────────────
+// Học viên xem lịch học của mình
+router.get('/student/:studentId', async (req, res) => {
+  try {
+    const schedules = await Schedule.find({ studentId: req.params.studentId })
+      .populate('teacherId', 'name phone avatar specialty')
+      .sort({ date: 1, startTime: 1 });
+
+    // Thống kê buổi học
+    const completed = schedules.filter(s => s.status === 'completed').length;
+    const upcoming  = schedules.filter(s => s.status === 'scheduled').length;
+
+    res.json({
+      success: true,
+      data: schedules,
+      stats: { total: schedules.length, completed, upcoming },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─── POST /api/schedules ───────────────────────────────────────────────────────
+// Giảng viên / Admin tạo lịch học mới
+router.post('/', async (req, res) => {
+  try {
+    const {
+      teacherId, teacherName: teacherNameInput,
+      studentId, studentName: studentNameInput,
+      date, startTime, endTime,
+      course, linkHoc, note, topic, status
+    } = req.body;
+
+    if (!teacherId || !studentId || !date || !startTime) {
+      return res.status(400).json({
+        success: false,
+        message: 'Thiếu thông tin bắt buộc: teacherId, studentId, date, startTime',
+      });
+    }
+
+    // Validate ObjectId format
+    const isValidObjectId = (id) => /^[a-f\d]{24}$/i.test(String(id));
+    if (!isValidObjectId(teacherId)) {
+      return res.status(400).json({ success: false, message: `teacherId không hợp lệ: "${teacherId}"` });
+    }
+    if (!isValidObjectId(studentId)) {
+      return res.status(400).json({ success: false, message: `studentId không hợp lệ: "${studentId}". Vui lòng chọn học viên từ danh sách.` });
+    }
+
+    // Auto-lookup names nếu không được cung cấp
+    let teacherName = teacherNameInput;
+    let studentName = studentNameInput;
+    let courseFinal = course;
+
+    if (!teacherName || !studentName || !courseFinal) {
+      const [teacher, student] = await Promise.all([
+        !teacherName ? Teacher.findById(teacherId).select('name').lean() : null,
+        (!studentName || !courseFinal) ? Student.findById(studentId).select('name course').lean() : null,
+      ]);
+      if (!teacherName) teacherName = teacher?.name || 'Giảng viên';
+      if (!studentName) studentName = student?.name || 'Học viên';
+      if (!courseFinal) courseFinal = student?.course || '';
+    }
+
+    if (!courseFinal) {
+      return res.status(400).json({ success: false, message: 'Thiếu thông tin khóa học (course)' });
+    }
+
+    let finalPaidToTeacher = false;
+    let paymentStatus = 'pending';
+    const studentDoc = await Student.findById(studentId).lean();
+    if (studentDoc && studentDoc.teacher_payment_status === 'PAID_IN_ADVANCE') {
+       finalPaidToTeacher = true;
+       paymentStatus = 'paid';
+    }
+
+    const schedule = await Schedule.create({
+      teacherId, teacherName,
+      studentId, studentName,
+      date: new Date(date),
+      startTime, endTime: endTime || '',
+      course: courseFinal, 
+      linkHoc: linkHoc || '',
+      note: note || topic || '',
+      status: status || 'scheduled',
+      is_paid_to_teacher: finalPaidToTeacher,
+      paymentStatus: paymentStatus,
+    });
+
+    // Populate để trả về đầy đủ
+    await schedule.populate([
+      { path: 'teacherId', select: 'name phone' },
+      { path: 'studentId', select: 'name course' },
+    ]);
+
+    // Thông báo real-time cho học viên
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('schedule:new', {
+        studentId: studentId.toString(),
+        schedule,
+        message: `📅 Giảng viên ${teacherName} đã đặt lịch học ${course} vào ${startTime} ngày ${new Date(date).toLocaleDateString('vi-VN')}`,
+      });
+    }
+
+    res.status(201).json({ success: true, data: schedule });
+  } catch (err) {
+    console.error('[SCHEDULE] Create error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─── PUT /api/schedules/:scheduleId ───────────────────────────────────────────
+// Cập nhật lịch học (hoàn thành, huỷ, điểm danh...)
+router.put('/:scheduleId', async (req, res) => {
+  try {
+    const { status, note, linkHoc, startTime, endTime, date } = req.body;
+
+    const schedule = await Schedule.findById(req.params.scheduleId);
+    if (!schedule) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy lịch học' });
+    }
+
+    // Cập nhật các field được phép
+    const updates = {};
+    if (status)    updates.status    = status;
+    if (note)      updates.note      = note;
+    if (linkHoc)   updates.linkHoc   = linkHoc;
+    if (startTime) updates.startTime = startTime;
+    if (endTime)   updates.endTime   = endTime;
+    if (date)      updates.date      = new Date(date);
+
+    const updated = await Schedule.findByIdAndUpdate(
+      req.params.scheduleId,
+      updates,
+      { new: true, runValidators: true }
+    ).populate([
+      { path: 'teacherId', select: 'name phone' },
+      { path: 'studentId', select: 'name course totalSessions studentExamUnlocked' },
+    ]);
+
+    const io = req.app.get('io');
+
+    // BUSINESS LOGIC: Nếu đánh dấu hoàn thành → kiểm tra unlock thi
+    if (status === 'completed' && schedule.studentId) {
+      await checkAndUnlockExam(schedule.studentId.toString(), io);
+
+      // Cập nhật remainingSessions của học viên (Tách biệt logic trừ buổi và cộng buổi)
+      const student = await Student.findById(schedule.studentId);
+      if (student) {
+        // Automatically mark as paid if Admin paid in advance
+        if (student.teacher_payment_status === 'PAID_IN_ADVANCE') {
+           await Schedule.findByIdAndUpdate(schedule._id, { 
+             is_paid_to_teacher: true,
+             paymentStatus: 'paid'
+           });
+        }
+
+        // Tuyệt đối không dùng biến đếm chung hay $inc, phải đếm động từ Schedule:
+        const realCompleted = await Schedule.countDocuments({
+          studentId: schedule.studentId,
+          course: student.course,
+          status: 'completed'
+        });
+        await Student.findByIdAndUpdate(schedule.studentId, {
+          completedSessions: realCompleted,
+          remainingSessions: Math.max(0, (student.totalSessions || 12) - realCompleted)
+        });
+      }
+
+      // Thông báo học viên
+      if (io) {
+        io.emit('schedule:completed', {
+          studentId: schedule.studentId.toString(),
+          teacherName: schedule.teacherName,
+          course: schedule.course,
+          date: schedule.date,
+        });
+      }
+    }
+
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    console.error('[SCHEDULE] Update error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─── DELETE /api/schedules/:scheduleId ────────────────────────────────────────
+router.delete('/:scheduleId', async (req, res) => {
+  try {
+    const schedule = await Schedule.findByIdAndDelete(req.params.scheduleId);
+    if (!schedule) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy lịch học' });
+    }
+    res.json({ success: true, message: 'Đã xóa lịch học' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+module.exports = router;
