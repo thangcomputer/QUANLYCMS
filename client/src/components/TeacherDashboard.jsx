@@ -1060,7 +1060,11 @@ const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSch
                   setSelectedDay(day === selectedDay ? null : day);
                   if (canAddNew && onAddSchedule) onAddSchedule(new Date(year, month, day));
                 }}
-                title={past && !hasData ? 'Ngày đã qua, không thể sắp lịch' : canAddNew ? 'Click để sắp lịch hôm này' : ''}
+                title={
+                  hasData ? daySchs.map(s => `${s.startTime} - ${s.studentName || s.course}${s.topic ? ` (${s.topic})` : ''}`).join('\n') 
+                  : past ? 'Ngày đã qua, không thể sắp lịch' 
+                  : 'Click để sắp lịch hôm này'
+                }
                 className={`relative w-full h-[3.25rem] sm:h-14 rounded-[1.25rem] flex flex-col items-center justify-center text-sm font-bold transition-all border-2
                   ${
                     selected
@@ -1173,6 +1177,11 @@ const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSch
                       <p className="text-[10px] text-gray-400 mt-0.5">
                         {s.startTime}{s.endTime ? ` – ${s.endTime}` : ''} &bull; {s.course}
                       </p>
+                      {s.topic && (
+                        <p className="text-[11px] font-medium text-blue-600 mt-1 truncate border-l-2 border-blue-500 pl-2 bg-blue-50/50 py-0.5 rounded-r">
+                          {s.topic}
+                        </p>
+                      )}
                       <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-block mt-1 ${cfg.badge}`}>
                         {cfg.label}
                       </span>
@@ -1238,6 +1247,11 @@ const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSch
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-gray-800 truncate">{s.studentName || s.course}</p>
                     <p className="text-[10px] text-gray-400">{s.startTime} – {s.endTime} &bull; {s.course}</p>
+                    {s.topic && (
+                      <p className="text-[10px] font-medium text-amber-600 mt-0.5 truncate">
+                        📖 {s.topic}
+                      </p>
+                    )}
                   </div>
                   {/* Hover cancel button */}
                   {new Date(s.date) >= today && (
