@@ -132,12 +132,25 @@ export default function TeacherScheduleHistoryPanel({ teacherId }) {
                     <td className="px-5 py-3.5">
                       {log.action === 'CREATED' ? (
                         <div className="text-xs text-slate-600">
-                          Lớp ngày: <span className="font-bold text-slate-800">{new Date(log.newValue?.date).toLocaleDateString('vi-VN')}</span>, 
-                          Ca: <span className="font-bold text-slate-800">{log.newValue?.startTime} - {log.newValue?.endTime}</span>
+                          Lớp ngày: <span className="font-bold text-slate-800">{new Date(log.newValue?.date || log.scheduledDate).toLocaleDateString('vi-VN')}</span>, 
+                          Ca: <span className="font-bold text-slate-800">
+                            {log.newValue?.startTime ? `${log.newValue?.startTime} - ${log.newValue?.endTime}` : 'Chưa ghi nhận giờ'}
+                          </span>
                         </div>
                       ) : (
-                        <div className="text-xs text-red-600 font-medium">
-                          Lý do: <span className="font-bold">{log.reason || 'Không cung cấp lý do'}</span>
+                        <div className="text-xs border-l-2 border-red-200 pl-2">
+                          <div className="text-slate-600 mb-1">
+                            Lớp ngày: <span className="font-bold text-slate-800">{new Date(log.scheduledDate || log.newValue?.date).toLocaleDateString('vi-VN')}</span>, 
+                            Ca: <span className="font-bold text-slate-800">
+                              {(log.newValue?.startTime || log.oldValue?.startTime) ? 
+                                `${log.newValue?.startTime || log.oldValue?.startTime} - ${log.newValue?.endTime || log.oldValue?.endTime}`
+                                : 'Chưa ghi nhận giờ'
+                              }
+                            </span>
+                          </div>
+                          <div className="text-red-600 font-medium mt-1">
+                            Lý do: <span className="font-bold">{log.reason || 'Không rõ'}</span>
+                          </div>
                         </div>
                       )}
                     </td>
