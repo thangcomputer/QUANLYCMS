@@ -147,7 +147,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
   }, [triggerBackgroundSync]);
 
   return (
-    <div className="flex min-h-screen bg-[#f8fafc] relative font-sans">
+    <div className="flex h-screen bg-[#f8fafc] relative font-sans overflow-hidden">
       {isRefetching && (
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-600 via-orange-500 to-red-600 z-[9999] animate-[gradient_2s_linear_infinite]" style={{ backgroundSize: '200% 100%' }}>
           <style>{`
@@ -173,8 +173,8 @@ const DashboardLayout = ({ role, session, onLogout }) => {
         userPermissions={session?.permissions || []}
       />
 
-      <main className="flex-1 min-w-0 overflow-x-hidden flex flex-col">
-        <header className="h-16 md:h-20 bg-white/80 border-b border-gray-100 flex items-center justify-between px-4 pl-14 md:px-8 md:pl-8 sticky top-0 z-40 backdrop-blur-xl">
+      <main className="flex-1 min-w-0 flex flex-col h-screen">
+        <header className="h-16 md:h-20 bg-white/80 border-b border-gray-100 flex items-center justify-between px-4 pl-14 md:px-8 md:pl-8 flex-shrink-0 z-40 backdrop-blur-xl">
           <div className="flex items-center gap-2 md:gap-4">
             <div className="flex items-center gap-1 md:gap-3">
               <nav className="flex items-center gap-1 md:gap-2 text-[10px] md:text-[11px] font-black uppercase tracking-widest text-gray-400">
@@ -290,7 +290,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
           </div>
         </header>
 
-        <div className="flex-1 p-4 sm:p-6 md:p-10 w-full overflow-x-hidden">
+        <div className="flex-1 p-4 sm:p-6 md:p-10 w-full overflow-x-hidden overflow-y-auto">
           <Outlet />
         </div>
       </main>
