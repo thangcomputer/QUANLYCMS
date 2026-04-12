@@ -491,7 +491,7 @@ router.get('/:id/finance', authMiddleware, async (req, res) => {
     const pendingSessionsCount = await Schedule.countDocuments({
       teacherId: req.params.id,
       status: 'completed',
-      is_paid_to_teacher: false
+      is_paid_to_teacher: { $ne: true }
     });
 
     // Chưa nhận = pendingSessionsCount * salary_per_session
@@ -533,7 +533,7 @@ router.get('/:id/finance/pending', authMiddleware, isAdmin, async (req, res) => 
     const pendingSessionsCount = await Schedule.countDocuments({
       teacherId: req.params.id,
       status: 'completed',
-      is_paid_to_teacher: false
+      is_paid_to_teacher: { $ne: true }
     });
 
     const salaryPerSession = teacher.baseSalaryPerSession || 0;
@@ -582,7 +582,7 @@ router.put('/:id/finance/pay-flexible', [authMiddleware, isAdmin, superAdminOnly
     // Nếu không có → vẫn tạo giao dịch (thanh toán thủ công do Admin nhập)
     const pendingSessions = await Schedule.find({
       teacherId: req.params.id,
-      is_paid_to_teacher: false
+      is_paid_to_teacher: { $ne: true }
     }).sort({ date: 1, createdAt: 1 }).limit(Number(sessionsCount));
 
     const actualCount = pendingSessions.length;
@@ -652,7 +652,7 @@ router.put('/:id/finance/pay-all', [authMiddleware, isAdmin, superAdminOnlyTeach
     const pendingSessionsCount = await Schedule.countDocuments({
       teacherId: req.params.id,
       status: 'completed',
-      is_paid_to_teacher: false
+      is_paid_to_teacher: { $ne: true }
     });
 
     if (pendingSessionsCount === 0) {
@@ -675,7 +675,7 @@ router.put('/:id/finance/pay-all', [authMiddleware, isAdmin, superAdminOnlyTeach
       { 
         teacherId: req.params.id, 
         status: 'completed', 
-        is_paid_to_teacher: false 
+        is_paid_to_teacher: { $ne: true } 
       },
       { $set: { is_paid_to_teacher: true, paymentStatus: 'paid' } }
     );

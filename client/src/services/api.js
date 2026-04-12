@@ -235,7 +235,7 @@ export const teachersAPI = {
     return res.json();
   },
   getPendingSessions: async (id) => {
-    const res = await apiFetch(`/teachers/${id}/pending-sessions`);
+    const res = await apiFetch(`/teachers/${id}/finance/pending`);
     return res.json();
   },
   payFlexible: async (teacherId, sessions, amount, note) => {
