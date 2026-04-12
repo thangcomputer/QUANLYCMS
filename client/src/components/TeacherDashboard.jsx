@@ -1006,9 +1006,9 @@ const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSch
   };
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col xl:flex-row gap-6 items-start">
       {/* ─ CALENDAR GRID ─ */}
-      <div className="bg-white rounded-3xl shadow-sm border-0 p-2 sm:p-4">
+      <div className="bg-white rounded-[2rem] shadow-sm border-0 p-3 sm:p-5 w-full xl:w-[420px] flex-shrink-0">
         {/* Header Nav */}
         <div className="px-2 py-4 flex items-center justify-between mb-2">
           <h3 className="font-extrabold text-teal-800 text-base sm:text-lg tracking-wide">
@@ -1061,7 +1061,7 @@ const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSch
                   if (canAddNew && onAddSchedule) onAddSchedule(new Date(year, month, day));
                 }}
                 title={past && !hasData ? 'Ngày đã qua, không thể sắp lịch' : canAddNew ? 'Click để sắp lịch hôm này' : ''}
-                className={`relative aspect-[4/5] rounded-xl flex flex-col items-center pt-2 sm:pt-3 text-sm font-bold transition-all border-2
+                className={`relative w-full h-[3.25rem] sm:h-14 rounded-[1.25rem] flex flex-col items-center justify-center text-sm font-bold transition-all border-2
                   ${
                     selected
                       ? 'bg-teal-50/50 border-teal-600 shadow-sm text-teal-800'
@@ -1081,7 +1081,7 @@ const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSch
 
                 {/* Status dots container - stacked below number */}
                 {hasData && (
-                  <div className="flex gap-1 mt-1 sm:mt-1.5 flex-wrap justify-center px-1">
+                  <div className="flex gap-1 mt-0.5 flex-wrap justify-center px-1">
                     {/* Render different color dots depending on status */}
                     {daySchs.filter(s => s.status === 'scheduled').slice(0,2).map(s => (
                       <div key={'s-'+s._id} className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-500 shadow-sm" />
@@ -1124,9 +1124,12 @@ const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSch
         </div>
       </div>
 
-      {/* ─ DETAIL PANEL (khi chọn 1 ngày) ─ */}
-      {selectedDay && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+      {/* ─ RIGHT COLUMN (Detail Panel & Upcoming) ─ */}
+      <div className="flex-1 w-full flex flex-col gap-6">
+        
+      {/* ─ DETAIL PANEL (khi chọn 1 ngày) Hoặc TRẠNG THÁI TRỐNG ─ */}
+      {selectedDay ? (
+        <div className="bg-white rounded-[2rem] border-0 shadow-sm overflow-hidden min-h-[300px]">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <h4 className="font-bold text-gray-800 text-sm">
               Lịch ngày {selectedDay}/{month + 1}/{year}
@@ -1202,6 +1205,14 @@ const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSch
             </div>
           )}
         </div>
+      ) : (
+        <div className="bg-white rounded-[2rem] border-0 shadow-sm min-h-[300px] flex flex-col items-center justify-center text-slate-400 p-8 text-center border-dashed border-2 border-slate-100">
+          <div className="w-20 h-20 bg-slate-50 flex items-center justify-center rounded-[1.5rem] mb-4 text-teal-600/20">
+            <Calendar size={40} />
+          </div>
+          <h3 className="text-lg font-bold text-slate-700 mb-2">Chưa chọn ngày</h3>
+          <p className="text-sm max-w-sm">Vui lòng bấm vào một ngày bất kỳ trên lịch phía trái để xem chi tiết hoặc sắp lịch mới.</p>
+        </div>
       )}
 
       {/* ─ UPCOMING LIST ─ */}
@@ -1260,6 +1271,8 @@ const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSch
             <p className="text-[10px] font-bold uppercase">{st.label}</p>
           </div>
         ))}
+      </div>
+
       </div>
 
       {/* ─ MODAL HUỶY LịCH ─ */}
