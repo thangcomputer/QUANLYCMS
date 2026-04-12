@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   Calendar, Video, CheckCircle, Save, MessageSquare, FileText,
   GraduationCap, TrendingUp, Clock, Star, Link2, Upload,
@@ -6,7 +6,7 @@ import {
   BarChart3, Users, ArrowLeft, ChevronLeft, Eye, X, XCircle,
   Search, Download, AlertCircle, Clipboard, Send, UserCheck, Check,
   Activity, DollarSign, Filter, User, Phone, Mail, Building2,
-  CreditCard, Landmark, Copy, Edit3, Shield, MapPin
+  CreditCard, Landmark, Copy, Edit3, Shield, MapPin, Trash2, Ban, PlayCircle
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import TeacherAssignmentsView from './TeacherAssignmentsView';
@@ -868,53 +868,56 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
                    value={attForm.note}
                    onChange={(e) => setAttForm({ ...attForm, note: e.target.value })}
                    placeholder="Ví dụ: Học tốt, nộp bài đầy đủ..."
-                   className="w-full bg-slate-50 border-2 border-slate-100 focus:border-emerald-500 focus:bg-white rounded-2xl px-6 py-4 text-sm font-bold text-slate-700 outline-none transition-all resize-none"
-                   rows={3}
-                 />
-              </div>
+                   className="w-full bg-slate-50 border-2 border-slate-100 foc// ─── MONTHLY CALENDAR (Upgraded) ───────────────────────────────────────────────────
 
-              <div className="flex gap-4 pt-4">
-                <button 
-                  onClick={() => setShowAttendanceModal(false)}
-                  className="flex-1 py-4 text-slate-400 font-black text-xs uppercase tracking-widest bg-slate-50 rounded-2xl hover:bg-slate-100 transition-all"
-                >
-                  Hủy
-                </button>
-                <button 
-                  onClick={() => {
-                    onAttendance((student._id || student.id), attForm.note, Number(attForm.grade));
-                    setShowAttendanceModal(false);
-                  }}
-                  className="flex-[2] py-4 text-white font-black text-xs uppercase tracking-widest bg-gradient-to-r from-emerald-600 to-green-500 rounded-2xl shadow-lg shadow-green-100 hover:shadow-green-200 transition-all active:scale-95"
-                >
-                  Xác nhận Điểm danh
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+const STATUS_COLORS = {
+  completed: {
+    cell: 'bg-emerald-50 border-emerald-200 text-emerald-700',
+    badge: 'bg-emerald-100 text-emerald-700',
+    dot: 'bg-emerald-500',
+    label: '✓ Hoàn thành',
+  },
+  scheduled: {
+    cell: 'bg-amber-50 border-amber-200 text-amber-700',
+    badge: 'bg-amber-100 text-amber-700',
+    dot: 'bg-amber-400',
+    label: '● Sắp tới',
+  },
+  cancelled: {
+    cell: 'bg-red-50 border-red-200 text-red-400',
+    badge: 'bg-red-100 text-red-500',
+    dot: 'bg-red-400',
+    label: '✗ Đã hủy',
+  },
 };
 
-// ─── MONTHLY CALENDAR ────────────────────────────────────────────────────────
-
-const MonthlyCalendar = ({ schedules, onEditSchedule }) => {
+const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSchedule }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedDay, setSelectedDay] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null); // schedule đang muốn hủy
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
 
-  const year = currentDate.getFullYear();
+  const year  = currentDate.getFullYear();
   const month = currentDate.getMonth();
-  const monthNames = ['tháng 1', 'tháng 2', 'tháng 3', 'tháng 4', 'tháng 5', 'tháng 6',
-    'tháng 7', 'tháng 8', 'tháng 9', 'tháng 10', 'tháng 11', 'tháng 12'];
+  const monthNames = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6',
+    'Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'];
 
-  const firstDay = new Date(year, month, 1).getDay();
+  const firstDay    = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const today = new Date();
+  const today       = new Date();
+  today.setHours(0, 0, 0, 0);
 
-  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
-  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
+  const isPast = (day) => {
+    const d = new Date(year, month, day);
+    d.setHours(0, 0, 0, 0);
+    return d < today;
+  };
+  const isToday = (day) => {
+    const d = new Date(year, month, day);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime() === today.getTime();
+  };
 
   // Group schedules by date
   const scheduleMap = useMemo(() => {
@@ -930,66 +933,130 @@ const MonthlyCalendar = ({ schedules, onEditSchedule }) => {
     return map;
   }, [schedules, month, year]);
 
-  // Detail view for selected date
-  const selectedSchedules = selectedDate ? (scheduleMap[selectedDate] || []) : [];
+  const selectedSchedules = selectedDay ? (scheduleMap[selectedDay] || []) : [];
 
   const days = [];
   for (let i = 0; i < firstDay; i++) days.push(null);
   for (let d = 1; d <= daysInMonth; d++) days.push(d);
 
-  const isToday = (d) => d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+  // Xác định màu sắc đại diện của ngày (priority: completed > scheduled > cancelled)
+  const getDayStatus = (daySchs) => {
+    if (!daySchs?.length) return null;
+    if (daySchs.some(s => s.status === 'completed')) return 'completed';
+    if (daySchs.some(s => s.status === 'scheduled')) return 'scheduled';
+    if (daySchs.some(s => s.status === 'cancelled')) return 'cancelled';
+    return null;
+  };
+
+  // Hủy lịch → gọi API cancel
+  const handleConfirmCancel = async () => {
+    if (!cancelTarget) return;
+    setCancelling(true);
+    try {
+      const token = localStorage.getItem('teacher_access_token') || localStorage.getItem('admin_access_token');
+      const res = await fetch(`/api/schedules/${cancelTarget._id || cancelTarget.id}/cancel`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reason: cancelReason }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (onCancelSchedule) onCancelSchedule(cancelTarget._id || cancelTarget.id, 'cancelled');
+      } else {
+        alert(data.message || 'Lỗi khi hủy lịch');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setCancelling(false);
+    setCancelTarget(null);
+    setCancelReason('');
+  };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-      {/* Calendar Grid */}
-      <div className="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        {/* Month header */}
+    <div className="space-y-4">
+      {/* ─ CALENDAR GRID ─ */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        {/* Header Nav */}
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="font-bold text-gray-700">Lịch theo tháng</h3>
+          <h3 className="font-bold text-gray-700 flex items-center gap-2">
+            <Calendar size={16} className="text-blue-500" />
+            Lịch dạy theo tháng
+          </h3>
           <div className="flex items-center gap-2">
-            <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-gray-100 transition">
+            <button onClick={() => setCurrentDate(new Date(year, month - 1, 1))} className="p-1.5 rounded-lg hover:bg-gray-100 transition">
               <ChevronLeft size={18} className="text-gray-500" />
             </button>
-            <span className="text-sm font-bold text-gray-700 min-w-[120px] text-center">
-              {monthNames[month]} {year}
-            </span>
-            <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-gray-100 transition">
+            <span className="text-sm font-bold text-gray-700 min-w-[120px] text-center">{monthNames[month]} {year}</span>
+            <button onClick={() => setCurrentDate(new Date(year, month + 1, 1))} className="p-1.5 rounded-lg hover:bg-gray-100 transition">
               <ChevronRight size={18} className="text-gray-500" />
             </button>
           </div>
         </div>
 
-        {/* Day headers */}
+        {/* Day labels */}
         <div className="grid grid-cols-7 text-center px-4 pt-3">
-          {['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'].map((d, i) => (
+          {['CN','T2','T3','T4','T5','T6','T7'].map((d, i) => (
             <div key={d} className={`text-[11px] font-bold py-2 ${i === 0 ? 'text-red-500' : 'text-gray-500'}`}>{d}</div>
           ))}
         </div>
 
-        {/* Calendar grid */}
+        {/* Calendar cells */}
         <div className="grid grid-cols-7 px-4 pb-4 gap-1">
           {days.map((day, idx) => {
-            if (!day) return <div key={`empty-${idx}`} />;
-            const hasSchedule = scheduleMap[day]?.length > 0;
-            const daySchedules = scheduleMap[day] || [];
-            const hasCompleted = daySchedules.some(s => s.status === 'completed');
-            const hasUpcoming = daySchedules.some(s => s.status === 'scheduled');
-            const hasCancelled = daySchedules.some(s => s.status === 'cancelled');
-            const isSelected = selectedDate === day;
+            if (!day) return <div key={`e-${idx}`} />;
+
+            const daySchs  = scheduleMap[day] || [];
+            const status   = getDayStatus(daySchs);
+            const past     = isPast(day);
+            const todayDay = isToday(day);
+            const selected = selectedDay === day;
+            const hasScheduled = daySchs.some(s => s.status === 'scheduled');
+            const colors   = status ? STATUS_COLORS[status] : null;
+            const canAddNew = !past && daySchs.length === 0;
 
             return (
-              <button key={day} onClick={() => setSelectedDate(day === selectedDate ? null : day)}
-                className={`relative aspect-square rounded-xl flex flex-col items-center justify-center text-sm font-semibold transition-all ${
-                  isSelected ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-300' :
-                  isToday(day) ? 'bg-teal-50 text-teal-700 ring-2 ring-teal-400' :
-                  hasSchedule ? 'bg-teal-50 text-teal-700 hover:bg-teal-100' : 'text-gray-700 hover:bg-gray-50'
-                }`}>
+              <button
+                key={day}
+                onClick={() => {
+                  if (past && !daySchs.length) return;
+                  setSelectedDay(day === selectedDay ? null : day);
+                  if (canAddNew && onAddSchedule) onAddSchedule(new Date(year, month, day));
+                }}
+                title={past && !daySchs.length ? 'Ngày đã qua, không thể sắp lịch' : canAddNew ? 'Click để sắp lịch hôm này' : ''}
+                className={`relative aspect-square rounded-xl flex flex-col items-center justify-center text-sm font-semibold transition-all border
+                  ${
+                    selected
+                      ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-300 border-blue-600'
+                    : todayDay
+                      ? 'bg-blue-50 text-blue-700 ring-2 ring-blue-400 border-blue-200'
+                    : past
+                      ? `opacity-40 cursor-not-allowed border-transparent ${colors?.cell || 'text-gray-400'}`
+                    : colors
+                      ? `${colors.cell} cursor-pointer hover:brightness-95 border`
+                    : 'text-gray-600 hover:bg-gray-50 border-transparent cursor-pointer'
+                  }
+                `}
+              >
                 {day}
-                {hasSchedule && (
+                {/* Status dots */}
+                {daySchs.length > 0 && (
                   <div className="flex gap-0.5 mt-0.5">
-                    {hasCompleted && <div className="w-1.5 h-1.5 rounded-full bg-green-500" />}
-                    {hasUpcoming && <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
-                    {hasCancelled && <div className="w-1.5 h-1.5 rounded-full bg-red-500" />}
+                    {['completed','scheduled','cancelled'].filter(st => daySchs.some(s => s.status === st)).map(st => (
+                      <div key={st} className={`w-1.5 h-1.5 rounded-full ${STATUS_COLORS[st].dot}`} />
+                    ))}
+                  </div>
+                )}
+                {/* Quick-add hint on empty future day */}
+                {canAddNew && (
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                    <Plus size={16} className="text-blue-400" />
+                  </div>
+                )}
+                {/* Diagonal line for full-cancelled days */}
+                {!past && !selected && daySchs.length > 0 && !hasScheduled && daySchs.every(s => s.status === 'cancelled') && (
+                  <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+                    <div className="absolute top-0 left-0 w-full h-full" style={{ background: 'repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(239,68,68,0.15) 4px, rgba(239,68,68,0.15) 5px)' }} />
                   </div>
                 )}
               </button>
@@ -998,102 +1065,194 @@ const MonthlyCalendar = ({ schedules, onEditSchedule }) => {
         </div>
 
         {/* Legend */}
-        <div className="px-6 pb-4 flex gap-4 text-[10px] text-gray-500">
-          <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500" /> Sắp tới</span>
-          <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500" /> Hoàn thành</span>
-          <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500" /> Đã hủy</span>
+        <div className="px-6 pb-4 flex gap-5 text-[10px] text-gray-500 border-t border-gray-50 pt-3">
+          <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-emerald-400" /> Đã dạy</span>
+          <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-amber-400" /> Sắp tới</span>
+          <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-red-400" /> Đã hủy</span>
+          <span className="flex items-center gap-1.5 text-blue-500"><Plus size={10} /> Click ngày trống để sắp lịch</span>
         </div>
       </div>
 
-      {/* Side Detail */}
-      <div className="lg:col-span-5 space-y-4">
-        {/* Today's schedule */}
-        <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl p-5 text-white">
-          <p className="text-blue-200 text-[10px] font-bold uppercase tracking-widest mb-2">
-            {selectedDate
-              ? `Ngày ${selectedDate}/${month + 1}/${year}`
-              : `Hôm nay — ${today.toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'long' })}`
-            }
-          </p>
-          {selectedSchedules.length > 0 ? (
-            <div className="space-y-3 mt-3">
-              {selectedSchedules.map(s => (
-                <div key={s.id} className="bg-white/10 rounded-xl p-3">
-                  <p className="font-bold text-sm">{s.topic || s.course}</p>
-                  <p className="text-blue-200 text-xs mt-1">🕐 {s.startTime} - {s.endTime}</p>
-                  <p className="text-blue-200 text-xs">👤 {s.studentName || 'Học viên'} • Buổi {s.sessionNumber}</p>
-                  <div className="flex justify-between items-center mt-2 gap-2">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
-                      s.status === 'completed' ? 'bg-green-400/20 text-green-200'
-                      : s.status === 'cancelled' ? 'bg-red-400/20 text-red-200'
-                      : 'bg-blue-400/20 text-blue-200'
-                    }`}>{s.status === 'completed' ? '✓ Hoàn thành' : s.status === 'cancelled' ? '✗ Đã hủy' : '● Sắp tới'}</span>
-                    <div className="flex gap-1.5">
-                      {s.status === 'scheduled' && (
-                        <>
-                          <button
-                            onClick={() => onAttendance && onAttendance(s)}
-                            className="flex items-center gap-1 text-[10px] bg-green-500/30 hover:bg-green-500/50 text-green-200 font-bold px-2 py-1 rounded-lg transition-all"
-                            title="Điểm danh nhanh"
-                          >
-                            <UserCheck size={10} /> Điểm danh
-                          </button>
-                          <button
-                            onClick={() => onEditSchedule(s)}
-                            className="text-[10px] text-white/60 hover:text-white bg-white/10 hover:bg-white/20 px-2 py-1 rounded-lg transition-all"
-                          >Sửa</button>
-                        </>
+      {/* ─ DETAIL PANEL (khi chọn 1 ngày) ─ */}
+      {selectedDay && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h4 className="font-bold text-gray-800 text-sm">
+              Lịch ngày {selectedDay}/{month + 1}/{year}
+            </h4>
+            <button onClick={() => setSelectedDay(null)} className="p-1 hover:bg-gray-100 rounded-lg">
+              <X size={16} className="text-gray-400" />
+            </button>
+          </div>
+
+          {selectedSchedules.length === 0 ? (
+            <div className="p-6 text-center">
+              <p className="text-gray-400 text-sm mb-3">Không có lịch ngày này.</p>
+              {!isPast(selectedDay) && (
+                <button
+                  onClick={() => { setSelectedDay(null); if (onAddSchedule) onAddSchedule(new Date(year, month, selectedDay)); }}
+                  className="text-xs bg-blue-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-blue-700 transition flex items-center gap-1.5 mx-auto"
+                >
+                  <Plus size={12} /> Sắp lịch ngày này
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {selectedSchedules.map(s => {
+                const past = isPast(selectedDay);
+                const isCancellable = !past && s.status === 'scheduled';
+                const cfg = STATUS_COLORS[s.status] || STATUS_COLORS.scheduled;
+                return (
+                  <div key={s._id || s.id} className="px-5 py-4 flex items-center gap-4 group hover:bg-gray-50 transition-colors">
+                    {/* Status icon */}
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${cfg.badge}`}>
+                      {s.status === 'completed' ? <CheckCircle size={16} /> :
+                       s.status === 'cancelled' ? <Ban size={16} /> :
+                       <Clock size={16} />}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-bold truncate ${s.status === 'cancelled' ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+                        {s.studentName || s.course || 'Lịch học'}
+                      </p>
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        {s.startTime}{s.endTime ? ` – ${s.endTime}` : ''} &bull; {s.course}
+                      </p>
+                      <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-block mt-1 ${cfg.badge}`}>
+                        {cfg.label}
+                      </span>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {s.status === 'scheduled' && !past && (
+                        <button
+                          onClick={() => onEditSchedule && onEditSchedule(s)}
+                          className="p-1.5 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors"
+                          title="Sửa lịch"
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                      )}
+                      {isCancellable && (
+                        <button
+                          onClick={() => { setCancelTarget(s); setCancelReason(''); }}
+                          className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                          title="Hủy lịch này"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       )}
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
-          ) : (
-            <p className="text-blue-200 text-sm mt-2">Không có lịch dạy ngày này.</p>
           )}
         </div>
+      )}
 
-        {/* Upcoming list */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100">
-            <h4 className="text-sm font-bold text-gray-700">📋 Buổi sắp tới trong tháng</h4>
-          </div>
-          <div className="divide-y divide-gray-50 max-h-60 overflow-y-auto">
-            {schedules.filter(s => s.status === 'scheduled' && new Date(s.date).getMonth() === month)
-              .sort((a, b) => new Date(a.date) - new Date(b.date))
-              .map(s => (
-                <div key={s.id} className="px-5 py-3 flex items-center gap-3 hover:bg-blue-50/30 transition">
-                  <div className="w-10 h-10 rounded-xl bg-blue-100 flex flex-col items-center justify-center text-blue-600 flex-shrink-0">
-                    <span className="text-[9px] font-bold">{monthNames[new Date(s.date).getMonth()].split(' ')[1]}</span>
-                    <span className="text-sm font-black">{new Date(s.date).getDate()}</span>
+      {/* ─ UPCOMING LIST ─ */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+          <h4 className="text-sm font-bold text-gray-700">📅 Sắp tới trong tháng</h4>
+          <span className="text-[10px] text-gray-400 font-bold">
+            {schedules.filter(s => s.status === 'scheduled' && new Date(s.date) >= today && new Date(s.date).getMonth() === month).length} buổi
+          </span>
+        </div>
+        <div className="divide-y divide-gray-50 max-h-56 overflow-y-auto">
+          {schedules
+            .filter(s => s.status === 'scheduled' && new Date(s.date).getMonth() === month)
+            .sort((a, b) => new Date(a.date) - new Date(b.date))
+            .map(s => {
+              const d = new Date(s.date);
+              return (
+                <div key={s._id || s.id} className="px-5 py-3 flex items-center gap-3 hover:bg-amber-50/30 transition group">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 flex flex-col items-center justify-center text-amber-700 flex-shrink-0">
+                    <span className="text-[8px] font-bold">{monthNames[d.getMonth()]}</span>
+                    <span className="text-sm font-black">{d.getDate()}</span>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-gray-800 truncate">{s.topic}</p>
-                    <p className="text-[10px] text-gray-400">{s.startTime} - {s.endTime} • {s.studentName || 'Học viên'}</p>
+                    <p className="text-sm font-semibold text-gray-800 truncate">{s.studentName || s.course}</p>
+                    <p className="text-[10px] text-gray-400">{s.startTime} – {s.endTime} &bull; {s.course}</p>
                   </div>
+                  {/* Hover cancel button */}
+                  {new Date(s.date) >= today && (
+                    <button
+                      onClick={() => { setCancelTarget(s); setCancelReason(''); }}
+                      className="p-1.5 rounded-lg hover:bg-red-50 text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
+                      title="Hủy lịch"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
-              ))}
-            {schedules.filter(s => s.status === 'scheduled' && new Date(s.date).getMonth() === month).length === 0 && (
-              <div className="px-5 py-6 text-center text-gray-400 text-sm">Không có buổi nào sắp tới.</div>
-            )}
-          </div>
-        </div>
-
-        {/* Stats summary */}
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: 'Tổng buổi', value: schedules.filter(s => new Date(s.date).getMonth() === month).length, color: 'bg-blue-50 text-blue-600' },
-            { label: 'Đã dạy', value: schedules.filter(s => s.status === 'completed' && new Date(s.date).getMonth() === month).length, color: 'bg-green-50 text-green-600' },
-            { label: 'Sắp tới', value: schedules.filter(s => s.status === 'scheduled' && new Date(s.date).getMonth() === month).length, color: 'bg-orange-50 text-orange-600' },
-          ].map((st, i) => (
-            <div key={i} className={`${st.color} rounded-xl p-3 text-center border border-current/10`}>
-              <p className="text-xl font-black">{st.value}</p>
-              <p className="text-[10px] font-bold uppercase">{st.label}</p>
-            </div>
-          ))}
+              );
+            })}
+          {schedules.filter(s => s.status === 'scheduled' && new Date(s.date).getMonth() === month).length === 0 && (
+            <div className="px-5 py-6 text-center text-gray-400 text-sm">Không có buổi nào sắp tới.</div>
+          )}
         </div>
       </div>
+
+      {/* ─ STATS ROW ─ */}
+      <div className="grid grid-cols-4 gap-2">
+        {[
+          { label: 'Tổng', value: schedules.filter(s => new Date(s.date).getMonth() === month).length, color: 'bg-blue-50 text-blue-600' },
+          { label: 'Đã dạy', value: schedules.filter(s => s.status === 'completed' && new Date(s.date).getMonth() === month).length, color: 'bg-emerald-50 text-emerald-600' },
+          { label: 'Sắp tới', value: schedules.filter(s => s.status === 'scheduled' && new Date(s.date).getMonth() === month).length, color: 'bg-amber-50 text-amber-600' },
+          { label: 'Đã hủy', value: schedules.filter(s => s.status === 'cancelled' && new Date(s.date).getMonth() === month).length, color: 'bg-red-50 text-red-500' },
+        ].map((st, i) => (
+          <div key={i} className={`${st.color} rounded-xl p-3 text-center border border-current/10`}>
+            <p className="text-xl font-black">{st.value}</p>
+            <p className="text-[10px] font-bold uppercase">{st.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* ─ MODAL HUỶY LịCH ─ */}
+      {cancelTarget && (
+        <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[28px] w-full max-w-sm shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-red-600 p-6 text-white flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <Trash2 size={20} />
+              </div>
+              <div>
+                <h3 className="font-black text-base">Hủy lịch dạy</h3>
+                <p className="text-red-200 text-xs mt-0.5">{cancelTarget.studentName} • {cancelTarget.course}</p>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600">Hành động này sẽ <strong>hủy vĩnh viễn</strong> buổi học này và ghi vào nhật ký hệ thống.</p>
+              <div>
+                <label className="text-xs font-black text-gray-500 uppercase tracking-widest block mb-2">Lý do hủy *</label>
+                <textarea
+                  rows={3}
+                  value={cancelReason}
+                  onChange={e => setCancelReason(e.target.value)}
+                  placeholder="Ví dụ: Học viên xin nghỉ, Giảng viên bận..."
+                  className="w-full border-2 border-gray-200 focus:border-red-400 rounded-xl px-4 py-3 text-sm outline-none resize-none"
+                />
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setCancelTarget(null); setCancelReason(''); }}
+                  className="flex-1 py-3 text-gray-500 font-bold bg-gray-50 rounded-xl hover:bg-gray-100"
+                >Hủy bỏ</button>
+                <button
+                  onClick={handleConfirmCancel}
+                  disabled={!cancelReason.trim() || cancelling}
+                  className="flex-[2] py-3 text-white font-bold bg-red-600 rounded-xl hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  {cancelling ? 'Đang hủy...' : 'Đồng ý Hủy lịch'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -2093,7 +2252,18 @@ const TeacherDashboard = ({ onNavigate }) => {
                 <Plus size={14} /> Xếp lịch mới
               </button>
             </div>
-            <MonthlyCalendar schedules={mySchedules} onEditSchedule={startEditSchedule} />
+            <MonthlyCalendar
+              schedules={mySchedules}
+              onEditSchedule={startEditSchedule}
+              onAddSchedule={(date) => {
+                setEditingSchedule({ date: date.toISOString().split('T')[0] }); // pre-fill date
+                setShowScheduleModal(true);
+              }}
+              onCancelSchedule={(scheduleId) => {
+                // Update local state: mark schedule as cancelled  
+                cancelSchedule(scheduleId);
+              }}
+            />
           </div>
 
         ) : currentHash === 'assignments' ? (

@@ -3,6 +3,7 @@ const router   = express.Router();
 const Schedule = require('../models/Schedule');
 const Student  = require('../models/Student');
 const Teacher  = require('../models/Teacher');
+const ScheduleHistory = require('../models/ScheduleHistory');
 const { authMiddleware, branchFilter } = require('../middleware/auth');
 
 // ─── Helper: Kiểm tra và tự động Unlock Thi cho Học Viên ─────────────────────
@@ -278,6 +279,23 @@ router.post('/', async (req, res) => {
     }
 
     res.status(201).json({ success: true, data: schedule });
+
+    // 📝 GHI AUDIT LOG: CREATED
+    ScheduleHistory.create({
+      scheduleId: schedule._id,
+      actorId: teacherId,
+      actorName: teacherName,
+      actorRole: req.user?.role || 'teacher',
+      action: 'CREATED',
+      reason: '',
+      oldValue: null,
+      newValue: { status: schedule.status, date: schedule.date, studentId, course: courseFinal },
+      studentName,
+      teacherName,
+      scheduledDate: schedule.date,
+      course: courseFinal,
+    }).catch(e => console.error('[ScheduleHistory] CREATED log err:', e));
+
   } catch (err) {
     console.error('[SCHEDULE] Create error:', err);
     res.status(500).json({ success: false, message: err.message });
@@ -361,6 +379,86 @@ router.delete('/:scheduleId', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Không tìm thấy lịch học' });
     }
     res.json({ success: true, message: 'Đã xóa lịch học' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─── PATCH /api/schedules/:scheduleId/cancel ─────────────────────────────────
+router.patch('/:scheduleId/cancel', authMiddleware, async (req, res) => {
+  try {
+    const { reason = '' } = req.body;
+    const schedule = await Schedule.findById(req.params.scheduleId);
+    if (!schedule) return res.status(404).json({ success: false, message: 'Không tìm thấy lịch học' });
+
+    if (schedule.status === 'cancelled') {
+      return res.status(400).json({ success: false, message: 'Lịch này đã bị hủy rồi' });
+    }
+    if (schedule.status === 'completed') {
+      return res.status(400).json({ success: false, message: 'Không thể hủy lịch đã hoàn thành' });
+    }
+    // Ngăn hủy lịch trong quá khứ (chỉ cho hủy lịch tương lai)
+    const schedDate = new Date(schedule.date);
+    schedDate.setHours(23, 59, 59, 999);
+    if (schedDate < new Date()) {
+      return res.status(400).json({ success: false, message: 'Không thể hủy lịch trong quá khứ' });
+    }
+
+    const oldValue = { status: schedule.status };
+    schedule.status = 'cancelled';
+    await schedule.save();
+
+    const actor = req.user || {};
+    await ScheduleHistory.create({
+      scheduleId: schedule._id,
+      actorId: actor.id || actor._id || schedule.teacherId,
+      actorName: actor.name || schedule.teacherName || 'Unknown',
+      actorRole: actor.role || 'teacher',
+      action: 'CANCELLED',
+      reason,
+      oldValue,
+      newValue: { status: 'cancelled' },
+      studentName: schedule.studentName,
+      teacherName: schedule.teacherName,
+      scheduledDate: schedule.date,
+      course: schedule.course,
+    });
+
+    const io = req.app.get('io');
+    if (io) io.emit('schedule:cancelled', { scheduleId: schedule._id.toString(), reason });
+
+    res.json({ success: true, data: schedule });
+  } catch (err) {
+    console.error('[SCHEDULE] Cancel error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─── GET /api/schedules/history/:teacherId ───────────────────────────────
+// Trả về lịch sử sắp lịch của 1 giảng viên (cho Admin xem)
+router.get('/history/:teacherId', authMiddleware, async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+    const { limit = 50, action } = req.query;
+    const filter = { actorId: teacherId };
+    if (action) filter.action = action;
+
+    const history = await ScheduleHistory.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(Number(limit))
+      .lean();
+
+    // Thống kê nhanh
+    const stats = {
+      total: history.length,
+      created: history.filter(h => h.action === 'CREATED').length,
+      cancelled: history.filter(h => h.action === 'CANCELLED').length,
+      cancelRate: history.length > 0
+        ? Math.round((history.filter(h => h.action === 'CANCELLED').length / history.length) * 100)
+        : 0,
+    };
+
+    res.json({ success: true, data: history, stats });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
