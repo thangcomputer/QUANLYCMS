@@ -21,6 +21,7 @@ import { BranchProvider }                    from './context/BranchContext';
 import LoadingScreen                         from './components/LoadingScreen';
 import StaffPopup                            from './components/StaffPopup';
 import { ModalProvider, useModal }           from './utils/Modal.jsx';
+import SecurityGuard                         from './components/SecurityGuard';
 import './App.css';
 
 // ── Session helpers ──────────────────────────────────────────────────────────
@@ -333,11 +334,12 @@ function App() {
     <ErrorBoundary>
         <LoadingScreen />
         <SocketProvider
-          userId={session ? `${session.role}_${session.id}` : ''}
+          userId={session ? `${session.role}_${session.id || session._id}` : ''}
           role={session?.role || ''}
           name={session?.name || ''}
         >
           <ModalProvider>
+            <SecurityGuard />
             <DataProvider key={session?.id || 'guest'} user={session} onLogout={handleLogout}>
                 <BranchProvider session={session}>
                 <ToastProvider>

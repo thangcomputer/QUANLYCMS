@@ -10,6 +10,7 @@ import {
   CheckCircle2, AlertTriangle
 } from 'lucide-react';
 import { useToast } from '../utils/toast';
+import { useModal } from '../utils/Modal.jsx';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -135,6 +136,7 @@ function BranchModal({ branch, onClose, onSaved }) {
 // ── Main Component ─────────────────────────────────────────────────────────────
 export default function BranchManagementTab() {
   const toast = useToast();
+  const { showModal } = useModal();
   const [branches, setBranches] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [modal, setModal]       = useState(undefined); // undefined=hidden null=add obj=edit
@@ -154,19 +156,27 @@ export default function BranchManagementTab() {
   useEffect(() => { fetchBranches(); }, [fetchBranches]);
 
   const handleDelete = async (b) => {
-    if (!window.confirm(`Vô hiệu hóa chi nhánh "${b.name}"?\n(Dữ liệu học viên/lịch dạy vẫn được giữ lại)`)) return;
-    setDeleting(b._id);
-    try {
-      const res = await fetch(`${API}/api/branches/${b._id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${getToken()}` },
-      }).then(r => r.json());
-      if (res.success) {
-        setBranches(prev => prev.map(x => x._id === b._id ? { ...x, isActive: false } : x));
-        toast.success(`🗑️ Đã vô hiệu hóa "${b.name}"`);
-      } else toast.error(res.message);
-    } catch { toast.error('Lỗi kết nối'); }
-    finally { setDeleting(null); }
+    showModal({
+      title: 'Xác nhận vô hiệu hóa',
+      content: `Vô hiệu hóa chi nhánh "${b.name}"? Dữ liệu học viên và lịch dạy vẫn được giữ lại nhưng chi nhánh này sẽ không còn xuất hiện trong danh sách hoạt động.`,
+      type: 'warning',
+      confirmText: 'Vô hiệu hóa',
+      cancelText: 'Hủy bỏ',
+      onConfirm: async () => {
+        setDeleting(b._id);
+        try {
+          const res = await fetch(`${API}/api/branches/${b._id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${getToken()}` },
+          }).then(r => r.json());
+          if (res.success) {
+            setBranches(prev => prev.map(x => x._id === b._id ? { ...x, isActive: false } : x));
+            toast.success(`🗑️ Đã vô hiệu hóa "${b.name}"`);
+          } else toast.error(res.message);
+        } catch { toast.error('Lỗi kết nối'); }
+        finally { setDeleting(null); }
+      }
+    });
   };
 
   const handleSaved = (updated) => {

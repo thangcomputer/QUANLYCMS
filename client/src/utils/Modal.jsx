@@ -4,26 +4,35 @@ import { X, AlertCircle, CheckCircle, Info, HelpCircle } from 'lucide-react';
 const ModalContext = createContext(null);
 
 export const ModalProvider = ({ children }) => {
-  const [modal, setModal] = useState(null); // { title, content, type, onConfirm, confirmText }
+  const [modal, setModal] = useState(null); // { title, content, type, onConfirm, onCancel, confirmText, cancelText }
 
-  const showModal = useCallback(({ title, content, type = 'info', onConfirm, confirmText = 'Đóng' }) => {
-    setModal({ title, content, type, onConfirm, confirmText });
+  const showModal = useCallback(({ title, content, type = 'info', onConfirm, onCancel, confirmText = 'Đóng', cancelText = null }) => {
+    setModal({ title, content, type, onConfirm, onCancel, confirmText, cancelText });
   }, []);
 
   const closeModal = useCallback(() => {
+    setModal(null);
+  }, []);
+
+  const handleConfirm = useCallback(() => {
     if (modal?.onConfirm) modal.onConfirm();
+    setModal(null);
+  }, [modal]);
+
+  const handleCancel = useCallback(() => {
+    if (modal?.onCancel) modal.onCancel();
     setModal(null);
   }, [modal]);
 
   return (
     <ModalContext.Provider value={{ showModal, closeModal }}>
       {children}
-      {modal && <ModalUI modal={modal} onClose={closeModal} />}
+      {modal && <ModalUI modal={modal} onConfirm={handleConfirm} onCancel={handleCancel} />}
     </ModalContext.Provider>
   );
 };
 
-const ModalUI = ({ modal, onClose }) => {
+const ModalUI = ({ modal, onConfirm, onCancel }) => {
   const typeConfigs = {
     info:    { icon: Info,        color: 'blue',   gradient: 'from-blue-600 to-indigo-600' },
     success: { icon: CheckCircle, color: 'emerald',gradient: 'from-emerald-500 to-teal-600' },
@@ -40,7 +49,7 @@ const ModalUI = ({ modal, onClose }) => {
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-300"
-        onClick={onClose}
+        onClick={onCancel}
       />
       
       {/* Modal Card */}
@@ -52,7 +61,7 @@ const ModalUI = ({ modal, onClose }) => {
             </div>
             
             <button 
-                onClick={onClose}
+                onClick={onCancel}
                 className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors"
             >
                 <X size={20} />
@@ -68,12 +77,23 @@ const ModalUI = ({ modal, onClose }) => {
             {modal.content}
           </p>
 
-          <button
-            onClick={onClose}
-            className={`w-full py-4 bg-gradient-to-r ${config.gradient} text-white font-black rounded-2xl shadow-lg shadow-${config.color}-500/20 hover:shadow-${config.color}-500/40 transition-all active:scale-[0.98]`}
-          >
-            {modal.confirmText}
-          </button>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={onConfirm}
+              className={`w-full py-4 bg-gradient-to-r ${config.gradient} text-white font-black rounded-2xl shadow-xl shadow-${config.color}-500/20 hover:shadow-${config.color}-500/40 transition-all active:scale-[0.98]`}
+            >
+              {modal.confirmText}
+            </button>
+            
+            {modal.cancelText && (
+              <button
+                onClick={onCancel}
+                className="w-full py-3 text-slate-400 font-bold hover:text-slate-600 transition-colors"
+              >
+                {modal.cancelText}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

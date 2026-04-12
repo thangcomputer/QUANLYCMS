@@ -23,11 +23,47 @@ export default function StudentDetailModal({ studentId, onClose }) {
     setLoading(true);
     api.students.getFullDetail(studentId)
       .then(res => {
-        if (res.success) setData(res.data);
+        if (res.success) {
+          setData(res.data);
+          // Auto fetch assignments for the course
+          if (res.data.student?.course) {
+            fetchAssignments(res.data.student.course);
+          }
+        }
       })
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
   }, [studentId]);
+
+  const [assignments, setAssignments] = useState([]);
+  const [loadingAssign, setLoadingAssign] = useState(false);
+  const [showAddAssign, setShowAddAssign] = useState(false);
+  const [newAssign, setNewAssign] = useState({ title: '', deadline: '', fileUrl: '', description: '' });
+
+  const fetchAssignments = async (course) => {
+    setLoadingAssign(true);
+    try {
+      const res = await api.assignments.getForStudent(studentId, course);
+      if (res.success) setAssignments(res.data);
+    } catch (err) { console.error(err); }
+    finally { setLoadingAssign(false); }
+  };
+
+  const handleAddAssignment = async () => {
+    if (!newAssign.title || !newAssign.deadline) return;
+    try {
+      const res = await api.assignments.create({
+        ...newAssign,
+        courseId: data.student.course,
+        teacherId: data.student.teacherId?._id || 'admin', // default to admin or current teacher
+      });
+      if (res.success) {
+        setShowAddAssign(false);
+        setNewAssign({ title: '', deadline: '', fileUrl: '', description: '' });
+        fetchAssignments(data.student.course);
+      }
+    } catch (err) { console.error(err); }
+  };
 
   if (!studentId) return null;
 
@@ -121,6 +157,7 @@ export default function StudentDetailModal({ studentId, onClose }) {
                {[
                  { id: 'summary', label: 'TỔNG QUAN', icon: ClipboardList },
                  { id: 'attendance', label: 'LỊCH HỌC', icon: Clock },
+                 { id: 'assignments', label: 'BÀI TẬP', icon: BookOpen },
                  { id: 'finance', label: 'TÀI CHÍNH', icon: CreditCard },
                  { id: 'academic', label: 'ĐIỂM SỐ', icon: Trophy },
                ].map(tab => (
@@ -363,6 +400,138 @@ export default function StudentDetailModal({ studentId, onClose }) {
                   </div>
                 </div>
               )}
+                {/* --- TAB: ASSIGNMENTS --- */}
+                {activeTab === 'assignments' && (
+                  <div className="space-y-6 animate-in slide-in-from-right-10 duration-500">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-black text-slate-800 text-sm uppercase tracking-wider flex items-center gap-2">
+                        <BookOpen size={16} className="text-blue-500" /> Danh sách bài tập được giao
+                      </h3>
+                      <button 
+                        onClick={() => setShowAddAssign(!showAddAssign)}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider shadow-sm transition-all flex items-center gap-1.5"
+                      >
+                        <Plus size={14} /> GIAO BÀI TẬP MỚI
+                      </button>
+                    </div>
+
+                    {showAddAssign && (
+                      <div className="bg-white rounded-3xl p-6 border-2 border-indigo-100 shadow-xl space-y-4 animate-in zoom-in-95">
+                        <div className="flex items-center justify-between border-b border-indigo-50 pb-3">
+                           <p className="text-xs font-black text-indigo-700 uppercase tracking-widest">Thiết lập bài tập ({data?.student?.course})</p>
+                           <button onClick={() => setShowAddAssign(false)} className="text-slate-400 hover:text-red-500"><X size={16} /></button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Tiêu đề bài tập</label>
+                            <input 
+                              type="text" value={newAssign.title} 
+                              onChange={e => setNewAssign({...newAssign, title: e.target.value})}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold focus:border-indigo-500 outline-none"
+                              placeholder="VD: Thực hành Excel Buổi 3"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Ngày quy định (Deadline)</label>
+                            <input 
+                              type="date" value={newAssign.deadline} 
+                              onChange={e => setNewAssign({...newAssign, deadline: e.target.value})}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold focus:border-indigo-500 outline-none"
+                            />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Link tài liệu / đề bài (File URL)</label>
+                            <input 
+                              type="text" value={newAssign.fileUrl} 
+                              onChange={e => setNewAssign({...newAssign, fileUrl: e.target.value})}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold focus:border-indigo-500 outline-none font-mono"
+                              placeholder="Dán link file đề bài (Google Drive, v.v...)"
+                            />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Ghi chú hướng dẫn</label>
+                            <textarea 
+                              value={newAssign.description}
+                              onChange={e => setNewAssign({...newAssign, description: e.target.value})}
+                              rows={2}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-medium focus:border-indigo-500 outline-none resize-none"
+                              placeholder="Các yêu cầu cụ thể đối với bài tập này..."
+                            />
+                          </div>
+                        </div>
+                        <button 
+                          onClick={handleAddAssignment}
+                          className="w-full py-3 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition shadow-lg shadow-indigo-100"
+                        >
+                          XÁC NHẬN GIAO BÀI
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="bg-white rounded-[32px] overflow-hidden border border-slate-100 shadow-sm">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="bg-slate-50">
+                            <th className="px-6 py-4 text-[11px] font-black text-slate-400 tracking-widest uppercase">Bài tập</th>
+                            <th className="px-4 py-4 text-[11px] font-black text-slate-400 tracking-widest uppercase">Thời hạn</th>
+                            <th className="px-4 py-4 text-[11px] font-black text-slate-400 tracking-widest uppercase text-center">Tiến độ</th>
+                            <th className="px-6 py-4 text-[11px] font-black text-slate-400 tracking-widest uppercase text-center">Kết quả</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {loadingAssign ? (
+                            <tr><td colSpan={4} className="py-20 text-center"><Loader2 className="animate-spin mx-auto text-indigo-400" /></td></tr>
+                          ) : assignments.length === 0 ? (
+                            <tr><td colSpan={4} className="py-20 text-center text-slate-300 italic text-sm">Chưa có bài tập nào được giao</td></tr>
+                          ) : assignments.map(a => {
+                            const sub = a.mySubmission;
+                            const isLate = new Date() > new Date(a.deadline) && !sub;
+                            return (
+                              <tr key={a._id} className="hover:bg-slate-50/50 transition">
+                                <td className="px-6 py-4">
+                                  <p className="text-xs font-black text-slate-800 uppercase tracking-tight mb-0.5">{a.title}</p>
+                                  <p className="text-[10px] text-slate-400 font-bold truncate max-w-[200px]">{a.description || 'Không có mô tả'}</p>
+                                  {a.attachedFileUrl && (
+                                    <a href={a.attachedFileUrl} target="_blank" rel="noreferrer" className="text-[10px] text-indigo-500 font-bold flex items-center gap-1 mt-1 hover:underline">
+                                      <Download size={10} /> Tải đề bài
+                                    </a>
+                                  )}
+                                </td>
+                                <td className="px-4 py-4">
+                                  <p className={`text-[11px] font-black ${isLate ? 'text-red-500' : 'text-slate-600'}`}>
+                                    {new Date(a.deadline).toLocaleDateString('vi-VN')}
+                                  </p>
+                                  {isLate && <span className="text-[9px] font-black text-red-400 uppercase leading-none">Quá hạn</span>}
+                                </td>
+                                <td className="px-4 py-4 text-center">
+                                  <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter shadow-sm border ${
+                                    sub 
+                                      ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
+                                      : isLate ? 'bg-red-50 text-red-600 border-red-100' : 'bg-amber-50 text-amber-600 border-amber-100'
+                                  }`}>
+                                    {sub ? '✅ ĐÃ NỘP' : isLate ? '❌ TRỄ HẠN' : '⏳ CHƯA DÀNH'}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                   {sub?.status === 'graded' ? (
+                                      <div className="flex flex-col items-center">
+                                         <p className="text-xl font-black text-indigo-600 leading-none">{sub.grade}</p>
+                                         <span className="text-[8px] font-black text-indigo-300 uppercase">Đã chấm</span>
+                                      </div>
+                                   ) : sub ? (
+                                      <span className="text-[10px] font-black text-slate-400 uppercase italic">Chờ chấm</span>
+                                   ) : (
+                                      <span className="text-[10px] font-black text-slate-300 uppercase">—</span>
+                                   )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
 
               {/* --- TAB 4: ACADEMIC --- */}
               {activeTab === 'academic' && (

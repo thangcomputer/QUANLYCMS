@@ -219,6 +219,10 @@ export const teachersAPI = {
     const res = await apiFetch(`/teachers${q ? `?${q}` : ''}`);
     return res.json();
   },
+  getById: async (id) => {
+    const res = await apiFetch(`/teachers/${id}`);
+    return res.json();
+  },
   create: async (teacher) => {
     const res = await apiFetch('/teachers', {
       method: 'POST',

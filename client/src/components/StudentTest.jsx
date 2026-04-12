@@ -6,6 +6,7 @@ import {
 import ExamMonitor, { CameraHeaderPanel } from './ExamMonitor';
 import { useSocket } from '../context/SocketContext';
 import { useData } from '../context/DataContext';
+import { useModal } from '../utils/Modal.jsx';
 
 // ─── Dữ liệu câu hỏi mẫu ──────────────────────────────────────────────────────
 const QUESTIONS_DB = {
@@ -97,6 +98,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
   const { students } = useData() || { students: [] };
   const { socket } = useSocket() || {};
   const student = students?.find(s => String(s.id) === String(STUDENT_ID));
+  const { showModal } = useModal();
   const teacherId = student?.teacherId;
 
   const [tab, setTab]           = useState('trac_nghiem');
@@ -302,7 +304,16 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
               <div className="flex flex-col gap-4 min-w-0">
                 {/* Trở về */}
                 <button
-                  onClick={() => { if (window.confirm('Bạn có chắc muốn rời khỏi bài thi?')) onBack?.(); }}
+                  onClick={() => { 
+                    showModal({
+                      title: 'Rời khỏi bài thi?',
+                      content: 'Bạn có chắc chắn muốn rời khỏi bài thi không? Tiến độ làm bài của bạn sẽ không được lưu nếu bạn chưa nộp bài.',
+                      type: 'question',
+                      confirmText: 'Rời đi',
+                      cancelText: 'Quay lại',
+                      onConfirm: () => onBack?.()
+                    });
+                  }}
                   className="self-start flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3.5 py-2 rounded-xl transition-colors"
                 >
                   <ArrowLeft size={13} /> Trở về

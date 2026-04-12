@@ -382,6 +382,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
     const io = req.app.get('io');
     if (io) {
       io.emit('student:updated', student._id);
+      io.emit('data:refresh', { type: 'student', id: student._id });
     }
 
     res.json({ success: true, data: student });
@@ -585,15 +586,40 @@ router.put('/:id/assign-teacher', authMiddleware, isAdmin, async (req, res) => {
     }
 
     // Thông báo cho giảng viên
+    const Notification = require('../models/Notification');
     const io = req.app.get('io');
-    if (io) {
-      io.emit('student:assigned', {
-        teacherId: teacherId.toString(),
-        studentId: student._id.toString(),
-        studentName: student.name,
-        course: student.course,
-        message: `📚 Học viên ${student.name} (${student.course}) đã được giao cho bạn`,
+    
+    try {
+      const newNotif = await Notification.create({
+        type: 'COURSE', // Map to matching internal types (COURSE or SYSTEM)
+        title: '📚 Học viên mới được giao',
+        content: `Học viên ${student.name} (${student.course}) đã được giao cho bạn.`,
+        receivers: [teacherId.toString()],
+        payload: { studentId: student._id, type: 'student' }
       });
+
+      if (io) {
+        // Emit for real-time notification bell
+        io.to(teacherId.toString()).emit('RECEIVE_NOTIFICATION', {
+          _id: newNotif._id,
+          type: 'student', // Frontend use 'student' for icons/colors
+          title: newNotif.title,
+          message: newNotif.content, // Frontend expects 'message' or 'content'
+          time: new Date(),
+          userId: teacherId.toString()
+        });
+        
+        // Old event for backward compatibility if needed
+        io.emit('student:assigned', {
+          teacherId: teacherId.toString(),
+          studentId: student._id.toString(),
+          studentName: student.name,
+          course: student.course,
+          message: `📚 Học viên ${student.name} (${student.course}) đã được giao cho bạn`,
+        });
+      }
+    } catch (notifErr) {
+      console.error('[ASSIGN_TEACHER] Notification error:', notifErr);
     }
 
     res.json({ success: true, message: 'Đã gán giảng viên thành công', data: student });

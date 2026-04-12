@@ -564,15 +564,8 @@ const AddStudentModal = ({ onAdd, onClose, teachers }) => {
                   <label className="text-xs font-black text-gray-500 uppercase tracking-widest block mb-2">Tuổi</label>
                   <input name="age" type="number" value={form.age} onChange={handleChange} className="w-full bg-gray-50 border-2 border-transparent focus:border-red-600 focus:bg-white rounded-[20px] p-4 font-bold text-gray-800 outline-none transition-all shadow-sm" placeholder="VD: 20" />
                 </div>
-                <div>
-                  <label className="text-xs font-black text-gray-500 uppercase tracking-widest block mb-2">Số điện thoại <span className="text-red-500">*</span></label>
-                  <input name="phone" value={form.phone} onChange={handleChange} className="w-full bg-gray-50 border-2 border-transparent focus:border-red-600 focus:bg-white rounded-[20px] p-4 font-black text-gray-800 outline-none transition-all shadow-sm font-mono" placeholder="0912345678" />
-                </div>
-              </div>
-              
-              <div>
-                <label className="text-xs font-black text-gray-500 uppercase tracking-widest block mb-2">Số Zalo liên hệ <span className="text-red-500">*</span></label>
-                <input name="zalo" value={form.zalo} onChange={handleChange} className="w-full bg-gray-50 border-2 border-transparent focus:border-red-600 focus:bg-white rounded-[20px] p-4 font-black text-gray-800 outline-none transition-all shadow-sm font-mono" placeholder="093xxxxxxx" />
+                <label className="text-xs font-black text-gray-500 uppercase tracking-widest block mb-2">Số điện thoại / Zalo <span className="text-red-500">*</span></label>
+                <input name="phone" value={form.phone} onChange={handleChange} className="w-full bg-gray-50 border-2 border-transparent focus:border-red-600 focus:bg-white rounded-[20px] p-4 font-black text-gray-800 outline-none transition-all shadow-sm font-mono" placeholder="0911222333" />
               </div>
             </div>
 
@@ -799,14 +792,9 @@ const EditStudentModal = ({ student, onSave, onClose, teachers }) => {
                   <input name="age" type="number" value={form.age} onChange={handleChange} className="w-full border-2 border-gray-200 rounded-xl p-3.5 focus:border-red-500 focus:ring-4 focus:ring-red-50 outline-none transition" placeholder="VD: 20" />
                 </div>
                 <div>
-                  <label className="text-sm font-semibold text-gray-700 block mb-1.5">SĐT <span className="text-red-500">*</span></label>
-                  <input name="phone" value={form.phone} onChange={handleChange} className="w-full border-2 border-gray-200 rounded-xl p-3.5 focus:border-red-500 focus:ring-4 focus:ring-red-50 outline-none transition font-mono" placeholder="0912345678" />
+                  <label className="text-sm font-semibold text-gray-700 block mb-1.5">Số điện thoại / Zalo <span className="text-red-500">*</span></label>
+                  <input name="phone" value={form.phone} onChange={handleChange} className="w-full border-2 border-gray-200 rounded-xl p-3.5 focus:border-red-500 focus:ring-4 focus:ring-red-50 outline-none transition font-mono" placeholder="0911222333" />
                 </div>
-              </div>
-              
-              <div>
-                <label className="text-sm font-semibold text-gray-700 block mb-1.5">Số Zalo <span className="text-red-500">*</span></label>
-                <input name="zalo" value={form.zalo} onChange={handleChange} className="w-full border-2 border-gray-200 rounded-xl p-3.5 focus:border-red-500 focus:ring-4 focus:ring-red-50 outline-none transition font-mono" placeholder="093xxxxxxx" />
               </div>
             </div>
 
@@ -1079,7 +1067,7 @@ const AdminDashboard = ({ onNavigate }) => {
   const [actionMenuId, setActionMenuId] = useState(null); // 3-dot menu
   const [showModal, setShowModal] = useState(false);
   const [showTeacherModal, setShowTeacherModal] = useState(false);
-  const [teacherForm, setTeacherForm] = useState({ name: '', phone: '', specialties: '' });
+  const [teacherForm, setTeacherForm] = useState({ name: '', phone: '', specialty: '', startDate: new Date().toISOString().split('T')[0], address: '' });
   const [showStudentDetailId, setShowStudentDetailId] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const BLANK_Q = { type: 'multiple', section: 'excel', q: '', options: ['', '', '', ''], correct: 0, difficulty: 'medium', sampleAnswer: '' };
@@ -1371,23 +1359,30 @@ const AdminDashboard = ({ onNavigate }) => {
   const handlePayTeacherForStudent = async (student, action) => {
     const isPack = action === 'PAID_IN_ADVANCE';
     const actionText = isPack ? 'thanh toán TRỌN GÓI lương Giảng viên' : 'thanh toán các buổi CHƯA TRẢ LƯƠNG (cộng dồn)';
-    if (!window.confirm(`Xác nhận ${actionText} cho môn của học viên ${student.name}?\n\nChú ý: Hành động này sẽ thay đổi trạng thái nhận lương của giảng viên.`)) return;
-
-    const tid = toast.loading(`Đang xử lý thanh toán GV cho ${student.name}...`);
-    try {
-      const res = await api.students.payTeacher(student.id || student._id, action).catch(e => e);
-      if (res && res.success) {
-        toast.dismiss(tid);
-        toast.success(res.message || 'Cập nhật thành công');
-        fetchStudentsPaginated({ page: currentPage, limit: PAGE_SIZE, search, paid: filterPaid, course: filterCourse, branch_id: selectedBranchId });
-      } else {
-        toast.dismiss(tid);
-        toast.error('Lỗi: ' + (res?.message || 'Không xác định'));
+    showGlobalModal({
+      title: 'Xác nhận thanh toán lương',
+      content: `Xác nhận ${actionText} cho môn của học viên ${student.name}?\n\nChú ý: Hành động này sẽ thay đổi trạng thái nhận lương của giảng viên.`,
+      type: 'question',
+      confirmText: 'Xác nhận',
+      cancelText: 'Quay lại',
+      onConfirm: async () => {
+        const tid = toast.loading(`Đang xử lý thanh toán GV cho ${student.name}...`);
+        try {
+          const res = await api.students.payTeacher(student.id || student._id, action).catch(e => e);
+          if (res && res.success) {
+            toast.dismiss(tid);
+            toast.success(res.message || 'Cập nhật thành công');
+            fetchStudentsPaginated({ page: currentPage, limit: PAGE_SIZE, search, paid: filterPaid, course: filterCourse, branch_id: selectedBranchId });
+          } else {
+            toast.dismiss(tid);
+            toast.error('Lỗi: ' + (res?.message || 'Không xác định'));
+          }
+        } catch (err) {
+          toast.dismiss(tid);
+          toast.error('Lỗi kết nối API');
+        }
       }
-    } catch (err) {
-      toast.dismiss(tid);
-      toast.error('Lỗi kết nối API');
-    }
+    });
   };
 
   // Xuất PDF hóa đơn
@@ -1947,7 +1942,7 @@ const AdminDashboard = ({ onNavigate }) => {
                               <p className="font-bold text-gray-800">{t.name}</p>
                               <span className="text-xs text-gray-400">SĐT: {t.phone}</span>
                               {t.branchCode && <span className="text-xs bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full font-semibold border border-teal-200">🏢 {t.branchCode}</span>}
-                              {t.specialties?.length > 0 && <span className="text-xs bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full">{Array.isArray(t.specialties) ? t.specialties.join(', ') : t.specialties}</span>}
+                              {t.specialty && <span className="text-xs bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full">{t.specialty}</span>}
                             </div>
 
                             {/* Scores & info */}
@@ -2810,7 +2805,16 @@ const AdminDashboard = ({ onNavigate }) => {
                               <ClipboardList size={18} className="text-red-500" /> Ngân hàng câu hỏi bài test GV
                             </h2>
                             <div className="flex gap-2 flex-wrap">
-                              <button onClick={() => { if (window.confirm('Reset về câu hỏi mặc định?')) resetQuestions(); }}
+                              <button onClick={() => { 
+                                showGlobalModal({
+                                  title: 'Reset ngân hàng câu hỏi?',
+                                  content: 'Bạn có chắc chắn muốn reset toàn bộ câu hỏi về mặc định? Hành động này không thể hoàn tác.',
+                                  type: 'warning',
+                                  confirmText: 'Xác nhận Reset',
+                                  cancelText: 'Huỷ bỏ',
+                                  onConfirm: () => resetQuestions()
+                                });
+                              }}
                                 className="px-3 py-2 border-2 border-gray-200 text-gray-500 rounded-xl text-xs font-bold hover:bg-gray-50 flex items-center gap-1">
                                 <RefreshCw size={12} /> Reset
                               </button>
@@ -3020,7 +3024,16 @@ const AdminDashboard = ({ onNavigate }) => {
                                     </div>
                                     <div className="flex gap-1 flex-shrink-0">
                                       <button onClick={() => setQForm({ ...q })} className="p-2 rounded-lg bg-blue-50 text-blue-600"><Edit3 size={13} /></button>
-                                      <button onClick={() => { if (window.confirm('Xoá?')) removeQuestion(q.id); }} className="p-2 rounded-lg bg-red-50 text-red-500"><Trash2 size={13} /></button>
+                                      <button onClick={() => { 
+                                        showGlobalModal({
+                                          title: 'Xoá câu hỏi?',
+                                          content: 'Câu hỏi này sẽ bị xoá vĩnh viễn khỏi ngân hàng câu hỏi.',
+                                          type: 'warning',
+                                          confirmText: 'Xoá',
+                                          cancelText: 'Huỷ',
+                                          onConfirm: () => removeQuestion(q.id)
+                                        });
+                                      }} className="p-2 rounded-lg bg-red-50 text-red-500"><Trash2 size={13} /></button>
                                     </div>
                                   </div>
                                 );
@@ -3388,7 +3401,16 @@ const AdminDashboard = ({ onNavigate }) => {
                                         className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition">
                                         <Edit3 size={13} />
                                       </button>
-                                      <button onClick={() => { if (window.confirm('Xóa kết quả thi này?')) removeExamResult(r.id); }}
+                                      <button onClick={() => { 
+                                        showGlobalModal({
+                                          title: 'Xoá kết quả thi?',
+                                          content: 'Bạn có chắc chắn muốn xoá kết quả thi này không?',
+                                          type: 'warning',
+                                          confirmText: 'Xoá ngay',
+                                          cancelText: 'Quay lại',
+                                          onConfirm: () => removeExamResult(r.id)
+                                        });
+                                      }}
                                         className="p-2 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition">
                                         <Trash2 size={13} />
                                       </button>
@@ -3464,7 +3486,16 @@ const AdminDashboard = ({ onNavigate }) => {
                                   </div>
                                   <div className="flex gap-1 flex-shrink-0">
                                     <button onClick={() => setSqForm({ ...q })} className="p-2 rounded-lg bg-blue-50 text-blue-600"><Edit3 size={13} /></button>
-                                    <button onClick={() => { if (window.confirm('Xoá?')) removeStudentQuestion(q.id); }} className="p-2 rounded-lg bg-red-50 text-red-500"><Trash2 size={13} /></button>
+                                    <button onClick={() => { 
+                                      showGlobalModal({
+                                        title: 'Xoá câu hỏi dành cho học viên?',
+                                        content: 'Câu hỏi này sẽ bị xoá khỏi bộ đề thi của học viên.',
+                                        type: 'warning',
+                                        confirmText: 'Xoá',
+                                        cancelText: 'Huỷ',
+                                        onConfirm: () => removeStudentQuestion(q.id)
+                                      });
+                                    }} className="p-2 rounded-lg bg-red-50 text-red-500"><Trash2 size={13} /></button>
                                   </div>
                                 </div>
                               );
@@ -3504,7 +3535,14 @@ const AdminDashboard = ({ onNavigate }) => {
                           <button onClick={() => setSTrainingForm({ ...item })}
                             className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 transition"><Edit3 size={14} /></button>
                           <button onClick={() => {
-                            if (window.confirm(`Xóa ${item.title}?`)) removeStudentTrainingItem(sTrainingTab, item.id);
+                            showGlobalModal({
+                              title: 'Xác nhận xoá tài liệu',
+                              content: `Bạn có chắc muốn xoá tài liệu "${item.title}" dành cho học viên không?`,
+                              type: 'warning',
+                              confirmText: 'Xoá vĩnh viễn',
+                              cancelText: 'Huỷ bỏ',
+                              onConfirm: () => removeStudentTrainingItem(sTrainingTab, item.id)
+                            });
                           }} className="p-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 transition"><Trash2 size={14} /></button>
                         </div>
                       </div>
@@ -4224,14 +4262,29 @@ const AdminDashboard = ({ onNavigate }) => {
                   className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-blue-400 outline-none" placeholder="Nguyễn Văn A" />
               </div>
               <div>
-                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Số điện thoại (dùng để đăng nhập)</label>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Số điện thoại / Zalo (dùng đăng nhập)</label>
                 <input type="text" value={teacherForm.phone} onChange={e => setTeacherForm(p => ({ ...p, phone: e.target.value }))}
                   className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-blue-400 outline-none" placeholder="0912345678" />
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Chuyên môn</label>
-                <input type="text" value={teacherForm.specialties} onChange={e => setTeacherForm(p => ({ ...p, specialties: e.target.value }))}
+                <input type="text" value={teacherForm.specialty} onChange={e => setTeacherForm(p => ({ ...p, specialty: e.target.value }))}
                   className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-blue-400 outline-none" placeholder="Excel, Word, PowerPoint" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Email</label>
+                <input type="email" value={teacherForm.email || ''} onChange={e => setTeacherForm(p => ({ ...p, email: e.target.value }))}
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-blue-400 outline-none" placeholder="email@example.com" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Ngày vào làm</label>
+                <input type="date" value={teacherForm.startDate} onChange={e => setTeacherForm(p => ({ ...p, startDate: e.target.value }))}
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-blue-400 outline-none" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Địa chỉ</label>
+                <input type="text" value={teacherForm.address} onChange={e => setTeacherForm(p => ({ ...p, address: e.target.value }))}
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm focus:border-blue-400 outline-none" placeholder="VD: 123 Đường ABC, Quận X..." />
               </div>
 
               {/* ⭐ Chi nhánh — SUPER_ADMIN chọn, STAFF auto-fill */}
@@ -4285,12 +4338,14 @@ const AdminDashboard = ({ onNavigate }) => {
                   await ctxAddTeacher({
                     name: teacherForm.name,
                     phone: p,
-                    specialties: teacherForm.specialties ? teacherForm.specialties.split(',').map(s => s.trim()) : [],
-                    status: 'inactive',
+                    specialty: teacherForm.specialty || '',
+                    startDate: teacherForm.startDate,
+                    address: teacherForm.address,
+                    status: 'pending',
                     branchId: teacherForm.branchId || undefined,
                     branchCode: teacherForm.branchCode || undefined,
                   });
-                  setTeacherForm({ name: '', phone: '', specialties: '', branchId: '', branchCode: '' });
+                  setTeacherForm({ name: '', phone: '', specialty: '', startDate: new Date().toISOString().split('T')[0], address: '', branchId: '', branchCode: '' });
                   setShowTeacherModal(false);
                   toast.success('Đã thêm giảng viên thành công!');
                   fetchTeachers();
@@ -4322,29 +4377,36 @@ const AdminDashboard = ({ onNavigate }) => {
                       className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all font-semibold" />
                   </div>
                   <div>
-                    <label className="text-[11px] font-extrabold text-slate-500 uppercase block mb-1.5 tracking-wider">Số điện thoại</label>
+                    <label className="text-[11px] font-extrabold text-slate-500 uppercase block mb-1.5 tracking-wider">Số điện thoại / Zalo</label>
                     <input type="text" value={editTeacher.phone || ''} onChange={e => setEditTeacher(p => ({ ...p, phone: e.target.value }))}
                       className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all font-mono font-semibold" />
                   </div>
                   <div>
                     <label className="text-[11px] font-extrabold text-slate-500 uppercase block mb-1.5 tracking-wider">Chuyên môn</label>
-                    <input type="text" value={Array.isArray(editTeacher.specialties) ? editTeacher.specialties.join(', ') : (editTeacher.specialties || '')}
-                      onChange={e => setEditTeacher(p => ({ ...p, specialties: e.target.value.split(',').map(s => s.trim()) }))}
+                    <input type="text" value={editTeacher.specialty || ''}
+                      onChange={e => setEditTeacher(p => ({ ...p, specialty: e.target.value }))}
                       className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all font-semibold text-slate-700" 
                       placeholder="VD: Word, Excel" />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-extrabold text-slate-500 uppercase block mb-1.5 tracking-wider">Email</label>
+                    <input type="email" value={editTeacher.email || ''}
+                      onChange={e => setEditTeacher(p => ({ ...p, email: e.target.value }))}
+                      className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all font-semibold" 
+                      placeholder="email@example.com" />
                   </div>
                 </div>
 
                 {/* Cột 2 */}
                 <div className="space-y-4">
-                  <div>
+                   <div>
                     <label className="text-[11px] font-extrabold text-slate-500 uppercase block mb-1.5 tracking-wider">Trạng thái duyệt</label>
-                    <select value={editTeacher.status || 'Inactive'} onChange={e => setEditTeacher(p => ({ ...p, status: e.target.value }))}
+                    <select value={String(editTeacher.status || 'inactive').toLowerCase()} onChange={e => setEditTeacher(p => ({ ...p, status: e.target.value }))}
                       className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all font-bold text-slate-700 appearance-none bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M5%207l5%205%205-5%22%20stroke%3D%22%2364748b%22%20stroke-width%3D%222%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[position:calc(100%-1rem)_center]">
-                      <option value="Inactive">🔒 Chưa cấp quyền</option>
-                      <option value="Pending">🕒 Cấp quyền thi (Chờ làm bài)</option>
-                      <option value="Active">🟢 Đã cấp quyền (Active)</option>
-                      <option value="Locked">🚫 Đã khóa</option>
+                      <option value="inactive">🔒 Chưa cấp quyền</option>
+                      <option value="pending">🕒 Cấp quyền thi (Chờ làm bài)</option>
+                      <option value="active">🟢 Đã cấp quyền (Active)</option>
+                      <option value="locked">🚫 Đã khóa</option>
                     </select>
                   </div>
                   <div>
@@ -4384,6 +4446,33 @@ const AdminDashboard = ({ onNavigate }) => {
                     );
                   })()}
                 </div>
+              </div>
+
+              <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-5 border-t border-slate-100 pt-5">
+                 <div>
+                  <label className="text-[11px] font-extrabold text-slate-500 uppercase block mb-1.5 tracking-wider">Ngày vào làm</label>
+                  <input type="date" value={editTeacher.startDate ? new Date(editTeacher.startDate).toISOString().split('T')[0] : ''}
+                    onChange={e => setEditTeacher(p => ({ ...p, startDate: e.target.value }))}
+                    className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:border-blue-500 outline-none hover:border-slate-300 transition-all font-semibold" />
+                </div>
+                <div>
+                  <label className="text-[11px] font-extrabold text-slate-500 uppercase block mb-1.5 tracking-wider">Địa chỉ</label>
+                  <input type="text" value={editTeacher.address || ''}
+                    onChange={e => setEditTeacher(p => ({ ...p, address: e.target.value }))}
+                    className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:border-blue-500 outline-none hover:border-slate-300 transition-all font-semibold"
+                    placeholder="Nhập địa chỉ..." />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-extrabold text-slate-500 uppercase block mb-1.5 tracking-wider">Giới thiệu bản thân (Bio)</label>
+                <textarea 
+                  value={editTeacher.bio || ''}
+                  onChange={e => setEditTeacher(p => ({ ...p, bio: e.target.value }))}
+                  rows={2}
+                  className="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm focus:border-blue-500 outline-none hover:border-slate-300 transition-all font-medium resize-none"
+                  placeholder="Kinh nghiệm cá nhân, bằng cấp, sở trường..."
+                />
               </div>
 
               {/* Ngân hàng */}
@@ -4436,7 +4525,9 @@ const AdminDashboard = ({ onNavigate }) => {
                   await ctxUpdateTeacher(editTeacher.id, {
                     name: editTeacher.name,
                     phone: editTeacher.phone,
-                    specialties: editTeacher.specialties,
+                    specialty: editTeacher.specialty,
+                    startDate: editTeacher.startDate,
+                    address: editTeacher.address,
                     status: editTeacher.status,
                     baseSalaryPerSession: editTeacher.baseSalaryPerSession,
                     bankAccount: editTeacher.bankAccount || {},

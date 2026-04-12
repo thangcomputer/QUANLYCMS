@@ -68,7 +68,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
   const [teachers, setTeachers] = useState(() => loadState('thvp_teachers', INITIAL_TEACHERS));
   const [transactions, setTransactions] = useState(() => loadState('thvp_transactions', INITIAL_TRANSACTIONS));
   const [schedules, setSchedules] = useState(() => loadState('thvp_schedules', INITIAL_SCHEDULES));
-  const [notifications, setNotifications] = useState(() => loadState('thvp_notifications', INITIAL_NOTIFICATIONS));
   const [messages, setMessages] = useState(() => loadState('thvp_messages', INITIAL_MESSAGES));
   const [materials, setMaterials] = useState(() => loadState('thvp_materials', INITIAL_MATERIALS));
   const [groups, setGroups] = useState(() => loadState('thvp_groups', []));
@@ -89,7 +88,10 @@ export const DataProvider = ({ children, user, onLogout }) => {
   const [studentQuestions, setStudentQuestions] = useState(() => loadState('thvp_studentQuestions', []));
 
   // ── SOCKET LISTENERS (Global Data Sync) ───────────────────────────────────
-  const { onGroupNew, onRecallReceive, onReactionReceive, onDataRefresh, onMessageReceive } = useSocket();
+  const { 
+    onGroupNew, onRecallReceive, onReactionReceive, onDataRefresh, onMessageReceive,
+    notifications: socketNotifications, setNotifications: setSocketNotifications
+  } = useSocket();
 
   useEffect(() => {
     let unsubGroup, unsubRecall, unsubMsg;
@@ -152,7 +154,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
   useEffect(() => { localStorage.setItem('thvp_teachers', JSON.stringify(teachers)); }, [teachers]);
   useEffect(() => { localStorage.setItem('thvp_transactions', JSON.stringify(transactions)); }, [transactions]);
   useEffect(() => { localStorage.setItem('thvp_schedules', JSON.stringify(schedules)); }, [schedules]);
-  useEffect(() => { localStorage.setItem('thvp_notifications', JSON.stringify(notifications)); }, [notifications]);
   useEffect(() => { localStorage.setItem('thvp_messages', JSON.stringify(messages)); }, [messages]);
   useEffect(() => { localStorage.setItem('thvp_materials', JSON.stringify(materials)); }, [materials]);
   useEffect(() => { localStorage.setItem('thvp_groups', JSON.stringify(groups)); }, [groups]);
@@ -221,23 +222,22 @@ export const DataProvider = ({ children, user, onLogout }) => {
         promises.push(api.examResults.getAll().catch(() => ({ success: false })));
       } else if (isTeacher) {
         promises.push(api.transactions.getByTeacher(currentUser.id).catch(() => ({ success: false })));
+        promises.push(api.teachers.getById(currentUser.id || currentUser._id).catch(() => ({ success: false })));
       }
 
       if (isStudent) {
         promises.push(api.students.getById(currentUser.id || currentUser._id).catch(() => ({ success: false })));
         promises.push(api.schedules.getByStudent(currentUser.id || currentUser._id).catch(() => ({ success: false })));
-        promises.push(api.messages.getGroups(currentUser.id || currentUser._id).catch(() => ({ success: false })));
       }
 
-      if (!isStudent) {
-        promises.push(api.messages.getGroups(currentUser.id || currentUser._id).catch(() => ({ success: false })));
-      }
+      // Handle Groups (everyone except student has groups at this index)
+      // Actually everyone needs groups
+      promises.push(api.messages.getGroups(currentUser.id || currentUser._id).catch(() => ({ success: false })));
 
       const results = await Promise.all(promises);
       let idx = 0;
 
       if (isAdmin) {
-        // Admin: only schedules from above
         const schedulesRes = results[idx++];
         if (schedulesRes?.success) setSchedules(schedulesRes.data.map(sch => ({
           ...sch,
@@ -267,6 +267,8 @@ export const DataProvider = ({ children, user, onLogout }) => {
       } else if (isTeacher) {
         const transactionsRes = results[idx++];
         if (transactionsRes?.success) setTransactions(transactionsRes.data.map(tx => ({ ...tx, id: tx._id })));
+        const teacherSelfRes = results[idx++];
+        if (teacherSelfRes?.success) setTeachers([{ ...teacherSelfRes.data, id: teacherSelfRes.data._id }]);
       }
 
       if (isStudent) {
@@ -279,15 +281,11 @@ export const DataProvider = ({ children, user, onLogout }) => {
           studentId: typeof sch.studentId === 'object' && sch.studentId ? String(sch.studentId._id || sch.studentId) : String(sch.studentId || ''),
           teacherId: typeof sch.teacherId === 'object' && sch.teacherId ? String(sch.teacherId._id || sch.teacherId) : String(sch.teacherId || ''),
         })));
-        const studentGroupsRes = results[idx++];
-        if (studentGroupsRes?.success) setGroups(studentGroupsRes.data || []);
       }
 
-      // Handle Groups results (admin/teacher)
-      if (!isStudent) {
-        const groupsRes = results[idx++];
-        if (groupsRes?.success) setGroups(groupsRes.data || []);
-      }
+      // Groups are always the last one (except if results ended early, but idx++ handles it)
+      const groupsRes = results[idx++];
+      if (groupsRes?.success) setGroups(groupsRes.data || []);
     } catch (e) {
       if (e.status === 401 && onLogout) {
         onLogout();
@@ -341,21 +339,22 @@ export const DataProvider = ({ children, user, onLogout }) => {
 
   const addNotification = useCallback((userId, role, text, type = 'system', path = null) => {
     playNotifySound();
-    setNotifications(prev => [{
-      id: Date.now(), userId, role, text,
-      time: new Date().toISOString(), read: false, type, path
+    setSocketNotifications(prev => [{
+      id: Date.now(), userId, role, message: text, // Map to bell's expected 'message' key
+      time: new Date().toISOString(), read: false, type, path,
+      title: type === 'SYSTEM' ? 'Thông báo hệ thống' : 'Thông báo'
     }, ...prev]);
-  }, []);
+  }, [setSocketNotifications]);
 
   const markNotificationRead = useCallback((notifId) => {
-    setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, read: true } : n));
-  }, []);
+    setSocketNotifications(prev => prev.map(n => (n.id === notifId || n._id === notifId) ? { ...n, read: true } : n));
+  }, [setSocketNotifications]);
 
   const getNotifications = useCallback((userId, role) => {
-    return notifications.filter(n =>
+    return (socketNotifications || []).filter(n =>
       (n.userId === userId || n.userId === null) && (n.role === role || n.role === null)
     );
-  }, [notifications]);
+  }, [socketNotifications]);
 
   // ── ADMIN ACTIONS ──────────────────────────────────────────────────────────
 
@@ -611,8 +610,18 @@ export const DataProvider = ({ children, user, onLogout }) => {
     
     // Check synchronously to avoid race conditions with React state updates when spam-clicking
     const targetStudentSync = students.find(s => String(s.id) === String(studentId) || String(s._id) === String(studentId));
-    const todaySync = new Date().toLocaleDateString('vi-VN');
-    const hasAttendedSync = targetStudentSync ? (targetStudentSync.grades || []).some(g => g.date === todaySync) : false;
+    const todayISO = new Date().toISOString().split('T')[0];
+    const todayVN = new Date().toLocaleDateString('vi-VN');
+    
+    // Check if attended in student.grades
+    const hasAttendedSync = targetStudentSync ? (targetStudentSync.grades || []).some(g => g.date === todayVN) : false;
+    
+    // Check if attended in schedules (for double safety)
+    const hasScheduleAttended = schedules.some(sch => 
+      String(sch.studentId) === String(studentId) && 
+      (new Date(sch.date).toISOString().split('T')[0] === todayISO) && 
+      sch.status === 'completed'
+    );
 
     setStudents(prev => prev.map(s => {
       const isTargetStudent = String(s.id) === String(studentId) || String(s._id) === String(studentId);
@@ -675,7 +684,9 @@ export const DataProvider = ({ children, user, onLogout }) => {
         avgGrade: avg,
         grades: newGrades,
         status: newRemaining <= 0 ? 'Hoàn thành' : 'Đang học',
-      }).then(() => triggerBackgroundSync());
+      })
+      .then(() => triggerBackgroundSync())
+      .catch(err => console.error('[markAttendance] API Update Error:', err));
 
       return {
         ...s,
@@ -687,6 +698,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
         status: newRemaining <= 0 ? 'Hoàn thành' : 'Đang học',
       };
     }));
+    console.log(`[markAttendance] Success for student: ${studentId}, grade: ${grade}`);
     addNotification(studentId, 'student', `Giảng viên đã điểm danh buổi học. Điểm: ${grade || 0}/10`);
 
     // Cập nhật schedule
@@ -695,7 +707,8 @@ export const DataProvider = ({ children, user, onLogout }) => {
       let found = false;
       
       const nextPrev = prev.map(sch => {
-        if (String(sch.studentId) === String(studentId) && sch.date === today) {
+        const schDateStr = new Date(sch.date).toISOString().split('T')[0];
+        if (String(sch.studentId) === String(studentId) && schDateStr === today) {
           found = true;
           if (sch.status !== 'completed') {
             // Sync schedule update to backend too!
@@ -706,8 +719,8 @@ export const DataProvider = ({ children, user, onLogout }) => {
         return sch;
       });
 
-      // We use hasAttendedSync to prevent firing multiple API requests if the user spams the button before setSchedules runs again
-      if (!found && !hasAttendedSync) {
+      // Unified check to prevent duplicate schedules on the same day
+      if (!found && !hasAttendedSync && !hasScheduleAttended) {
         // Fix: read from correct localStorage key (teacher_user or admin_user)
         const getActiveSession = () => {
           try {
@@ -726,7 +739,19 @@ export const DataProvider = ({ children, user, onLogout }) => {
           const rawTeacherId = typeof targetStudent.teacherId === 'object' && targetStudent.teacherId !== null
             ? (targetStudent.teacherId._id || targetStudent.teacherId.id)
             : (targetStudent.teacherId || null);
-          effectiveTeacherId = rawTeacherId || effectiveTeacherId;
+          
+          // CRITICAL: Ensure teacherId is a valid ObjectId (24 chars) or fallback to activeSession's ID IF it is a valid ObjectId too
+          const isValidObjId = (id) => /^[a-f\d]{24}$/i.test(String(id));
+          if (isValidObjId(rawTeacherId)) {
+             effectiveTeacherId = rawTeacherId;
+          } else if (isValidObjId(activeSession.id || activeSession._id)) {
+             effectiveTeacherId = activeSession.id || activeSession._id;
+          } else {
+             // Fallback to a special "system" or generic teacher ID if admin is hardcoded
+             // Or leave as rawTeacherId and let the server handle it if it's already a valid format
+             effectiveTeacherId = rawTeacherId || activeSession.id || activeSession._id;
+          }
+
           studentDisplayName = (targetStudent.name && !/^\d{5,}$/.test(targetStudent.name))
               ? targetStudent.name
               : targetStudent.email || targetStudent.phone || studentDisplayName;
@@ -771,7 +796,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
       }
       return nextPrev;
     });
-  }, [students, triggerBackgroundSync, addNotification]);
+  }, [students, schedules, triggerBackgroundSync, addNotification]);
 
   const updateStudentLink = useCallback((studentId, linkHoc) => {
     setStudents(prev => prev.map(s =>
@@ -1510,7 +1535,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
     // Exam Results
     examResults, addExamResult, updateExamResult, removeExamResult,
     // Data
-    students, teachers, transactions, schedules, notifications, messages, materials,
+    students, teachers, transactions, schedules, notifications: socketNotifications, messages, materials,
     currentUser, setCurrentUser,
 
     // Admin

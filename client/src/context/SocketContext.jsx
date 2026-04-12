@@ -113,7 +113,14 @@ export const SocketProvider = ({ userId, role, name, children }) => {
       }
     });
 
-    // Gọi refresh data
+    // Gọi refresh data khi có thay đổi từ server (phổ biến)
+    newSocket.on('data:refresh', (data) => {
+      console.log('🔄 Server requested data refresh:', data);
+      if (dataRefreshCallbackRef.current) {
+        dataRefreshCallbackRef.current(data);
+      }
+    });
+
     newSocket.on('student:updated', (data) => {
       if (dataRefreshCallbackRef.current) {
         dataRefreshCallbackRef.current(data);

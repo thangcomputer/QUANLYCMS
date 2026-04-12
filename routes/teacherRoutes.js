@@ -24,7 +24,7 @@ const superAdminOnlyTeacher = async (req, res, next) => {
 // Chỉ Super Admin được tạo giảng viên
 router.post('/', [authMiddleware, isAdmin, superAdminOnlyTeacher, branchFilter], async (req, res) => {
   try {
-    const { name, phone, specialty, password, status, branchId: reqBranchId, branchCode: reqBranchCode } = req.body;
+    const { name, phone, specialty, password, status, branchId: reqBranchId, branchCode: reqBranchCode, startDate, address } = req.body;
     if (!name || !phone) {
       return res.status(400).json({ success: false, message: 'Vui lòng nhập Tên và Số điện thoại' });
     }
@@ -58,6 +58,8 @@ router.post('/', [authMiddleware, isAdmin, superAdminOnlyTeacher, branchFilter],
       name,
       phone,
       specialty: specialty || '',
+      startDate: startDate || Date.now(),
+      address:   address   || '',
       password:  password  || phone,
       status:    status || 'pending',
       testStatus: null,
@@ -212,15 +214,15 @@ router.put('/:id', [authMiddleware, branchFilter], async (req, res) => {
     const isAdminRole = (req.user.role === 'admin' || req.user.role === 'staff');
     const allowedFields = isAdminRole 
       ? [
-          'name', 'phone', 'zalo', 'email', 'specialty', 'bio',
+          'name', 'phone', 'email', 'specialty', 'bio', 'startDate', 'address',
           'bankAccount', 'avatar', 'status', 'baseSalaryPerSession',
           'assignedClasses', 'assignedStudents',
           'testScore', 'testStatus', 'testDate', 'testNotes',
           'lockReason', 'practicalFile', 'practicalStatus',
-          'branchId', 'branchCode',  // ⭐ Cho phép Admin điều chuyển chi nhánh
+          'branchId', 'branchCode',
         ]
       : [
-          'name', 'phone', 'zalo', 'email', 'bio', 'bankAccount', 'avatar',
+          'name', 'phone', 'email', 'specialty', 'bio', 'bankAccount', 'avatar', 'address',
           'testScore', 'testStatus', 'testDate', 'status', 'lockReason',
           'practicalFile', 'practicalStatus'
         ];
@@ -253,6 +255,11 @@ router.put('/:id', [authMiddleware, branchFilter], async (req, res) => {
 
     if (!teacher) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy giảng viên' });
+    }
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('data:refresh', { type: 'teacher', id: teacher._id });
     }
 
     return res.json({

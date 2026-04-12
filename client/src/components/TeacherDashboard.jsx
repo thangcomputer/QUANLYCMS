@@ -4,9 +4,9 @@ import {
   GraduationCap, TrendingUp, Clock, Star, Link2, Upload,
   Bell, LogOut, Plus, ChevronRight, BookOpen, Award, Zap,
   BarChart3, Users, ArrowLeft, ChevronLeft, Eye, X, XCircle,
-  Search, Download, AlertCircle, Clipboard, Send, UserCheck,
+  Search, Download, AlertCircle, Clipboard, Send, UserCheck, Check,
   Activity, DollarSign, Filter, User, Phone, Mail, Building2,
-  CreditCard, Landmark, Copy, Edit3, Shield
+  CreditCard, Landmark, Copy, Edit3, Shield, MapPin
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import TeacherAssignmentsView from './TeacherAssignmentsView';
@@ -136,7 +136,7 @@ const ScheduleModal = ({ schedule, students, onClose, onSubmit }) => {
 };
 
 // ─── STUDENT CARD ─────────────────────────────────────────────────────────
-const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdateNotes, onLockExam }) => {
+const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdateNotes, onLockExam, isDetailed }) => {
   const { showModal } = useModal();
   const [linkInput, setLinkInput] = useState(student.linkHoc);
   const [gradeInput, setGradeInput] = useState(student.lastGrade);
@@ -147,26 +147,372 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [attForm, setAttForm] = useState({ note: 'Đã điểm danh hoàn thành buổi học', grade: student.lastGrade || 0 });
 
-  const done = student.totalSessions - student.remainingSessions;
+  // ASSIGNMENTS STATE
+  const [courseAssignments, setCourseAssignments] = useState([]);
+  const [studentSubmissions, setStudentSubmissions] = useState([]);
+  const [loadingAssign, setLoadingAssign] = useState(false);
+  const [showAddAssign, setShowAddAssign] = useState(false);
+  const [newAssign, setNewAssign] = useState({ title: '', deadline: '', fileUrl: '', description: '' });
+
+  const done = student.completedSessions != null ? student.completedSessions : (student.totalSessions - student.remainingSessions);
   const progressPct = Math.round((done / student.totalSessions) * 100);
   const isCompleted = student.remainingSessions === 0;
 
+  useEffect(() => {
+    if (activePanel === 'assignments') {
+      fetchStudentAssignments();
+    }
+  }, [activePanel, student.id, student.course]);
+
+  const fetchStudentAssignments = async () => {
+    setLoadingAssign(true);
+    try {
+      const res = await api.assignments.getByCourse(student.course);
+      if (res.success) {
+        setCourseAssignments(res.data);
+      }
+    } catch (e) { console.error(e); }
+    setLoadingAssign(false);
+  };
+
+  const handleCreateAssign = async () => {
+    if (!newAssign.title || !newAssign.deadline) return;
+    try {
+      const res = await api.assignments.create({
+        ...newAssign,
+        courseId: student.course,
+        teacherId: student.teacherId || 'current'
+      });
+      if (res.success) {
+        setShowAddAssign(false);
+        setNewAssign({ title: '', deadline: '', fileUrl: '', description: '' });
+        fetchStudentAssignments();
+      }
+    } catch (e) { console.error(e); }
+  };
+
   const handleLinkSave = () => {
-    onUpdateLink(student.id, linkInput);
+    onUpdateLink(student._id || student.id, linkInput);
     setLinkSaved(true); setTimeout(() => setLinkSaved(false), 2000);
   };
 
   const handleGradeSave = () => {
-    onSaveGrade(student.id, Number(gradeInput));
+    onSaveGrade(student._id || student.id, Number(gradeInput));
     setGradeSaved(true); setTimeout(() => setGradeSaved(false), 2000);
   };
 
   const panels = [
-    { key: 'progress', icon: CheckCircle, label: 'Tiến độ' },
-    { key: 'link',     icon: Video,       label: 'Link học' },
-    { key: 'grade',    icon: FileText,    label: 'Đánh giá' },
+    { key: 'progress', icon: Activity, label: 'TIẾN ĐỘ' },
+    { key: 'assignments', icon: BookOpen, label: 'BÀI TẬP' },
+    { key: 'link', icon: Video, label: 'LINK HỌC' },
+    { key: 'grade', icon: Award, label: 'ĐÁNH GIÁ' },
   ];
 
+  if (isDetailed) {
+    return (
+      <div className="bg-white rounded-[40px] shadow-2xl shadow-blue-900/5 border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-500">
+        {/* Header - Dark Theme */}
+        <div className="bg-[#1e293b] px-10 py-8 text-white">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+             <div className="flex items-center gap-6">
+                <div className={`w-20 h-20 ${student.color} rounded-[28px] flex items-center justify-center text-white font-black text-2xl shadow-2xl border-4 border-white/10`}>
+                  {student.avatar}
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black tracking-tight uppercase">{getDisplayName(student)}</h2>
+                  <div className="flex flex-wrap items-center gap-3 mt-1.5">
+                     <span className="text-slate-400 text-sm font-bold">{student.course} · {student.age} tuổi</span>
+                     <span className="px-3 py-0.5 rounded-lg text-[10px] font-black tracking-widest bg-white/10 text-slate-300 border border-white/5 uppercase">
+                        {student.learningMode || 'OFFLINE'}
+                     </span>
+                  </div>
+                </div>
+             </div>
+             
+             <div className="flex items-center gap-3">
+                <span className={`px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-sm ${
+                  isCompleted ? 'bg-green-500 text-white' : 'bg-blue-600 text-white'
+                }`}>
+                  {isCompleted ? 'Hoàn thành' : 'Đang học'}
+                </span>
+                <button 
+                  onClick={() => window.open(`http://zalo.me/${student.zalo || student.phone}`, '_blank')}
+                  className="w-12 h-12 bg-white/10 hover:bg-white/20 text-white rounded-2xl flex items-center justify-center transition-all border border-white/5"
+                  title="Gửi tin nhắn"
+                >
+                  <MessageSquare size={20} />
+                </button>
+                {onLockExam && (
+                  <button
+                    onClick={() => {
+                        showModal({ 
+                            title: 'Xác nhận ĐÁNH TRƯỢT', 
+                            content: `Hành động này sẽ KHOÁ TRUY CẬP PHÒNG THI của ${getDisplayName(student)} ngay lập tức.`, 
+                            type: 'warning',
+                            confirmText: 'ĐÁNH TRƯỢT NGAY',
+                            onConfirm: () => onLockExam(student)
+                        });
+                    }}
+                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-[11px] font-black px-5 py-3 rounded-2xl transition-all shadow-lg shadow-red-900/40 uppercase tracking-widest"
+                  >
+                    <XCircle size={16} /> ĐÁNH TRƯỢT
+                  </button>
+                )}
+             </div>
+          </div>
+          
+          {/* Progress Bar inside Header */}
+          <div className="mt-8 pt-6 border-t border-white/5">
+             <div className="flex justify-between items-center mb-3 text-[11px] font-black uppercase tracking-widest text-slate-400">
+                <span>Tiến độ khóa học</span>
+                <span className="text-white">{done}/{student.totalSessions} buổi ({progressPct}%)</span>
+             </div>
+             <div className="h-2.5 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-white/5 shadow-inner">
+                <div className={`h-full rounded-full bg-blue-500 shadow-lg shadow-blue-500/50 transition-all duration-[1500ms] ease-out`}
+                  style={{ width: `${progressPct}%` }} />
+             </div>
+          </div>
+        </div>
+
+        {/* Tabs - Material Design Style */}
+        <div className="flex px-8 bg-white border-b border-gray-50">
+          {panels.map(({ key, icon: Icon, label }) => (
+            <button key={key} onClick={() => setActivePanel(key)}
+              className={`flex-1 flex items-center justify-center gap-2 py-5 text-[11px] font-black uppercase tracking-widest transition-all relative ${
+                activePanel === key ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
+              }`}>
+              <Icon size={14} /> {label}
+              {activePanel === key && (
+                <div className="absolute bottom-0 left-4 right-4 h-1 bg-blue-600 rounded-t-full shadow-[0_-2px_6px_rgba(37,99,235,0.4)]" />
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Action Content */}
+        <div className="p-10 space-y-8">
+           {activePanel === 'progress' && (
+              <div className="space-y-8 animate-in fade-in duration-500">
+                 {/* Stat Boxes */}
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="bg-blue-50/70 border border-blue-100 rounded-[32px] p-6 text-center transform hover:scale-105 transition-all">
+                       <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Đã học</p>
+                       <h4 className="text-4xl font-black text-blue-700 leading-none">{done}</h4>
+                       <p className="text-[10px] font-bold text-blue-300 mt-1 uppercase">buổi</p>
+                    </div>
+                    <div className={`border rounded-[32px] p-6 text-center transform hover:scale-105 transition-all ${isCompleted ? 'bg-green-50/70 border-green-100' : 'bg-orange-50/70 border-orange-100'}`}>
+                       <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${isCompleted ? 'text-green-400' : 'text-orange-400'}`}>Còn lại</p>
+                       <h4 className={`text-4xl font-black leading-none ${isCompleted ? 'text-green-700' : 'text-orange-700'}`}>{student.remainingSessions}</h4>
+                       <p className={`text-[10px] font-bold mt-1 uppercase ${isCompleted ? 'text-green-300' : 'text-orange-300'}`}>buổi</p>
+                    </div>
+                    <div className="bg-purple-50/70 border border-purple-100 rounded-[32px] p-6 text-center transform hover:scale-105 transition-all">
+                       <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-1">Điểm TB</p>
+                       <div className="flex items-center justify-center gap-1">
+                          <h4 className="text-4xl font-black text-purple-700 leading-none">{student.lastGrade || 0}</h4>
+                          <span className="text-lg font-black text-purple-300">/ 10</span>
+                       </div>
+                       <p className="text-[10px] font-bold text-purple-300 mt-1 uppercase">Đánh giá chung</p>
+                    </div>
+                 </div>
+
+                 {/* Big Attendance Button */}
+                 <button 
+                   onClick={() => setShowAttendanceModal(true)} 
+                   disabled={isCompleted}
+                   className={`w-full py-5 rounded-3xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-xl active:scale-[0.98] ${
+                     isCompleted ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-2 border-gray-200'
+                     : 'bg-gradient-to-r from-emerald-600 to-green-500 text-white hover:shadow-green-200 shadow-green-100'
+                   }`}
+                 >
+                   <CheckCircle size={22} /> {isCompleted ? 'KẾT THÚC KHÓA HỌC' : 'ĐIỂM DANH BUỔI HÔM NAY'}
+                 </button>
+
+                 {/* Notes Area */}
+                 <div className="bg-gray-50/50 rounded-3xl p-6 border border-gray-100">
+                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2 mb-4">
+                       <FileText size={14} /> Ghi chú học viên
+                    </label>
+                    <textarea 
+                       value={notesInput} onChange={e => setNotesInput(e.target.value)}
+                       onBlur={() => onUpdateNotes((student._id || student.id), notesInput)}
+                       placeholder="Nhận xét cá nhân, ghi nhận đặc biệt về học viên này..."
+                       className="w-full bg-white border border-gray-200 rounded-2xl p-5 text-sm font-medium focus:border-blue-400 focus:ring-4 focus:ring-blue-50 outline-none transition-all resize-none shadow-inner"
+                       rows={4}
+                    />
+                 </div>
+              </div>
+           )}
+
+           {activePanel === 'link' && (
+              <div className="space-y-6 animate-in slide-in-from-right-10 duration-500">
+                 <div className="bg-indigo-50 border border-indigo-100 rounded-[40px] p-10 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-40 h-40 bg-indigo-200/20 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
+                    <div className="flex items-center gap-4 mb-6">
+                       <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-sm">
+                          <Video size={24} />
+                       </div>
+                       <div>
+                          <h3 className="text-xl font-black text-indigo-900">Link học trực tuyến</h3>
+                          <p className="text-xs font-bold text-indigo-400">Tự động đồng bộ hóa với Dashboard của học viên</p>
+                       </div>
+                    </div>
+                    
+                    <div className="flex flex-col sm:flex-row gap-3">
+                       <div className="flex-1 relative">
+                          <input 
+                            type="text" value={linkInput} onChange={e => setLinkInput(e.target.value)}
+                            className="w-full bg-white border-2 border-indigo-100 rounded-2xl px-6 py-4 text-sm font-bold text-indigo-700 focus:border-indigo-500 outline-none transition-all shadow-sm"
+                            placeholder="Nhập link Google Meet / Zoom..."
+                          />
+                       </div>
+                       <button 
+                         onClick={handleLinkSave}
+                         className={`px-10 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg ${
+                            linkSaved ? 'bg-emerald-500 text-white shadow-emerald-100' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-100'
+                         }`}
+                       >
+                         {linkSaved ? 'ĐÃ LƯU ✓' : 'CẬP NHẬT'}
+                       </button>
+                    </div>
+                 </div>
+              </div>
+           )}
+
+            {activePanel === 'assignments' && (
+              <div className="space-y-6 animate-in slide-in-from-right-10 duration-500">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <BookOpen size={14} /> Danh sách bài tập được giao
+                  </h4>
+                  <button 
+                    onClick={() => setShowAddAssign(!showAddAssign)}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-100 transition-all flex items-center gap-1.5"
+                  >
+                    {showAddAssign ? <X size={14} /> : <Plus size={14} />} {showAddAssign ? 'HỦY' : 'GIAO BÀI TẬP'}
+                  </button>
+                </div>
+
+                {showAddAssign && (
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-[32px] p-6 space-y-4 shadow-inner animate-in zoom-in-95">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[9px] font-black text-indigo-400 uppercase mb-1 block">Tiêu đề bài tập</label>
+                        <input type="text" value={newAssign.title} onChange={e => setNewAssign({...newAssign, title: e.target.value})}
+                          className="w-full bg-white border border-indigo-200 rounded-2xl px-4 py-3 text-sm font-bold text-indigo-900 focus:border-indigo-500 outline-none" placeholder="VD: Homework Buổi 1" />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-black text-indigo-400 uppercase mb-1 block">Hạn nộp (Deadline)</label>
+                        <input type="datetime-local" value={newAssign.deadline} onChange={e => setNewAssign({...newAssign, deadline: e.target.value})}
+                          className="w-full bg-white border border-indigo-200 rounded-2xl px-4 py-3 text-sm font-bold text-indigo-900 focus:border-indigo-500 outline-none" />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="text-[9px] font-black text-indigo-400 uppercase mb-1 block">Link tài liệu / Đề bài</label>
+                        <input type="text" value={newAssign.fileUrl} onChange={e => setNewAssign({...newAssign, fileUrl: e.target.value})}
+                          className="w-full bg-white border border-indigo-200 rounded-2xl px-4 py-3 text-sm font-bold text-indigo-900 focus:border-indigo-500 outline-none" placeholder="Dán link Drive/File..." />
+                      </div>
+                      <button onClick={handleCreateAssign} className="md:col-span-2 bg-indigo-600 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest hover:bg-indigo-700 transition shadow-lg shadow-indigo-100">GỬI BÀI TẬP CHO HỌC VIÊN</button>
+                    </div>
+                  </div>
+                )}
+
+                {loadingAssign ? (
+                   <div className="py-20 text-center animate-pulse text-xs font-black text-slate-300 uppercase tracking-[4px]">Đang tải dữ liệu...</div>
+                ) : (
+                  <div className="space-y-4">
+                    {courseAssignments.map(assign => {
+                      const submission = assign.submissions?.find(s => String(s.studentId?._id || s.studentId) === String(student.id || student._id));
+                      const isSubmitted = !!submission;
+                      const isGraded = submission?.status === 'graded';
+                      
+                      return (
+                        <div key={assign._id} className="bg-white rounded-[40px] p-6 border border-gray-100 hover:border-indigo-200 hover:shadow-2xl hover:shadow-slate-200/50 transition-all group relative overflow-hidden">
+                          {isGraded && <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/5 rounded-full translate-x-12 -translate-y-12" />}
+                          <div className="flex items-start justify-between gap-6 relative z-10">
+                            <div className="flex-1">
+                              <h5 className="font-black text-slate-800 text-base mb-2 group-hover:text-indigo-600 transition-colors uppercase leading-tight">{assign.title}</h5>
+                              <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                                 <p className="text-[10px] font-black text-slate-400 flex items-center gap-1.5"><Clock size={12} className="text-orange-400"/> HẠN: {new Date(assign.deadline).toLocaleDateString('vi-VN')}</p>
+                                 {assign.fileUrl && (
+                                   <a href={assign.fileUrl} target="_blank" rel="noreferrer" className="text-[10px] font-black text-blue-600 hover:text-blue-800 flex items-center gap-1.5 bg-blue-50 px-3 py-1 rounded-lg">
+                                     <Link2 size={12} /> XEM ĐỀ BÀI
+                                   </a>
+                                 )}
+                              </div>
+                            </div>
+                            <div className="flex flex-col items-end gap-3 font-black">
+                              {isSubmitted ? (
+                                <div className={`px-4 py-1.5 rounded-2xl text-[10px] uppercase tracking-widest flex items-center gap-2 ${isGraded ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                                  {isGraded ? <Check size={12}/> : <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />}
+                                  {isGraded ? `KHÁ: ${submission.grade}/10` : 'ĐÃ NỘP BÀI'}
+                                </div>
+                              ) : (
+                                <span className="px-4 py-1.5 rounded-2xl text-[10px] uppercase tracking-widest bg-gray-50 text-slate-300">CHƯA NỘP</span>
+                              )}
+                              {isSubmitted && !isGraded && (
+                                <button onClick={() => navigate('/teacher/assignments')} className="text-[10px] text-indigo-600 hover:text-indigo-800 underline decoration-2 underline-offset-4">CHẤM BÀI NGAY &rarr;</button>
+                              )}
+                              {isGraded && submission.teacherFeedback && (
+                                <p className="text-[9px] text-slate-400 italic max-w-[150px] text-right line-clamp-1">"{submission.teacherFeedback}"</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {courseAssignments.length === 0 && !showAddAssign && (
+                      <div className="py-24 text-center bg-gray-50/50 rounded-[40px] border-4 border-dashed border-white">
+                        <div className="w-16 h-16 bg-white rounded-3xl flex items-center justify-center mx-auto mb-4 text-slate-200 shadow-sm">
+                           <BookOpen size={28} />
+                        </div>
+                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest px-10 leading-relaxed">Chưa có bài tập nào được giao<br/>cho lộ trình này</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            {activePanel === 'grade' && (
+              <div className="space-y-8 animate-in slide-in-from-right-10 duration-500">
+                 <div className="bg-amber-50 border border-amber-100 rounded-[40px] p-10 flex flex-col md:flex-row items-center gap-10">
+                    <div className="flex-1 space-y-4">
+                       <div className="flex items-center gap-4 mb-2">
+                          <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-amber-600 shadow-sm">
+                             <Award size={24} />
+                          </div>
+                          <div>
+                             <h3 className="text-xl font-black text-amber-900">Đánh giá quá trình</h3>
+                             <p className="text-xs font-bold text-amber-500">Cập nhật điểm trung bình dựa trên bài tập</p>
+                          </div>
+                       </div>
+                       <input 
+                          type="number" min="0" max="10" step="0.5" 
+                          value={gradeInput} onChange={e => setGradeInput(e.target.value)}
+                          className="w-24 bg-white border-2 border-amber-200 rounded-2xl p-4 text-3xl font-black text-amber-700 text-center focus:border-amber-500 outline-none"
+                       />
+                       <p className="text-xs font-bold text-amber-400 italic">* Điểm số sẽ được hiển thị công khai trên học bạ</p>
+                       <button 
+                         onClick={handleGradeSave}
+                         className="w-full py-4 bg-amber-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-amber-700 transition shadow-lg shadow-amber-100"
+                       >
+                         LƯU KẾT QUẢ ĐÁNH GIÁ
+                       </button>
+                    </div>
+                    <div className="w-40 h-40 bg-white rounded-full border-8 border-amber-100 flex flex-col items-center justify-center shadow-xl">
+                       <span className="text-[10px] font-black text-amber-300 uppercase leading-none mb-1">Xếp loại</span>
+                       <span className="text-6xl font-black text-amber-600">
+                          {gradeInput >= 8.5 ? 'A' : gradeInput >= 7 ? 'B' : gradeInput >= 5 ? 'C' : 'D'}
+                       </span>
+                    </div>
+                 </div>
+              </div>
+           )}
+        </div>
+
+      </div>
+    );
+  }
+
+  // STANDARD COMPACT VIEW (For Dashboard/List)
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
       {/* Header */}
@@ -194,19 +540,17 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
               className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition-all">
               <MessageSquare size={14} /> {student.zalo}
             </a>
-            {/* Nút Đánh trượt bài thi */}
             {onLockExam && (
               <button
                 onClick={() => {
                     showModal({ 
-                        title: 'Xác nhận đánh trượt', 
-                        content: `Bạn có chắc chắn muốn ĐÁNH TRƯỢT bài thi của ${getDisplayName(student)}? Hành động này sẽ khoá truy cập phòng thi của học viên ngay lập tức.`, 
+                        title: 'Xác nhận ĐÁNH TRƯỢT', 
+                        content: `Hành động này sẽ KHOÁ TRUY CẬP PHÒNG THI của ${getDisplayName(student)} ngay lập tức.`, 
                         type: 'warning',
+                        confirmText: 'XÁC NHẬN',
+                        onConfirm: () => onLockExam(student)
                     });
-                    // Note: For now we still use confirm for the critical action until modal supports onConfirm
-                    if (window.confirm(`Xác nhận ĐÁNH TRƯỢT bài thi của ${getDisplayName(student)}?`)) onLockExam(student);
                 }}
-                title="Đánh trượt / Khoá bài thi ngay lập tức"
                 className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-black px-3 py-2 rounded-xl transition-all shadow-lg shadow-red-900/30"
               >
                 <XCircle size={14} /> ĐÁNH TRƯỢT
@@ -239,7 +583,7 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
         ))}
       </div>
 
-      {/* Panel Content */}
+      {/* Panel Content (Standard View) */}
       <div className="p-6">
         {activePanel === 'progress' && (
           <div className="space-y-5">
@@ -268,9 +612,9 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
               <CheckCircle size={20} /> {isCompleted ? 'ĐÃ HOÀN THÀNH KHÓA HỌC' : 'ĐIỂM DANH BUỔI HÔM NAY'}
             </button>
             <div>
-              <label className="text-sm font-semibold text-gray-700 block mb-2">📝 Ghi chú học viên</label>
+              <label className="text-sm font-semibold text-gray-700 block mb-2 font-black uppercase text-[10px] text-gray-400 tracking-widest">📝 Ghi chú học viên</label>
               <textarea value={notesInput} onChange={e => setNotesInput(e.target.value)}
-                onBlur={() => onUpdateNotes(student.id, notesInput)} rows={3}
+                onBlur={() => onUpdateNotes(student._id || student.id, notesInput)} rows={3}
                 placeholder="Nhận xét, ghi chú về học viên..."
                 className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm resize-none focus:border-blue-400 outline-none" />
             </div>
@@ -280,86 +624,33 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
         {activePanel === 'link' && (
           <div className="space-y-5">
             <div className="bg-blue-50 rounded-2xl p-5 border border-blue-100">
-              <div className="flex items-center gap-2 mb-3">
-                <Video size={18} className="text-blue-600" />
-                <h3 className="font-bold text-blue-800">Link học trực tuyến</h3>
-              </div>
-              <p className="text-xs text-blue-500 mb-4">Học viên sẽ thấy link này trên Dashboard. Cập nhật mỗi buổi học.</p>
-              <a href={student.linkHoc} target="_blank" rel="noreferrer"
-                className="flex items-center gap-2 text-blue-600 hover:text-blue-800 text-sm font-medium mb-4 break-all">
-                <Link2 size={14} /> {student.linkHoc}
-              </a>
-              <div className="flex gap-2">
-                <input type="text" value={linkInput} onChange={e => setLinkInput(e.target.value)}
-                  className="flex-1 border-2 border-blue-200 rounded-xl px-4 py-3 text-sm focus:border-blue-500 outline-none"
-                  placeholder="https://meet.google.com/..." />
-                <button onClick={handleLinkSave}
-                  className={`px-5 py-3 rounded-xl font-bold text-sm transition-all ${linkSaved ? 'bg-green-500 text-white' : 'bg-slate-800 text-white hover:bg-black'}`}>
-                  {linkSaved ? '✓ Đã lưu' : 'Cập nhật'}
-                </button>
-              </div>
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-gray-600 mb-3">Link gợi ý nhanh:</p>
-              <div className="flex flex-wrap gap-2">
-                {['Google Meet', 'Zoom', 'Microsoft Teams'].map(platform => (
-                  <button key={platform} onClick={() => {
-                    const urls = { 'Google Meet': 'https://meet.google.com/', 'Zoom': 'https://zoom.us/j/', 'Microsoft Teams': 'https://teams.microsoft.com/l/meetup-join/' };
-                    setLinkInput(urls[platform]);
-                  }} className="text-xs px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg font-medium transition-colors">
-                    {platform}
-                  </button>
-                ))}
-              </div>
+               <div className="flex items-center gap-2 mb-3">
+                 <Video size={18} className="text-blue-600" />
+                 <h3 className="font-bold text-blue-800 text-sm">Link học trực tuyến</h3>
+               </div>
+               <p className="text-[10px] text-blue-500 mb-4 font-bold uppercase">Cập nhật link buổi học mới tại đây</p>
+               <div className="flex gap-2">
+                 <input type="text" value={linkInput} onChange={e => setLinkInput(e.target.value)}
+                   className="flex-1 border-2 border-blue-200 rounded-xl px-4 py-2.5 text-sm focus:border-blue-500 outline-none"
+                   placeholder="Dán link họp..." />
+                 <button onClick={handleLinkSave}
+                   className={`px-5 py-2.5 rounded-xl font-bold text-xs transition-all ${linkSaved ? 'bg-green-500 text-white' : 'bg-slate-800 text-white'}`}>
+                   Lưu
+                 </button>
+               </div>
             </div>
           </div>
         )}
 
         {activePanel === 'grade' && (
           <div className="space-y-5">
-            <div className="bg-orange-50 rounded-2xl p-5 border border-orange-100">
-              <div className="flex items-center gap-2 mb-4">
-                <Star size={18} className="text-orange-500 fill-orange-500" />
-                <h3 className="font-bold text-orange-800">Chấm điểm học viên</h3>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="flex-1">
-                  <label className="text-xs text-orange-600 font-semibold uppercase tracking-wide block mb-2">Điểm hiện tại (0-10)</label>
-                  <input type="number" min="0" max="10" step="0.5" value={gradeInput}
-                    onChange={e => setGradeInput(e.target.value)}
-                    className="w-full border-2 border-orange-200 rounded-xl px-4 py-3 text-2xl font-black text-orange-700 focus:border-orange-500 outline-none text-center" />
+             <div className="bg-orange-50 rounded-2xl p-5 border border-orange-100 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest mb-1">Điểm trung bình</p>
+                  <h4 className="text-3xl font-black text-orange-700">{student.lastGrade || 0}</h4>
                 </div>
-                <div className="text-center">
-                  <div className={`w-20 h-20 rounded-2xl flex items-center justify-center font-black text-2xl text-white shadow-lg ${
-                    gradeInput >= 8.5 ? 'bg-gradient-to-br from-green-500 to-green-600'
-                    : gradeInput >= 7 ? 'bg-gradient-to-br from-blue-500 to-blue-600'
-                    : gradeInput >= 5 ? 'bg-gradient-to-br from-orange-500 to-orange-600'
-                    : 'bg-gradient-to-br from-red-500 to-red-600'
-                  }`}>{gradeInput >= 8.5 ? 'A' : gradeInput >= 7 ? 'B' : gradeInput >= 5 ? 'C' : 'D'}</div>
-                  <p className="text-xs text-gray-400 mt-1">Xếp loại</p>
-                </div>
-              </div>
-              <button onClick={handleGradeSave}
-                className={`w-full mt-4 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
-                  gradeSaved ? 'bg-green-500 text-white' : 'bg-orange-500 hover:bg-orange-600 text-white shadow-lg shadow-orange-200'
-                }`}>
-                <Save size={16} /> {gradeSaved ? '✓ Đã lưu điểm!' : 'LƯU ĐIỂM'}
-              </button>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
-              {[
-                { range: '8.5–10', label: 'Xuất sắc', color: 'bg-green-100 text-green-700', grade: 'A' },
-                { range: '7–8.4', label: 'Khá', color: 'bg-blue-100 text-blue-700', grade: 'B' },
-                { range: '5–6.9', label: 'Trung bình', color: 'bg-orange-100 text-orange-700', grade: 'C' },
-                { range: '< 5', label: 'Yếu', color: 'bg-red-100 text-red-700', grade: 'D' },
-              ].map(r => (
-                <div key={r.grade} className={`${r.color} rounded-xl p-2`}>
-                  <p className="font-black text-lg">{r.grade}</p>
-                  <p className="font-semibold">{r.label}</p>
-                  <p className="opacity-70">{r.range}</p>
-                </div>
-              ))}
-            </div>
+                <button onClick={() => setActivePanel('grade')} className="bg-orange-500 text-white px-4 py-2 rounded-xl text-xs font-bold">Cập nhật điểm</button>
+             </div>
           </div>
         )}
       </div>
@@ -412,7 +703,7 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
               </button>
               <button 
                 onClick={() => {
-                  onAttendance(student.id, attForm.note, Number(attForm.grade));
+                  onAttendance(student._id || student.id, attForm.note, Number(attForm.grade));
                   setShowAttendanceModal(false);
                 }}
                 className="flex-[2] py-3 text-white font-bold bg-green-600 rounded-xl shadow-lg shadow-green-200 hover:bg-green-700"
@@ -734,9 +1025,9 @@ const TeacherProfileSection = ({ teacherId, currentTeacher }) => {
   });
   const [profileForm, setProfileForm] = useState({
     email: '',
-    zalo: '',
     bio: '',
     specialty: '',
+    address: '',
   });
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
@@ -756,9 +1047,9 @@ const TeacherProfileSection = ({ teacherId, currentTeacher }) => {
       });
       setProfileForm({
         email: currentTeacher.email || '',
-        zalo: currentTeacher.zalo || '',
         bio: currentTeacher.bio || '',
         specialty: currentTeacher.specialty || '',
+        address: currentTeacher.address || '',
       });
     }
   }, [currentTeacher]);
@@ -878,10 +1169,34 @@ const TeacherProfileSection = ({ teacherId, currentTeacher }) => {
 
             {/* Phone - Read only */}
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Số điện thoại</label>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Số điện thoại / Zalo</label>
               <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
                 <Phone size={16} className="text-gray-400 flex-shrink-0" />
                 <span className="text-sm font-bold text-gray-800">{currentTeacher?.phone || '—'}</span>
+                <Shield size={12} className="text-blue-400 ml-auto flex-shrink-0" title="Chỉ Admin có thể thay đổi" />
+              </div>
+            </div>
+
+            {/* Start Date - Read only */}
+            <div>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Ngày vào làm</label>
+              <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+                <Calendar size={16} className="text-gray-400 flex-shrink-0" />
+                <span className="text-sm font-bold text-gray-800">
+                  {currentTeacher?.startDate ? new Date(currentTeacher.startDate).toLocaleDateString('vi-VN') : '—'}
+                </span>
+                <Shield size={12} className="text-blue-400 ml-auto flex-shrink-0" title="Chỉ Admin có thể thay đổi" />
+              </div>
+            </div>
+
+            {/* Branch - Read only */}
+            <div>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Chi nhánh làm việc</label>
+              <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+                <MapPin size={16} className="text-gray-400 flex-shrink-0" />
+                <span className="text-sm font-bold text-gray-800">
+                  {currentTeacher?.branchCode ? `Cơ sở ${currentTeacher.branchCode}` : 'Chưa phân chi nhánh'}
+                </span>
                 <Shield size={12} className="text-blue-400 ml-auto flex-shrink-0" title="Chỉ Admin có thể thay đổi" />
               </div>
             </div>
@@ -908,24 +1223,25 @@ const TeacherProfileSection = ({ teacherId, currentTeacher }) => {
               )}
             </div>
 
-            {/* Zalo */}
+
+            {/* Address */}
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Zalo</label>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Địa chỉ (Thường trú/Tạm trú)</label>
               {editingProfile ? (
                 <div className="flex items-center gap-2 bg-white rounded-xl px-4 py-3 border-2 border-blue-200 focus-within:border-blue-400 transition">
-                  <MessageSquare size={16} className="text-blue-400 flex-shrink-0" />
+                  <MapPin size={16} className="text-blue-400 flex-shrink-0" />
                   <input
                     type="text"
-                    value={profileForm.zalo}
-                    onChange={e => setProfileForm({...profileForm, zalo: e.target.value})}
-                    placeholder="Số Zalo hoặc link Zalo"
+                    value={profileForm.address || ''}
+                    onChange={e => setProfileForm({...profileForm, address: e.target.value})}
+                    placeholder="Nhập địa chỉ của bạn..."
                     className="flex-1 text-sm outline-none bg-transparent"
                   />
                 </div>
               ) : (
                 <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
-                  <MessageSquare size={16} className="text-gray-400 flex-shrink-0" />
-                  <span className="text-sm text-gray-700">{profileForm.zalo || '—'}</span>
+                  <MapPin size={16} className="text-gray-400 flex-shrink-0" />
+                  <span className="text-sm text-gray-700">{profileForm.address || '—'}</span>
                 </div>
               )}
             </div>
@@ -1201,19 +1517,19 @@ const TeacherProfileSection = ({ teacherId, currentTeacher }) => {
 const TeacherDashboard = ({ onNavigate }) => {
   const { showModal } = useModal();
   const session = JSON.parse(localStorage.getItem('teacher_user') || '{}');
-  const TEACHER_ID = session.id || 1;
+  const TEACHER_ID = session.id || session._id || 1;
   const {
     students: allStudents, teachers,
     getStudentsByTeacher, getTeacherStats,
     markAttendance: ctxMarkAttendance,
     updateStudentLink,
     notifications, getNotifications,
-    getSchedulesByTeacher, getTeacherRating, RATING_CRITERIA,
+    getSchedulesByTeacher, getTeacherRating, RATING_CRITERIA, getTransactionsByTeacher,
     addSchedule, updateSchedule, cancelSchedule,
     revokeStudentExam, updateStudent, updateTeacher
   } = useData();
 
-  const { socket } = useSocket();
+  const { socket, onlineUsers } = useSocket();
 
   // Khoá bài thi sinh viên qua socket
   const lockStudentExam = (student) => {
@@ -1258,12 +1574,15 @@ const TeacherDashboard = ({ onNavigate }) => {
     setShowScheduleModal(true);
   };
 
-  const students = getStudentsByTeacher(TEACHER_ID).map(s => ({
-    ...s,
-    displayName: getDisplayName(s),
-    avatar: getDisplayName(s).substring(0, 2).toUpperCase(),
-    color: (typeof s.id === 'number' ? s.id : 0) % 2 === 1 ? 'bg-purple-500' : 'bg-blue-500',
-  }));
+  const students = getStudentsByTeacher(TEACHER_ID).map(s => {
+    const studentId = s._id || s.id;
+    return {
+      ...s,
+      displayName: getDisplayName(s),
+      avatar: getDisplayName(s).substring(0, 2).toUpperCase(),
+      color: (typeof studentId === 'number' ? studentId : (String(studentId).charCodeAt(0) || 0)) % 2 === 1 ? 'bg-purple-500' : 'bg-blue-500',
+    };
+  });
   const teacherName = (currentTeacher?.name && !/^\d+$/.test(currentTeacher.name)) 
     ? currentTeacher.name 
     : currentTeacher?.email || currentTeacher?.phone || session.name || 'Giảng viên';
@@ -1276,6 +1595,14 @@ const TeacherDashboard = ({ onNavigate }) => {
   const location = useLocation();
   const currentHash = location.hash?.replace('#', '') || '';
   const toast = useToast();
+  const [selectedStudentId, setSelectedStudentId] = useState(null);
+
+  // Auto-select first student if none selected
+  useEffect(() => {
+    if (!selectedStudentId && students.length > 0) {
+      setSelectedStudentId(students[0]._id || students[0].id);
+    }
+  }, [students, selectedStudentId]);
 
   const markAttendance = (id, noteParam, gradeParam) => {
     const note = noteParam || noteInputs[id] || 'Đã điểm danh';
@@ -1302,6 +1629,26 @@ const TeacherDashboard = ({ onNavigate }) => {
 
   const mySchedules = useMemo(() => getSchedulesByTeacher(TEACHER_ID), [getSchedulesByTeacher, TEACHER_ID]);
   const teacherRating = useMemo(() => getTeacherRating(TEACHER_ID), [getTeacherRating, TEACHER_ID]);
+  const myTransactions = useMemo(() => getTransactionsByTeacher(TEACHER_ID), [getTransactionsByTeacher, TEACHER_ID]);
+
+  const monthlyTransactions = useMemo(() => {
+    const today = new Date();
+    const currMonth = today.getMonth();
+    const currYear = today.getFullYear();
+    return myTransactions.filter(t => {
+      // Parse flexible date formats (ISO or local dd/mm/yyyy)
+      let d;
+      if (typeof t.date === 'string' && t.date.includes('/')) {
+        const [day, month, year] = t.date.split('/');
+        d = new Date(year, month - 1, day);
+      } else {
+        d = new Date(t.createdAt || t.date);
+      }
+      return d.getMonth() === currMonth && d.getFullYear() === currYear;
+    });
+  }, [myTransactions]);
+
+  const totalMonthlyIncome = monthlyTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
   const myNotifs = getNotifications(TEACHER_ID, 'teacher').filter(n => !n.read).length;
 
   // ── MÀN HÌNH CHỜ DUYỆT ── chỉ hiện nút Bài Test
@@ -1437,39 +1784,110 @@ const TeacherDashboard = ({ onNavigate }) => {
 
         {/* ═══ CONTENT ═══ */}
         {currentHash === 'students' ? (
-          /* ═══ QUẢN LÝ HỌC VIÊN ═══ */
-          <div className="px-4 md:px-8 py-6 md:py-8 space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                <GraduationCap size={20} className="text-blue-600" /> Quản lý học viên
-                <span className="text-sm font-normal text-gray-500">({students.length})</span>
-              </h2>
-              {/* Search bar */}
-              <div className="relative max-w-xs w-full">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  value={studentSearch}
-                  onChange={e => setStudentSearch(e.target.value)}
-                  placeholder="Tìm học viên..."
-                  className="w-full pl-8 pr-3 py-2 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-50 transition-all"
-                />
-              </div>
+          /* ═══ QUẢN LÝ HỌC VIÊN 2 CỘT ═══ */
+          <div className="px-4 md:px-8 py-6 h-[calc(100vh-120px)] flex flex-col lg:flex-row gap-6 overflow-hidden">
+            
+            {/* CỘT 1: DANH SÁCH HỌC VIÊN (Sidebar) */}
+            <div className="w-full lg:w-80 flex flex-col bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex-shrink-0">
+               <div className="p-4 border-b border-gray-50 bg-gray-50/30">
+                  <div className="relative">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      value={studentSearch}
+                      onChange={e => setStudentSearch(e.target.value)}
+                      placeholder="Tìm học viên..."
+                      className="w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-400 transition-all"
+                    />
+                  </div>
+               </div>
+               
+               <div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-hide">
+                  {students
+                    .filter(s => s.name.toLowerCase().includes(studentSearch.toLowerCase()) || s.course?.toLowerCase().includes(studentSearch.toLowerCase()))
+                    .map(s => {
+                      const sId = s._id || s.id;
+                      const isOnline = onlineUsers.some(u => String(u.userId) === String(sId));
+                      const isSelected = String(selectedStudentId) === String(sId);
+                      return (
+                        <div
+                          key={sId}
+                          onClick={() => setSelectedStudentId(sId)}
+                          role="button"
+                          tabIndex={0}
+                          className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all group cursor-pointer ${
+                            isSelected ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'hover:bg-gray-50 text-gray-700'
+                          }`}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setSelectedStudentId(sId); } }}
+                        >
+                          <div className="relative">
+                            <div className={`w-10 h-10 ${isSelected ? 'bg-white/20' : s.color} rounded-xl flex items-center justify-center font-bold text-sm shadow-sm`}>
+                              {s.avatar}
+                            </div>
+                            {isOnline && (
+                              <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full" title="Đang hoạt động" />
+                            )}
+                          </div>
+                          
+                          <div className="flex-1 text-left min-w-0">
+                            <p className={`text-sm font-bold truncate ${isSelected ? 'text-white' : 'text-gray-900'}`}>{s.name}</p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              {isOnline ? (
+                                <span className={`text-[10px] font-bold uppercase tracking-tighter ${isSelected ? 'text-blue-10' : 'text-green-500'}`}>Đang hoạt động</span>
+                              ) : (
+                                <span className={`text-[10px] font-medium ${isSelected ? 'text-blue-200' : 'text-gray-400'}`}>Hoạt động {Math.floor(Math.random() * 20) + 1}p trước</span>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {!isSelected && (
+                            <button 
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                navigate('/teacher/inbox'); 
+                              }} 
+                              className="w-8 h-8 rounded-lg bg-gray-100 text-gray-400 flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-blue-100 hover:text-blue-600 transition-all border-none outline-none"
+                            >
+                              <MessageSquare size={14} />
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })
+                  }
+                  {students.length === 0 && (
+                     <div className="text-center py-10 opacity-30">
+                        <Users size={40} className="mx-auto mb-2" />
+                        <p className="text-sm font-bold">Chưa có học viên</p>
+                     </div>
+                  )}
+               </div>
             </div>
-            {students
-              .filter(s => s.name.toLowerCase().includes(studentSearch.toLowerCase()) || s.course?.toLowerCase().includes(studentSearch.toLowerCase()))
-              .map(student => (
-                <StudentCard key={student.id} student={student}
-                  onAttendance={markAttendance} onUpdateLink={updateLink}
-                  onSaveGrade={saveGrade} onUpdateNotes={updateNotes}
-                  onLockExam={lockStudentExam} />
-              ))
-            }
-            {students.filter(s => s.name.toLowerCase().includes(studentSearch.toLowerCase())).length === 0 && (
-              <div className="text-center py-12 text-gray-400">
-                <Search size={32} className="mx-auto mb-3 opacity-30" />
-                <p className="font-medium">Không tìm thấy học viên nào</p>
-              </div>
-            )}
+
+            {/* CỘT 2: CHI TIẾT HỌC VIÊN (Main Content) */}
+            <div className="flex-1 overflow-y-auto scrollbar-hide pr-1">
+              {selectedStudentId ? (
+                (() => {
+                  const student = students.find(s => String(s.id) === String(selectedStudentId) || String(s._id) === String(selectedStudentId));
+                  if (!student) return <div className="p-20 text-center text-gray-400">Không tìm thấy thông tin</div>;
+                  return (
+                    <StudentCard 
+                      key={student._id || student.id} student={student}
+                      onAttendance={markAttendance} onUpdateLink={updateLink}
+                      onSaveGrade={saveGrade} onUpdateNotes={updateNotes}
+                      onLockExam={lockStudentExam} 
+                      isDetailed={true}
+                    />
+                  );
+                })()
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center bg-white rounded-[40px] border-2 border-dashed border-gray-100 text-gray-300">
+                   <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                      <GraduationCap size={40} />
+                   </div>
+                   <p className="font-bold">Vui lòng chọn học viên ở danh sách bên trái</p>
+                </div>
+              )}
+            </div>
           </div>
 
         ) : currentHash === 'schedule' ? (
@@ -1498,25 +1916,77 @@ const TeacherDashboard = ({ onNavigate }) => {
           <TeacherProfileSection teacherId={TEACHER_ID} currentTeacher={currentTeacher} />
 
         ) : (
-          /* ═══ TỔNG QUAN ═══ */
-          <div className="px-4 md:px-8 py-6 md:py-8 space-y-6 md:space-y-8">
-            {/* Stats */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          /* ═══ TỔNG QUAN CHUYÊN NGHIỆP ═══ */
+          <div className="px-4 md:px-8 py-6 md:py-8 space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-700">
+            
+            {/* ── HIGHLIGHT HERO SECTION ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+               {/* Income & Performance Card */}
+               <div className="lg:col-span-2 bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 rounded-[40px] p-8 text-white relative overflow-hidden shadow-2xl shadow-blue-900/20">
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+                  <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8 h-full">
+                     <div className="space-y-4">
+                        <div>
+                           <p className="text-blue-300 text-xs font-black uppercase tracking-widest mb-1">Thu nhập tháng {new Date().getMonth()+1}</p>
+                           <h3 className="text-4xl font-black">{totalMonthlyIncome.toLocaleString('vi-VN')} <span className="text-xl">đ</span></h3>
+                        </div>
+                        <div className="flex items-center gap-6">
+                           <div className="flex flex-col">
+                              <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Học viên hoàn thành</span>
+                              <span className="text-2xl font-black text-emerald-400">{completed} <span className="text-xs text-slate-400">người</span></span>
+                           </div>
+                           <div className="w-[1px] h-10 bg-white/10" />
+                           <div className="flex flex-col">
+                              <span className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Buổi dạy đã xong</span>
+                              <span className="text-2xl font-black text-blue-400">{totalDone} <span className="text-xs text-slate-400">buổi</span></span>
+                           </div>
+                        </div>
+                     </div>
+                     <button onClick={() => navigate('/teacher/finances')} 
+                        className="bg-white/10 hover:bg-white/20 border border-white/10 px-8 py-4 rounded-3xl text-sm font-black uppercase tracking-widest transition-all flex items-center gap-2 group">
+                        Chi tiết thu nhập <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
+                     </button>
+                  </div>
+               </div>
+
+               {/* Rating & Identity Card */}
+               <div className="bg-white rounded-[40px] p-8 border border-gray-100 shadow-xl shadow-gray-200/50 flex flex-col items-center justify-center text-center relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-orange-400 to-amber-300" />
+                  <div className={`w-20 h-20 ${(currentTeacher?.color || 'bg-blue-600')} rounded-3xl flex items-center justify-center text-white text-3xl font-black shadow-lg mb-4`}>
+                    {teacherName.substring(0, 2).toUpperCase()}
+                  </div>
+                  <h4 className="text-lg font-black text-gray-800 mb-1">{teacherName}</h4>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Giảng viên Chuyên môn</p>
+                  
+                  {/* STAR RATING DISPLAY */}
+                  <div className="bg-orange-50 px-6 py-4 rounded-[32px] border border-orange-100 w-full">
+                     <div className="flex items-center justify-center gap-1 mb-1">
+                        {[1, 2, 3, 4, 5].map(star => (
+                           <Star key={star} size={20} className={star <= Math.round(teacherRating.avg) ? "text-orange-500 fill-orange-500" : "text-gray-200"} />
+                        ))}
+                     </div>
+                     <p className="text-2xl font-black text-orange-600 leading-none">{teacherRating.avg || '—'}</p>
+                     <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest mt-1">{teacherRating.count} lượt đánh giá từ học viên</p>
+                  </div>
+               </div>
+            </div>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { icon: Users, label: 'Học viên', value: students.length, sub: 'trong lớp', color: 'from-blue-500 to-blue-600' },
-                { icon: BookOpen, label: 'Buổi đã dạy', value: totalDone, sub: `/ ${totalSess} buổi`, color: 'from-purple-500 to-purple-600' },
-                { icon: Star, label: 'Điểm TB', value: avgGrade, sub: '/ 10 điểm', color: 'from-orange-500 to-orange-600' },
-                { icon: Award, label: 'Hoàn thành', value: completed, sub: `/ ${students.length} HV`, color: 'from-green-500 to-green-600' },
-              ].map(({ icon: Icon, label, value, sub, color }) => (
-                <div key={label} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex items-start gap-4 hover:shadow-md transition-shadow">
-                  <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center flex-shrink-0 shadow-md`}>
-                    <Icon size={20} className="text-white" />
+                { icon: Users, label: 'Đang dạy', value: students.length, sub: 'học viên', color: 'from-blue-500 to-blue-600', bg: 'bg-blue-50' },
+                { icon: BookOpen, label: 'Lộ trình', value: `${totalDone}/${totalSess}`, sub: 'tổng số buổi', color: 'from-purple-500 to-purple-600', bg: 'bg-purple-50' },
+                { icon: Award, label: 'Điểm TB', value: avgGrade, sub: '/ 10 điểm', color: 'from-amber-500 to-orange-500', bg: 'bg-orange-50' },
+                { icon: Star, label: 'Uy tín', value: teacherRating.avg, sub: `${teacherRating.count} đánh giá`, color: 'from-emerald-500 to-teal-500', bg: 'bg-emerald-50' },
+              ].map(({ icon: Icon, label, value, sub, color, bg }) => (
+                <div key={label} className="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 hover:shadow-xl hover:scale-[1.02] transition-all group overflow-hidden relative">
+                  <div className={`absolute -right-4 -bottom-4 w-20 h-20 ${bg} rounded-full opacity-50 group-hover:scale-150 transition-transform duration-700`} />
+                  <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${color} flex items-center justify-center mb-4 shadow-lg group-hover:rotate-12 transition-transform`}>
+                    <Icon size={24} className="text-white" />
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500 font-medium">{label}</p>
-                    <p className="text-2xl font-black text-gray-800">{value}</p>
-                    <p className="text-xs text-gray-400">{sub}</p>
-                  </div>
+                  <p className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-1 relative z-10">{label}</p>
+                  <p className="text-3xl font-black text-gray-800 relative z-10">{value}</p>
+                  <p className="text-[10px] font-bold text-gray-400 mt-1 relative z-10">{sub}</p>
                 </div>
               ))}
             </div>

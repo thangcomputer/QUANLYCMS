@@ -432,6 +432,19 @@ router.post('/login/public', async (req, res) => {
 
     const { user, role: userRole } = found;
 
+    // ⭐ Chặn đăng nhập nếu trạng thái không hợp lệ (Case-insensitive)
+    const sStatus = String(user.status || '').toLowerCase();
+    if (userRole === 'teacher') {
+      if (sStatus === 'inactive')  return res.status(403).json({ success: false, isBan: true, message: 'Tài khoản chưa được cấp quyền đăng nhập. Vui lòng liên hệ trung tâm.' });
+      if (sStatus === 'suspended') return res.status(403).json({ success: false, message: 'Tài khoản đã bị tạm vắng / vô hiệu hóa.' });
+      if (sStatus === 'locked')    return res.status(403).json({ success: false, isBan: true, message: 'Tài khoản đã bị khóa do không vượt qua bài thi thực tế.' });
+      
+      // Nếu là pending nhưng đã nộp bài → chờ chấm
+      if (sStatus === 'pending' && user.practicalStatus === 'submitted') {
+         return res.status(403).json({ success: false, isBan: true, message: 'Bạn đã hoàn thành bài thi. Vui lòng chờ Admin chấm điểm.' });
+      }
+    }
+
     // Xác thực mật khẩu
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {

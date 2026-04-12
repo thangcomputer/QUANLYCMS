@@ -836,9 +836,17 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
                 onClick={() => {
                   const answeredCount = Object.keys(answers).length;
                   if (answeredCount < questions.length) {
-                    if (!window.confirm(`Bạn mới làm được ${answeredCount}/${questions.length} câu. Bạn có chắc chắn muốn nộp bài sớm không?`)) return;
+                    showModal({
+                      title: 'Xác nhận nộp bài',
+                      content: `Bạn mới làm được ${answeredCount}/${questions.length} câu. Bạn có chắc chắn muốn nộp bài sớm không?`,
+                      type: 'question',
+                      confirmText: 'Xác nhận nộp',
+                      cancelText: 'Làm tiếp',
+                      onConfirm: () => handleSubmit(false)
+                    });
+                  } else {
+                    handleSubmit(false);
                   }
-                  handleSubmit(false);
                 }} 
                 className="w-full py-4 bg-gradient-to-r from-[#203DB5] to-[#1E3A8A] text-white font-black rounded-3xl shadow-lg shadow-blue-900/30 flex items-center justify-center gap-3 text-lg active:scale-95 transition-all overflow-hidden relative group/btn"
               >

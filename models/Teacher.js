@@ -19,7 +19,6 @@ const TeacherSchema = new mongoose.Schema(
       unique: true,
       trim: true,
     },
-    zalo: { type: String, trim: true },
     email: {
       type: String,
       trim: true,
@@ -105,6 +104,8 @@ const TeacherSchema = new mongoose.Schema(
     // ── Thông tin thêm ────────────────────────────────────────────
     specialty: { type: String, default: '' }, // Chuyên môn: "THVP, Excel, ..."
     bio: { type: String, default: '' },
+    startDate: { type: Date, default: Date.now }, // Ngày bắt đầu làm việc
+    address: { type: String, default: '' },       // Địa chỉ thường trú
     bankAccount: {
       bankName: { type: String, default: '' },        // Tên hiển thị: "Vietcombank"
       bankCode: { type: String, default: '' },        // Mã VietQR: "vietcombank" | "mbbank" | "tcb"...

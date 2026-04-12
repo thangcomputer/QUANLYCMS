@@ -12,6 +12,7 @@ import {
   AlertTriangle, CheckCircle2, Crown, UserCog, Building2
 } from 'lucide-react';
 import { useToast } from '../utils/toast';
+import { useModal } from '../utils/Modal.jsx';
 import { ALL_PERMISSIONS } from '../constants/permissions';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -315,6 +316,7 @@ function StaffModal({ staff, onClose, onSaved }) {
 // ── Main Component ─────────────────────────────────────────────────────────────
 export default function StaffManagementTab() {
   const toast = useToast();
+  const { showModal } = useModal();
   const [staffList, setStaffList] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [modal, setModal]         = useState(undefined); // undefined=hidden, null=add, obj=edit
@@ -334,21 +336,29 @@ export default function StaffManagementTab() {
   useEffect(() => { fetchStaff(); }, [fetchStaff]);
 
   const handleDelete = async (s) => {
-    if (!window.confirm(`Xóa tài khoản "${s.name}"?\nHành động này không thể hoàn tác!`)) return;
-    setDeleting(s._id);
-    try {
-      const res = await fetch(`${API}/api/staff/${s._id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${getToken()}` },
-      }).then(r => r.json());
-      if (res.success) {
-        setStaffList(prev => prev.filter(x => x._id !== s._id));
-        toast.success(`🗑️ Đã xóa "${s.name}"`);
-      } else {
-        toast.error(res.message);
+    showModal({
+      title: 'Xoá tài khoản nội bộ?',
+      content: `Bạnh có chắc chắn muốn xoá tài khoản nhân viên "${s.name}"? Người dùng này sẽ không còn quyền truy cập vào hệ thống.`,
+      type: 'error',
+      confirmText: 'Xoá vĩnh viễn',
+      cancelText: 'Huỷ bỏ',
+      onConfirm: async () => {
+        setDeleting(s._id);
+        try {
+          const res = await fetch(`${API}/api/staff/${s._id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${getToken()}` },
+          }).then(r => r.json());
+          if (res.success) {
+            setStaffList(prev => prev.filter(x => x._id !== s._id));
+            toast.success(`🗑️ Đã xóa "${s.name}"`);
+          } else {
+            toast.error(res.message);
+          }
+        } catch { toast.error('Lỗi kết nối'); }
+        finally { setDeleting(null); }
       }
-    } catch { toast.error('Lỗi kết nối'); }
-    finally { setDeleting(null); }
+    });
   };
 
   const handleSaved = (updated) => {

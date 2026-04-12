@@ -10,6 +10,7 @@ import {
   DollarSign, Percent, Tag, BookOpen, CheckCircle2
 } from 'lucide-react';
 import { useToast } from '../utils/toast';
+import { useModal } from '../utils/Modal.jsx';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -221,6 +222,7 @@ function CourseModal({ course, onClose, onSaved }) {
 // ── Main Component ─────────────────────────────────────────────────────────────
 export default function CoursePricingTab() {
   const toast = useToast();
+  const { showModal } = useModal();
   const [courses, setCourses]       = useState([]);
   const [loading, setLoading]       = useState(true);
   const [modalCourse, setModalCourse] = useState(undefined); // undefined=closed, null=add, obj=edit
@@ -240,24 +242,32 @@ export default function CoursePricingTab() {
   useEffect(() => { fetchCourses(); }, [fetchCourses]);
 
   const handleDelete = async (course) => {
-    if (!window.confirm(`Xóa khóa học "${course.name}"?\nHành động này không thể hoàn tác!`)) return;
-    setDeleting(course._id);
-    try {
-      const res = await fetch(`${API}/api/courses/${course._id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${getToken()}` },
-      }).then(r => r.json());
-      if (res.success) {
-        setCourses(prev => prev.filter(c => c._id !== course._id));
-        toast.success(`🗑️ Đã xóa "${course.name}"`);
-      } else {
-        toast.error(res.message || 'Lỗi xóa khóa học');
+    showModal({
+      title: 'Xoá khoá học?',
+      content: `Bạnh có chắc chắn muốn xoá khoá học "${course.name}" không? Hành động này không thể hoàn tác và chỉ nên thực hiện nếu không còn học viên nào đang theo học khoá này.`,
+      type: 'error',
+      confirmText: 'Xoá vĩnh viễn',
+      cancelText: 'Huỷ bỏ',
+      onConfirm: async () => {
+        setDeleting(course._id);
+        try {
+          const res = await fetch(`${API}/api/courses/${course._id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${getToken()}` },
+          }).then(r => r.json());
+          if (res.success) {
+            setCourses(prev => prev.filter(c => c._id !== course._id));
+            toast.success(`🗑️ Đã xóa "${course.name}"`);
+          } else {
+            toast.error(res.message || 'Lỗi xóa khóa học');
+          }
+        } catch {
+          toast.error('Lỗi kết nối server');
+        } finally {
+          setDeleting(null);
+        }
       }
-    } catch {
-      toast.error('Lỗi kết nối server');
-    } finally {
-      setDeleting(null);
-    }
+    });
   };
 
   const handleSaved = (updatedCourse) => {

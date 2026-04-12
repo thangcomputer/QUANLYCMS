@@ -3,7 +3,24 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import AppSidebar from './AppSidebar';
 import BranchFilterDropdown from './BranchFilterDropdown';
 import { useData } from '../context/DataContext';
-import { Bell, Search, LogOut, CheckCircle2, Clock, X, ChevronRight } from 'lucide-react';
+import { 
+  Bell, Search, LogOut, CheckCircle2, Clock, X, ChevronRight,
+  Calendar, DollarSign, UserPlus, Zap, BookOpen, Award, Activity
+} from 'lucide-react';
+
+const getNotifStyle = (type) => {
+  switch (type) {
+    case 'finance':  return { icon: DollarSign, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', label: 'Tài chính' };
+    case 'student':  
+    case 'COURSE':   return { icon: UserPlus,   color: 'text-blue-600',    bg: 'bg-blue-50',    border: 'border-blue-100',    label: 'Học viên mới' };
+    case 'schedule': return { icon: Calendar,   color: 'text-orange-600',  bg: 'bg-orange-50',  border: 'border-orange-100',  label: 'Lịch dạy' };
+    case 'admin':    return { icon: Zap,        color: 'text-red-600',     bg: 'bg-red-50',     border: 'border-red-100',     label: 'Admin' };
+    case 'news':     return { icon: Bell,       color: 'text-rose-600',    bg: 'bg-rose-50',    border: 'border-rose-100',    label: 'Tin tức' };
+    case 'training': return { icon: BookOpen,   color: 'text-indigo-600',  bg: 'bg-indigo-50',  border: 'border-indigo-100',  label: 'Đào tạo' };
+    case 'grade':    return { icon: Award,      color: 'text-purple-600',  bg: 'bg-purple-50',  border: 'border-purple-100',  label: 'Đánh giá' };
+    default:         return { icon: Bell,       color: 'text-gray-600',    bg: 'bg-gray-50',    border: 'border-gray-100',    label: 'Thông báo' };
+  }
+};
 
 const formatTime = (date) => {
   if (!date) return '';
@@ -230,21 +247,31 @@ const DashboardLayout = ({ role, session, onLogout }) => {
                         </div>
                       ) : (
                         <div className="divide-y divide-gray-50">
-                          {myNotifications.slice(0, notifLimit).map(n => (
-                            <div 
-                              key={n.id} 
-                              onClick={() => { markNotificationRead(n.id); if(n.path) navigate(n.path); setShowNotif(false); }}
-                              className={`p-5 hover:bg-red-50/30 transition-all cursor-pointer flex gap-4 ${!n.read ? 'bg-red-50/10' : ''}`}
-                            >
-                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${!n.read ? 'bg-red-600 text-white shadow-lg shadow-red-200' : 'bg-gray-100 text-gray-400'}`}>
-                                {n.type === 'alert' ? <Clock size={16}/> : <Bell size={16}/>}
+                          {myNotifications.slice(0, notifLimit).map(n => {
+                            const style = getNotifStyle(n.type);
+                            const Icon = style.icon;
+                            return (
+                              <div 
+                                key={n.id} 
+                                onClick={() => { markNotificationRead(n.id); if(n.path) navigate(n.path); setShowNotif(false); }}
+                                className={`p-5 hover:bg-gray-50 transition-all cursor-pointer flex gap-4 border-l-4 ${!n.read ? `bg-white ${style.border.replace('border-', 'border-l-')}` : 'bg-white border-l-transparent opacity-80'}`}
+                              >
+                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 relative ${style.bg} ${style.color}`}>
+                                  <Icon size={20} />
+                                  {!n.read && (
+                                    <span className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${style.bg.replace('bg-', 'bg-')}`} style={{backgroundColor: 'currentColor'}} />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <span className={`text-[9px] font-black uppercase tracking-widest ${style.color}`}>{style.label}</span>
+                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{formatTime(n.time)}</span>
+                                  </div>
+                                  <p className={`text-sm leading-relaxed ${!n.read ? 'text-gray-900 font-bold' : 'text-gray-500 font-medium'}`}>{n.text}</p>
+                                </div>
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <p className={`text-sm leading-snug ${!n.read ? 'text-gray-900 font-bold' : 'text-gray-500 font-medium'}`}>{n.text}</p>
-                                <p className="text-[10px] text-gray-400 mt-2 font-bold uppercase tracking-wider">{formatTime(n.time)}</p>
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
