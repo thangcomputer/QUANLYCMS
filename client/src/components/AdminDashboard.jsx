@@ -30,6 +30,7 @@ import RevenueAnalyticsTab from './RevenueAnalyticsTab';
 import EmployeeManagementTab from './EmployeeManagementTab';
 import StudentDetailModal from './StudentDetailModal';
 import StudentImportModal from './StudentImportModal';
+import TeacherScheduleHistoryPanel from './TeacherScheduleHistoryPanel';
 
 // ─── RICH TEXT EDITOR (tương thích React 18, không dùng prompt) ──────────────
 const RichTextEditor = ({ value, onChange, placeholder }) => {
@@ -4362,12 +4363,31 @@ const AdminDashboard = ({ onNavigate }) => {
       {editTeacher && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[150] p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-5 text-white flex justify-between items-center flex-shrink-0">
-              <h3 className="font-extrabold flex items-center gap-2 text-lg"><Edit3 size={20} /> Chỉnh sửa Giảng viên</h3>
-              <button onClick={() => setEditTeacher(null)} className="hover:bg-blue-800/40 p-1.5 rounded-xl transition-colors"><X size={20} /></button>
+            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-5 text-white flex flex-col flex-shrink-0">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-extrabold flex items-center gap-2 text-lg"><Edit3 size={20} /> Hồ sơ Giảng viên</h3>
+                <button onClick={() => setEditTeacher(null)} className="hover:bg-blue-800/40 p-1.5 rounded-xl transition-colors"><X size={20} /></button>
+              </div>
+              <div className="flex gap-4">
+                <button 
+                  onClick={() => setEditTeacher(p => ({ ...p, _tab: 'info' }))}
+                  className={`pb-2 px-1 text-sm font-bold border-b-2 transition-colors ${editTeacher._tab !== 'history' ? 'border-white text-white' : 'border-transparent text-blue-200 hover:text-white'}`}
+                >
+                  Thông tin chung
+                </button>
+                <button 
+                  onClick={() => setEditTeacher(p => ({ ...p, _tab: 'history' }))}
+                  className={`pb-2 px-1 text-sm font-bold border-b-2 transition-colors ${editTeacher._tab === 'history' ? 'border-white text-white' : 'border-transparent text-blue-200 hover:text-white'}`}
+                >
+                  Lịch sử sắp lịch
+                </button>
+              </div>
             </div>
             
-            <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1">
+            <div className="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-1 bg-slate-50/50">
+              {editTeacher._tab === 'history' ? (
+                <TeacherScheduleHistoryPanel teacherId={editTeacher.id || editTeacher._id} />
+              ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* Cột 1 */}
                 <div className="space-y-4">
@@ -4514,35 +4534,41 @@ const AdminDashboard = ({ onNavigate }) => {
                   </div>
                 </div>
               </div>
+              )}
             </div>
 
             <div className="bg-slate-50 border-t border-slate-100 px-6 py-5 flex gap-4 flex-shrink-0">
-              <button onClick={() => setEditTeacher(null)} className="flex-1 py-3.5 bg-white border-2 border-slate-200 rounded-2xl font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm">
-                Huỷ bỏ
+              <button 
+                onClick={() => setEditTeacher(null)} 
+                className={`${editTeacher._tab === 'history' ? 'w-full' : 'flex-1'} py-3.5 bg-white border-2 border-slate-200 rounded-2xl font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm`}
+              >
+                {editTeacher._tab === 'history' ? 'Đóng' : 'Huỷ bỏ'}
               </button>
-              <button onClick={async () => {
-                try {
-                  await ctxUpdateTeacher(editTeacher.id, {
-                    name: editTeacher.name,
-                    phone: editTeacher.phone,
-                    specialty: editTeacher.specialty,
-                    startDate: editTeacher.startDate,
-                    address: editTeacher.address,
-                    status: editTeacher.status,
-                    baseSalaryPerSession: editTeacher.baseSalaryPerSession,
-                    bankAccount: editTeacher.bankAccount || {},
-                    branchId: editTeacher.branchId,
-                    branchCode: editTeacher.branchCode,
-                  });
-                  setEditTeacher(null);
-                  toast.success('Đã cập nhật thông tin giảng viên!');
-                  fetchTeachers();
-                } catch (err) {
-                  toast.error('Lỗi cập nhật giảng viên: ' + (err.message || 'Không xác định'));
-                }
-              }} className="flex-[2] py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-wide hover:from-blue-700 hover:to-indigo-700 flex items-center justify-center gap-2 shadow-lg shadow-blue-200 transition-all">
-                <Save size={18} /> Lưu thay đổi
-              </button>
+              {editTeacher._tab !== 'history' && (
+                <button onClick={async () => {
+                  try {
+                    await ctxUpdateTeacher(editTeacher.id, {
+                      name: editTeacher.name,
+                      phone: editTeacher.phone,
+                      specialty: editTeacher.specialty,
+                      startDate: editTeacher.startDate,
+                      address: editTeacher.address,
+                      status: editTeacher.status,
+                      baseSalaryPerSession: editTeacher.baseSalaryPerSession,
+                      bankAccount: editTeacher.bankAccount || {},
+                      branchId: editTeacher.branchId,
+                      branchCode: editTeacher.branchCode,
+                    });
+                    setEditTeacher(null);
+                    toast.success('Đã cập nhật thông tin giảng viên!');
+                    fetchTeachers();
+                  } catch (err) {
+                    toast.error('Lỗi cập nhật giảng viên: ' + (err.message || 'Không xác định'));
+                  }
+                }} className="flex-[2] py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-wide hover:from-blue-700 hover:to-indigo-700 flex items-center justify-center gap-2 shadow-lg shadow-blue-200 transition-all">
+                  <Save size={18} /> Lưu thay đổi
+                </button>
+              )}
             </div>
           </div>
         </div>
