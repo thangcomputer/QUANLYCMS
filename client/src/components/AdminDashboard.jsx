@@ -546,7 +546,7 @@ const AddStudentModal = ({ onAdd, onClose, teachers }) => {
         </div>
 
         {/* Body Lưới 2 cột */}
-        <div className="p-10 max-h-[75vh] overflow-y-auto w-full scrollbar-hide">
+        <div className="p-10 max-h-[75vh] overflow-y-auto w-full">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
             {/* Cột Trái: Thông tin Cá nhân */}
             <div className="space-y-6 md:border-r border-gray-100 md:pr-10">
@@ -773,7 +773,7 @@ const EditStudentModal = ({ student, onSave, onClose, teachers }) => {
         </div>
 
         {/* Body Lưới 2 cột */}
-        <div className="p-8 max-h-[75vh] overflow-y-auto w-full scrollbar-hide">
+        <div className="p-8 max-h-[75vh] overflow-y-auto w-full">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Cột Trái: Thông tin Cá nhân */}
             <div className="space-y-6 md:border-r border-gray-100 md:pr-8">

@@ -237,7 +237,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
                       <h3 className="font-black text-gray-800 text-base">Thông báo mới</h3>
                       <button onClick={() => setShowNotif(false)} className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-gray-400 hover:text-red-600 shadow-sm transition-all"><X size={16}/></button>
                     </div>
-                    <div className="max-h-[450px] overflow-y-auto scrollbar-hide">
+                    <div className="max-h-[450px] overflow-y-auto">
                       {myNotifications.length === 0 ? (
                         <div className="p-12 text-center">
                           <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">

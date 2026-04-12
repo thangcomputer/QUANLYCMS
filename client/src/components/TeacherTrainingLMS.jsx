@@ -550,7 +550,7 @@ const TeacherTrainingLMS = ({ onBack, isAdmin = false }) => {
       <div className="flex flex-1 overflow-hidden">
 
         {/* LEFT: VIDEO + INFO (70%) */}
-        <div className="flex flex-col overflow-y-auto scrollbar-hide" style={{ width: '70%' }}>
+        <div className="flex flex-col overflow-y-auto" style={{ width: '70%' }}>
           {/* Video Player */}
           <div className="flex-shrink-0">
             <YouTubePlayerSecure
@@ -632,7 +632,7 @@ const TeacherTrainingLMS = ({ onBack, isAdmin = false }) => {
           </div>
 
           {/* Lesson List */}
-          <div className="flex-1 overflow-y-auto scrollbar-hide">
+          <div className="flex-1 overflow-y-auto">
             {Object.entries(groupedLessons).map(([chapter, chapterLessons]) => {
               const isExpanded = expandedChapters[chapter] !== false;
               const chapterCompleted = chapterLessons.filter(l => l.isCompleted).length;

@@ -180,7 +180,7 @@ export default function StudentDetailModal({ studentId, onClose }) {
             </div>
 
             {/* ── MAIN CONTENT AREA ─────────────────────────────────────────── */}
-            <div className="flex-1 overflow-y-auto p-8 scrollbar-hide">
+            <div className="flex-1 overflow-y-auto p-8">
               
               {/* --- TAB 1: SUMMARY --- */}
               {activeTab === 'summary' && (
@@ -354,11 +354,13 @@ export default function StudentDetailModal({ studentId, onClose }) {
                         <div className="flex gap-4">
                            <div className="flex-1 p-3 bg-slate-50 rounded-2xl border border-slate-100">
                               <p className="text-[9px] font-black text-slate-400 uppercase mb-0.5">Hình thức</p>
-                              <p className="text-xs font-black text-slate-700 capitalize">{data.student.paymentMethod || 'Chuyển khoản'}</p>
+                              <p className="text-xs font-black text-slate-700 capitalize">
+                                {data.student.paymentMethod === 'cash' ? 'Tiền mặt' : (data.student.paymentMethod === 'transfer' ? 'Chuyển khoản' : (data.student.paymentMethod || 'Chuyển khoản'))}
+                              </p>
                            </div>
                            <div className="flex-1 p-3 bg-slate-50 rounded-2xl border border-slate-100">
                               <p className="text-[9px] font-black text-slate-400 uppercase mb-0.5">Cơ sở</p>
-                              <p className="text-xs font-black text-slate-700">{data.student.branchCode || '—'}</p>
+                              <p className="text-xs font-black text-slate-700">{data.student.branchCode || 'Hệ thống'}</p>
                            </div>
                         </div>
                      </div>

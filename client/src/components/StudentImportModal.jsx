@@ -156,7 +156,7 @@ export default function StudentImportModal({ onClose, branchId }) {
                   </div>
                </div>
 
-               <div className="flex-1 max-h-64 overflow-y-auto rounded-2xl border border-slate-100 scrollbar-hide">
+               <div className="flex-1 max-h-64 overflow-y-auto rounded-2xl border border-slate-100">
                   <table className="w-full text-left text-xs">
                      <thead className="sticky top-0 bg-slate-50 border-b border-slate-100">
                         <tr>

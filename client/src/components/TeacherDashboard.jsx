@@ -2306,7 +2306,7 @@ const TeacherDashboard = ({ onNavigate }) => {
                   </div>
                </div>
                
-               <div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-hide">
+               <div className="flex-1 overflow-y-auto p-2 space-y-1">
                   {students
                     .filter(s => s.name.toLowerCase().includes(studentSearch.toLowerCase()) || s.course?.toLowerCase().includes(studentSearch.toLowerCase()))
                     .map(s => {
@@ -2369,7 +2369,7 @@ const TeacherDashboard = ({ onNavigate }) => {
             </div>
 
             {/* CỘT 2: CHI TIẾT HỌC VIÊN (Main Content) */}
-            <div className="flex-1 overflow-y-auto scrollbar-hide pr-1">
+            <div className="flex-1 overflow-y-auto pr-1">
               {selectedStudentId ? (
                 (() => {
                   const student = students.find(s => String(s.id) === String(selectedStudentId) || String(s._id) === String(selectedStudentId));

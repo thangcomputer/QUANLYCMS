@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap');
+﻿@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -15,113 +15,26 @@
   }
 }
 
-/* Print styles */
-@media print {
-  body {
-    background: white !important;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-  .no-print {
-    display: none !important;
-  }
+
+
+/* Tùy chỉnh độ rộng thanh cuộn */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
 
-/* Step transition animations */
-.animate-fade-in {
-  animation: fadeIn 0.4s ease-out;
+/* Tùy chỉnh phần nền (Track) */
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-.animate-bounce-once {
-  animation: bounceOnce 0.6s ease-out;
+/* Tùy chỉnh phần thanh trượt (Thumb) */
+::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 9999px;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes bounceOnce {
-  0% { transform: scale(0.5); opacity: 0; }
-  60% { transform: scale(1.15); opacity: 1; }
-  100% { transform: scale(1); }
-}
-
-/* Rich text content from Quill editor */
-.ql-desc p { margin: 2px 0; }
-.ql-desc strong { font-weight: 700; }
-.ql-desc em { font-style: italic; }
-.ql-desc u { text-decoration: underline; }
-.ql-desc s { text-decoration: line-through; }
-.ql-desc ul, .ql-desc ol { padding-left: 1.5em; margin: 4px 0; }
-.ql-desc li { margin: 2px 0; }
-.ql-desc a { color: #6366f1; text-decoration: underline; }
-.ql-desc img { max-width: 100%; border-radius: 8px; margin: 6px 0; }
-.ql-desc h1, .ql-desc h2, .ql-desc h3 { font-weight: 700; margin: 4px 0; }
-.ql-desc h1 { font-size: 1.2em; }
-.ql-desc h2 { font-size: 1.1em; }
-.ql-desc h3 { font-size: 1em; }
-
-/* ─── CHUẨN HÓA RESPONSIVE (MOBILE & TABLET) ─── */
-
-/* 1. Ghim cột đầu tiên cho Bảng Dữ Liệu khi cuộn ngang */
-@media (max-width: 1024px) {
-  .overflow-x-auto table th:first-child,
-  .overflow-x-auto table td:first-child {
-    position: sticky;
-    left: 0;
-    z-index: 10;
-  }
-  .overflow-x-auto table th:first-child {
-    background-color: inherit;
-    box-shadow: 2px 0 5px -2px rgba(0,0,0,0.1);
-  }
-  .overflow-x-auto table td:first-child {
-    background-color: inherit; 
-    box-shadow: 2px 0 5px -2px rgba(0,0,0,0.1);
-  }
-  /* Tránh mất background khi ghim */
-  .overflow-x-auto table tr {
-    background-color: white; 
-  }
-  .overflow-x-auto table thead tr {
-    background-color: #f8fafc;
-  }
-}
-
-@media (max-width: 640px) {
-  /* 2. Tối ưu Touch Targets (Vùng chạm) tối thiểu 44px & chữ >= 14px */
-  input:not([type="checkbox"]):not([type="radio"]), 
-  select, 
-  textarea, 
-  button {
-    min-height: 44px;
-    font-size: max(14px, inherit) !important;
-  }
-
-  /* 3. Chuyển Popup/Modal thành dạng Bottom Sheet */
-  .fixed.inset-0.flex.items-center.justify-center {
-    align-items: flex-end !important;
-    padding: 0 !important;
-  }
-  .fixed.inset-0.flex.items-center.justify-center > div:not(.absolute) {
-    border-radius: 28px 28px 0 0 !important;
-    max-height: 92vh;
-    overflow-y: auto;
-    margin-bottom: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    animation: bottomSheetSlide 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-  }
-}
-
-@keyframes bottomSheetSlide {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
+/* Hiệu ứng khi rê chuột vào thanh cuộn (Hover) */
+::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
 }
