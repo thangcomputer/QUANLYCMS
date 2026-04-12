@@ -5,7 +5,7 @@ import {
   Bell, LogOut, Plus, ChevronRight, BookOpen, Award, Zap,
   BarChart3, Users, ArrowLeft, ChevronLeft, Eye, X, XCircle,
   Search, Download, AlertCircle, Clipboard, Send, UserCheck, Check,
-  CreditCard, Landmark, Copy, Edit3, Shield, MapPin, Trash2, Ban, PlayCircle, Upload
+  CreditCard, Landmark, Copy, Edit3, Shield, MapPin, Trash2, Ban, PlayCircle
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import TeacherAssignmentsView from './TeacherAssignmentsView';
