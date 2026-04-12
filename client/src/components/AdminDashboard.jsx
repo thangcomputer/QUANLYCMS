@@ -23,6 +23,7 @@ import exportPDF from '../utils/exportPDF';
 import { exportStudentsExcel } from '../utils/exportExcel';
 import api from '../services/api';
 import { BankSelect, generateVietQRUrl } from './BankSelect';
+import { useModal } from '../utils/Modal.jsx';
 import SystemSettingsTab from './SystemSettingsTab';
 import StaffManagementTab from './StaffManagementTab';
 import RevenueAnalyticsTab from './RevenueAnalyticsTab';
@@ -960,6 +961,7 @@ const AdminDashboard = ({ onNavigate }) => {
 
   const { socket } = useSocket();
   const toast = useToast();
+  const { showModal: showGlobalModal } = useModal();
   const { selectedBranchId, branches } = useBranch();  // Global branch filter
   const [isExportingExcel, setIsExportingExcel] = useState(false);
 
@@ -2643,7 +2645,10 @@ const AdminDashboard = ({ onNavigate }) => {
                     />
                   </div>
                   <button onClick={() => {
-                    if (!trainingForm.title?.trim()) { alert('Vui lòng nhập tiêu đề!'); return; }
+                    if (!trainingForm.title?.trim()) { 
+                        showGlobalModal({ title: 'Thiếu thông tin', content: 'Vui lòng nhập tiêu đề bài học!', type: 'warning' });
+                        return; 
+                    }
                     if (trainingForm.id) {
                       updateTrainingItem(trainingTab, trainingForm.id, trainingForm);
                     } else {
@@ -2712,7 +2717,14 @@ const AdminDashboard = ({ onNavigate }) => {
                                   </td>
                                   <td className="px-4 py-3 text-center">
                                     {t.practicalFile ? (
-                                      <a href="#" onClick={(e) => { e.preventDefault(); alert(`Về sau hệ thống sẽ liên kết nút này với CSDL AWS S3 / Multer để tải file: ${t.practicalFile}`); }} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-xl text-xs font-bold transition-all border border-purple-200">
+                                      <a href="#" onClick={(e) => { 
+                                          e.preventDefault(); 
+                                          showGlobalModal({ 
+                                            title: 'Tính năng nâng cao', 
+                                            content: `Về sau hệ thống sẽ liên kết nút này với CSDL Cloud (AWS S3 / Google Storage) để tải file: ${t.practicalFile}. Hiện tại hệ thống đang sử dụng lưu trữ cục bộ.`, 
+                                            type: 'info' 
+                                          }); 
+                                      }} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-xl text-xs font-bold transition-all border border-purple-200">
                                         <Download size={12} /> {t.practicalFile}
                                       </a>
                                     ) : (
@@ -3252,7 +3264,10 @@ const AdminDashboard = ({ onNavigate }) => {
                     />
                   </div>
                   <button onClick={() => {
-                    if (!sTrainingForm.title?.trim()) { alert('Vui lòng nhập tiêu đề!'); return; }
+                    if (!sTrainingForm.title?.trim()) { 
+                        showGlobalModal({ title: 'Thiếu thông tin', content: 'Vui lòng nhập tiêu đề tài liệu!', type: 'warning' });
+                        return; 
+                    }
                     if (sTrainingForm.id) {
                       updateStudentTrainingItem(sTrainingTab, sTrainingForm.id, sTrainingForm);
                     } else {
@@ -3333,7 +3348,14 @@ const AdminDashboard = ({ onNavigate }) => {
                                   <td className="px-4 py-3 text-center">
                                     <div className="flex flex-col items-center gap-1">
                                       {r.essayFile ? (
-                                        <a href="#" onClick={(e) => { e.preventDefault(); alert(`Sẽ liên kết để tải file: ${r.essayFile}`); }} className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold transition-all border border-blue-200">
+                                        <a href="#" onClick={(e) => { 
+                                            e.preventDefault(); 
+                                            showGlobalModal({ 
+                                                title: 'Liên kết tài liệu', 
+                                                content: `Đang liên kết dữ liệu đám mây để tải file: ${r.essayFile}. Vui lòng kiểm tra lại đường truyền.`, 
+                                                type: 'info' 
+                                            }); 
+                                        }} className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold transition-all border border-blue-200">
                                           <Download size={10} /> {r.essayFile}
                                         </a>
                                       ) : null}

@@ -3,10 +3,11 @@ import {
   Timer, CheckCircle2, XCircle, Send, AlertTriangle,
   Upload, Shield, Zap, Lock, FileText, ClipboardCheck, UserCheck, Camera,
   Info, ChevronRight, CheckCircle, User, Clock, Star, Layout, BookOpen, HelpCircle,
-  RefreshCw, Slash, Video, Monitor
+  RefreshCw, Slash, Video, Monitor, Download
 } from 'lucide-react';
 import { gradeAnswers } from '../data/questionBank';
 import { useData } from '../context/DataContext';
+import { useModal } from '../utils/Modal.jsx';
 import ExamMonitor, { CameraHeaderPanel } from './ExamMonitor';
 import { API_BASE } from '../services/api';
 
@@ -69,6 +70,7 @@ const EvaluationStepper = ({ currentStep = 1, results = {}, practicalSubmitted =
 
 const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
   const { questions: pool, updateTeacher } = useData();
+  const { showModal } = useModal();
   const [phase, setPhase] = useState('intro'); // intro, test, result, banned
   const [banReason, setBanReason] = useState('');
   const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
@@ -233,7 +235,10 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
   }, [phase]);
 
   const handleSubmit = useCallback((auto = false) => {
-    if (!auto && Object.keys(answers).length === 0) return alert("Vui lòng trả lời!");
+    if (!auto && Object.keys(answers).length === 0) {
+        showModal({ title: 'Cảnh báo', content: 'Vui lòng hoàn thành bài trước khi nộp!', type: 'warning' });
+        return;
+    }
     const result = gradeAnswers(questions, answers);
     setGrade(result);
     setPhase('result');
@@ -539,7 +544,10 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
                                   e.currentTarget.classList.remove('border-blue-400', 'bg-blue-50/30');
                                   const file = e.dataTransfer.files?.[0];
                                   if (!file) return;
-                                  if (file.size > 50 * 1024 * 1024) { alert('File quá lớn! Tối đa 50MB.'); return; }
+                                  if (file.size > 50 * 1024 * 1024) { 
+                                     showModal({ title: 'File quá lớn', content: 'Kích thước file vượt quá giới hạn 50MB. Vui lòng nén file hoặc dùng link Drive.', type: 'error' });
+                                     return; 
+                                  }
                                   setUploadFile(file);
                                   handlePracticalSubmit(file.name);
                                 }}
@@ -552,7 +560,7 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
                                     const file = e.target.files?.[0];
                                     if (!file) return;
                                     if (file.size > 50 * 1024 * 1024) {
-                                      alert('File quá lớn! Tối đa 50MB.');
+                                      showModal({ title: 'File quá lớn', content: 'Kích thước file vượt quá giới hạn 50MB. Vui lòng nén file hoặc dùng link Drive.', type: 'error' });
                                       return;
                                     }
                                     setUploadFile(file);

@@ -14,6 +14,7 @@ import { useData } from '../context/DataContext';
 import { useSocket } from '../context/SocketContext';
 import api, { teachersAPI } from '../services/api';
 import { useToast } from '../utils/toast';
+import { useModal } from '../utils/Modal.jsx';
 import { BankSelect } from './BankSelect';
 import PopupBanner from './PopupBanner';
 
@@ -136,6 +137,7 @@ const ScheduleModal = ({ schedule, students, onClose, onSubmit }) => {
 
 // ─── STUDENT CARD ─────────────────────────────────────────────────────────
 const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdateNotes, onLockExam }) => {
+  const { showModal } = useModal();
   const [linkInput, setLinkInput] = useState(student.linkHoc);
   const [gradeInput, setGradeInput] = useState(student.lastGrade);
   const [notesInput, setNotesInput] = useState(student.notes || '');
@@ -196,7 +198,13 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
             {onLockExam && (
               <button
                 onClick={() => {
-                    if (window.confirm(`Xác nhận đánh trượt bài thi của ${getDisplayName(student)}?`)) onLockExam(student);
+                    showModal({ 
+                        title: 'Xác nhận đánh trượt', 
+                        content: `Bạn có chắc chắn muốn ĐÁNH TRƯỢT bài thi của ${getDisplayName(student)}? Hành động này sẽ khoá truy cập phòng thi của học viên ngay lập tức.`, 
+                        type: 'warning',
+                    });
+                    // Note: For now we still use confirm for the critical action until modal supports onConfirm
+                    if (window.confirm(`Xác nhận ĐÁNH TRƯỢT bài thi của ${getDisplayName(student)}?`)) onLockExam(student);
                 }}
                 title="Đánh trượt / Khoá bài thi ngay lập tức"
                 className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-black px-3 py-2 rounded-xl transition-all shadow-lg shadow-red-900/30"
@@ -1191,6 +1199,7 @@ const TeacherProfileSection = ({ teacherId, currentTeacher }) => {
 
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 const TeacherDashboard = ({ onNavigate }) => {
+  const { showModal } = useModal();
   const session = JSON.parse(localStorage.getItem('teacher_user') || '{}');
   const TEACHER_ID = session.id || 1;
   const {
@@ -1217,7 +1226,11 @@ const TeacherDashboard = ({ onNavigate }) => {
         reason,
       });
     }
-    alert(`✅ Đã khoá bài thi của ${student.name} và gửi thông báo trực tiếp!`);
+    showModal({ 
+        title: 'Đã thực thi', 
+        content: `Hệ thống đã khoá bài thi của ${student.name} và gửi thông báo trực tiếp qua socket. Học viên không thể tiếp tục làm bài.`, 
+        type: 'success' 
+    });
   };
 
   // Trạng thái hiện tại của GV
@@ -1292,7 +1305,11 @@ const TeacherDashboard = ({ onNavigate }) => {
   const myNotifs = getNotifications(TEACHER_ID, 'teacher').filter(n => !n.read).length;
 
   // ── MÀN HÌNH CHỜ DUYỆT ── chỉ hiện nút Bài Test
-  if (session.role === 'teacher' && currentStatus === 'pending') {
+  // ⭐ Fix: Chuyển sang logic "Pessimistic" (Coi là pending nếu KHÔNG PHẢI là active)
+  const isPending = String(session?.status || '').toLowerCase() !== 'active' && 
+                    String(currentTeacher?.status || '').toLowerCase() !== 'active';
+  
+  if (session.role === 'teacher' && isPending) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
         <div className="max-w-lg w-full">

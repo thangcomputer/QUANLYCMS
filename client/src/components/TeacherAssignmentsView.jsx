@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Clipboard, FileText, Download, CheckCircle, Clock, XCircle, Search } from 'lucide-react';
 import api from '../services/api';
+import { useModal } from '../utils/Modal.jsx';
 
 const TeacherAssignmentsView = ({ teacherId, myStudents }) => {
+  const { showModal } = useModal();
   // Compute unique courses from students
   const uniqueCourses = [...new Set((myStudents || []).map(s => s.course).filter(Boolean))];
   const [selectedCourse, setSelectedCourse] = useState(uniqueCourses[0] || '');
@@ -33,7 +35,14 @@ const TeacherAssignmentsView = ({ teacherId, myStudents }) => {
 
   const handleCreate = (e) => {
     e.preventDefault();
-    if (!selectedCourse) return alert("Vui lòng chọn một lớp học bên Sidebar trước khi giao bài!");
+    if (!selectedCourse) {
+        showModal({ 
+            title: 'Yêu cầu chọn lớp', 
+            content: 'Vui lòng chọn một lớp học bên Sidebar trước khi thực hiện giao bài tập mới!', 
+            type: 'warning' 
+        });
+        return;
+    }
     setIsSubmitting(true);
     api.assignments.create({
       ...formData,

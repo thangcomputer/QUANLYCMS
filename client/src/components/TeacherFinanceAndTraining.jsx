@@ -9,6 +9,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { useData } from '../context/DataContext';
 import { useLocation } from 'react-router-dom';
+import { useModal } from '../utils/Modal.jsx';
 import api, { getRolePrefix } from '../services/api';
 
 // MOCK_PAYMENTS removed - using real data from context
@@ -16,6 +17,7 @@ import api, { getRolePrefix } from '../services/api';
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
 const TeacherFinanceAndTraining = () => {
   const { trainingData } = useData();
+  const { showModal } = useModal();
   const location = useLocation();
   const currentHash = location.hash?.replace('#', '') || '';
   const isTraining = currentHash === 'training';
@@ -106,7 +108,11 @@ const TeacherFinanceAndTraining = () => {
       document.body.removeChild(link);
       setTimeout(() => URL.revokeObjectURL(encodedUrl), 10000);
     } catch(e) {
-      alert("Lỗi xuất file: " + e.message);
+      showModal({ 
+          title: 'Lỗi xuất file', 
+          content: 'Không thể khởi tạo file CSV: ' + e.message, 
+          type: 'error' 
+      });
     }
   };
 

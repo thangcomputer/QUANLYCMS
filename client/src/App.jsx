@@ -20,21 +20,37 @@ import api, { clearTokens, getRolePrefix } from './services/api';
 import { BranchProvider }                    from './context/BranchContext';
 import LoadingScreen                         from './components/LoadingScreen';
 import StaffPopup                            from './components/StaffPopup';
+import { ModalProvider, useModal }           from './utils/Modal.jsx';
 import './App.css';
 
 // ── Session helpers ──────────────────────────────────────────────────────────
 
 const loadSession = () => {
   try {
-    // Ưu tiên quét tìm bất kỳ Role nào đang có Token active
+    // Lấy link prefix của URL hiện tại để đoán Role đang định truy cập
+    // ví dụ /admin/... -> ưu tiên tìm admin_user
+    const path = window.location.pathname;
+    const priorityRole = path.startsWith('/admin') ? 'admin' 
+                       : path.startsWith('/teacher') ? 'teacher' 
+                       : path.startsWith('/student') ? 'student' 
+                       : null;
+
     const roles = ['admin', 'staff', 'teacher', 'student'];
+    
+    // 1. Kiểm tra role ưu tiên theo URL trước
+    if (priorityRole) {
+      const userStr = localStorage.getItem(`${priorityRole}_user`);
+      if (userStr && localStorage.getItem(`${priorityRole}_access_token`)) {
+        return JSON.parse(userStr);
+      }
+    }
+
+    // 2. Fallback tìm bất kỳ role nào đang active
     for (const role of roles) {
+      if (role === priorityRole) continue;
       const userStr = localStorage.getItem(`${role}_user`);
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        if (localStorage.getItem(`${role}_access_token`) || user.token) {
-          return user;
-        }
+      if (userStr && localStorage.getItem(`${role}_access_token`)) {
+        return JSON.parse(userStr);
       }
     }
     return null;
@@ -58,15 +74,31 @@ const Guard = ({ allowedRoles, session, children }) => {
   const isPendingGrade = session.role === 'teacher' && session.practicalStatus === 'submitted' && sStatus !== 'active';
   const isInactive = session.role === 'teacher' && sStatus === 'inactive';
   
-  if ((isBanned || isPendingGrade || isInactive) && session.role !== 'admin') {
-    let reason = session.lockReason || 'Tài khoản của bạn đã bị khóa do vi phạm hoặc bài thi KHÔNG ĐẠT.';
-    if (isPendingGrade) reason = 'Bạn đã hoàn thành bài thi. Vui lòng chờ Admin chấm điểm, kết quả sẽ được thông báo lại qua Zalo của bạn.';
-    if (isInactive) reason = 'Tài khoản chưa được cấp quyền đăng nhập. Vui lòng đợi Admin thao tác hoặc liên hệ lại.';
-    
-    localStorage.setItem(`${session.role}_ban_error`, reason);
-    clearTokens(session.role);
-    return <Navigate to="/login" replace />;
-  }
+    const { showModal } = useModal();
+
+    if ((isBanned || isPendingGrade || isInactive) && session.role !== 'admin') {
+      let reason = session.lockReason || 'Tài khoản của bạn đã bị khóa do vi phạm hoặc bài thi KHÔNG ĐẠT.';
+      if (isPendingGrade) reason = 'Bạn đã hoàn thành bài thi. Vui lòng chờ Admin chấm điểm, kết quả sẽ được thông báo lại qua Zalo của bạn.';
+      if (isInactive) reason = 'Tài khoản chưa được cấp quyền đăng nhập. Vui lòng đợi Admin thao tác hoặc liên hệ lại.';
+      
+      // Chỉ hiện thông báo 1 lần trước khi redirect
+      if (!localStorage.getItem('alerted_ban')) {
+        showModal({
+            title: 'Hệ thống thông báo',
+            content: reason,
+            type: 'warning',
+            confirmText: 'Tôi đã hiểu'
+        });
+        localStorage.setItem('alerted_ban', 'true');
+      }
+
+      localStorage.setItem(`${session.role}_ban_error`, reason);
+      clearTokens(session.role);
+      localStorage.removeItem(`${session.role}_user`);
+      return <Navigate to="/login" replace />;
+    }
+  localStorage.removeItem('alerted_ban');
+
 
   return children;
 };
@@ -275,9 +307,19 @@ function App() {
   }, [navigate]);
 
   const handleLogin = useCallback((account) => {
+    // ⭐ Fix: Login mới thì dọn dẹp sạch sẽ session cũ của role khác để tránh xung đột
+    // (VD: Đã từng login Admin thì xóa admin_user khi login Teacher)
+    const roles = ['admin', 'staff', 'teacher', 'student'];
+    roles.forEach(r => {
+       if (r !== account.role) {
+         localStorage.removeItem(`${r}_user`);
+         localStorage.removeItem(`${r}_access_token`);
+         localStorage.removeItem(`${r}_refresh_token`);
+       }
+    });
+
     saveSession(account);
     setSession(account);
-    // 'staff' role dùng chung dashboard với admin
     const redirects = { admin: '/admin', staff: '/admin', teacher: '/teacher', student: '/student' };
     navigate(redirects[account.role] || '/');
   }, [navigate]);
@@ -295,21 +337,23 @@ function App() {
           role={session?.role || ''}
           name={session?.name || ''}
         >
-          <DataProvider user={session} onLogout={handleLogout}>
-            <BranchProvider session={session}>
-              <ToastProvider>
-                  <AppRoutes
-                    session={session}
-                    onSessionChange={handleSessionChange}
-                    isAuthLoading={isAuthLoading}
-                    onLogin={handleLogin}
-                    onLogout={handleLogout}
-                  />
-                  {/* Staff Popup — chỉ hiện cho nhân viên chi nhánh */}
-                  {session && <StaffPopup session={session} />}
-              </ToastProvider>
-            </BranchProvider>
-          </DataProvider>
+          <ModalProvider>
+            <DataProvider key={session?.id || 'guest'} user={session} onLogout={handleLogout}>
+                <BranchProvider session={session}>
+                <ToastProvider>
+                    <AppRoutes
+                        session={session}
+                        onSessionChange={handleSessionChange}
+                        isAuthLoading={isAuthLoading}
+                        onLogin={handleLogin}
+                        onLogout={handleLogout}
+                    />
+                    {/* Staff Popup — chỉ hiện cho nhân viên chi nhánh */}
+                    {session && <StaffPopup session={session} />}
+                </ToastProvider>
+                </BranchProvider>
+            </DataProvider>
+          </ModalProvider>
         </SocketProvider>
     </ErrorBoundary>
   );

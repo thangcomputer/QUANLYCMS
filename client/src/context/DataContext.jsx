@@ -35,22 +35,6 @@ const INITIAL_PRIVATE_EVALUATIONS = [];
 
 // ── One-time Reset: Xóa dữ liệu cũ khi nâng version ────────────────────────
 const DATA_VERSION = 'v5_clean_production';
-if (localStorage.getItem('thvp_data_version') !== DATA_VERSION) {
-  // Xóa toàn bộ dữ liệu cũ (GV/HV test cũng bị xóa)
-  const keysToRemove = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (k && (k.startsWith('thvp_') || k.startsWith('admin_') || k.startsWith('teacher_') || k.startsWith('student_'))) {
-      if (!k.includes('_access_token') && !k.includes('_refresh_token') && !k.includes('_user') && !k.includes('thvp_data_version')) {
-        keysToRemove.push(k);
-      }
-    }
-  }
-  keysToRemove.forEach(k => localStorage.removeItem(k));
-  localStorage.setItem('thvp_data_version', DATA_VERSION);
-  console.log('[DataContext] Reset localStorage — phiên bản mới:', DATA_VERSION);
-}
-
 // Helper: đọc từ localStorage, fallback về defaultValue
 const loadState = (key, defaultValue) => {
   try {
@@ -64,21 +48,8 @@ export const DataProvider = ({ children, user, onLogout }) => {
   const [currentUser, setCurrentUser] = useState(user || null);
 
   useEffect(() => {
-    const prev = currentUser;
-    const next = user || null;
-
-    // ⭐ Cache isolation: nếu user thay đổi (đăng nhập người dùng khác),
-    //    xóa dữ liệu HV/GV khỏi memory để tránh rò rỉ dữ liệu giữa phiên
-    const prevId = prev?.id || prev?._id || null;
-    const nextId = next?.id || next?._id || null;
-    const prevRole = prev?.role || null;
-    const nextRole = next?.role || null;
-    if ((prevId || prevRole) && (prevId !== nextId || prevRole !== nextRole)) {
-      console.log('[DataContext] User changed — clearing student/teacher cache');
-      setStudents([]);
-      setTeachers([]);
-    }
-    setCurrentUser(next);
+    setCurrentUser(user);
+    if (user) triggerBackgroundSync();
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync current user on load

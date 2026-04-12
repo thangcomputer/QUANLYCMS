@@ -7,6 +7,7 @@ import {
   Smartphone, Hash, ArrowUpRight, Building2
 } from 'lucide-react';
 import api from '../services/api';
+import { useModal } from '../utils/Modal.jsx';
 
 const fmt = (n) => n ? Number(n).toLocaleString('vi-VN') + 'đ' : '0đ';
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('vi-VN') : '—';
@@ -14,6 +15,7 @@ const fmtDate = (d) => d ? new Date(d).toLocaleDateString('vi-VN') : '—';
 export default function StudentDetailModal({ studentId, onClose }) {
   const [loading, setLoading]     = useState(true);
   const [data, setData]           = useState(null);
+  const { showModal }             = useModal();
   const [activeTab, setActiveTab] = useState('summary'); // 'summary' | 'attendance' | 'finance' | 'academic'
 
   useEffect(() => {
@@ -297,7 +299,11 @@ export default function StudentDetailModal({ studentId, onClose }) {
                             <p className="text-sm font-black">{fmtDate(data.student.createdAt)}</p>
                           </div>
                           {!data.student.paid && (
-                            <button onClick={() => alert('Chức năng "Thu Học Phí" vui lòng thực hiện ngoài Bảng điều khiển Giao dịch!')} className="bg-white text-emerald-600 px-6 py-2 rounded-xl font-black text-[11px] uppercase tracking-wider hover:bg-emerald-50 transition-all">
+                            <button onClick={() => showModal({ 
+                                title: 'Hướng dẫn nghiệp vụ', 
+                                content: 'Chức năng "Thu Học Phí" vui lòng thực hiện tại tab "Giao dịch" để đảm bảo tính đồng nhất của dữ liệu kế toán!', 
+                                type: 'info' 
+                            })} className="bg-white text-emerald-600 px-6 py-2 rounded-xl font-black text-[11px] uppercase tracking-wider hover:bg-emerald-50 transition-all">
                               Thu học phí ngay
                             </button>
                           )}

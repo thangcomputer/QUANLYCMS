@@ -48,6 +48,9 @@ const LoginPage = ({ onLogin }) => {
         const user = data.data.user ? { ...data.data.user } : { ...data.data };
         user.accessToken = data.data.accessToken || user.accessToken;
         user.refreshToken = data.data.refreshToken || user.refreshToken;
+        
+        // ⭐ Fix: Đảm bảo trường 'id' luôn tồn tại (map từ _id của MongoDB)
+        if (!user.id && user._id) user.id = user._id;
 
         // Lưu dữ liệu user
         localStorage.setItem(`${role}_user`, JSON.stringify(user));

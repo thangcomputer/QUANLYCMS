@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { X, Save, User, Phone, Mail, MapPin } from 'lucide-react';
 import { useData } from '../context/DataContext';
+import { useModal } from '../utils/Modal.jsx';
 
 const StudentProfileUpdateModal = ({ student, onClose }) => {
   const { updateStudent } = useData();
+  const { showModal } = useModal();
   const [formData, setFormData] = useState({
     name: student.name || '',
     phone: student.phone || '',
@@ -18,10 +20,10 @@ const StudentProfileUpdateModal = ({ student, onClose }) => {
     setLoading(true);
     try {
       await updateStudent(student.id, formData);
-      alert('Đã cập nhật hồ sơ thành công!');
+      showModal({ title: 'Thành công', content: 'Hệ thống đã cập nhật thông tin hồ sơ của bạn thành công!', type: 'success' });
       onClose();
     } catch (err) {
-      alert('Lỗi cập nhật: ' + err.message);
+      showModal({ title: 'Lỗi cập nhật', content: 'Đã xảy ra sự cố khi lưu hồ sơ: ' + err.message, type: 'error' });
     } finally {
       setLoading(false);
     }

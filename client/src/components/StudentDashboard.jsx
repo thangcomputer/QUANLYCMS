@@ -12,6 +12,7 @@ import PopupBanner from './PopupBanner';
 import TuitionPaymentModal from './TuitionPaymentModal';
 import StudentProfileUpdateModal from './StudentProfileUpdateModal';
 import api from '../services/api';
+import { useModal } from '../utils/Modal.jsx';
 
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
@@ -656,7 +657,11 @@ const EvaluationView = ({
                                    criteria: { satisfied: privateForm.satisfied, lessonClear: privateForm.lessonClear }
                                  });
                                  setEvaluatingCourseId(null);
-                                 alert('Admin đã nhận được phản hồi. Cảm ơn bạn đã góp ý giúp trung tâm tốt hơn!');
+                                 showModal({ 
+                                     title: 'Hệ thống ghi nhận', 
+                                     content: 'Admin đã nhận được phản hồi. Cảm ơn bạn đã góp ý giúp trung tâm tốt hơn!', 
+                                     type: 'success' 
+                                 });
                                }}
                                className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 py-4 rounded-2xl text-white font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-3 shadow-xl shadow-red-100"
                              >
@@ -780,6 +785,7 @@ const EvaluationView = ({
 const StudentDashboard = ({ onNavigate }) => {
   const [activeCourseName, setActiveCourseName] = useState('');
   const [evaluatingCourseId, setEvaluatingCourseId] = useState(null);
+  const { showModal } = useModal();
   const session = JSON.parse(localStorage.getItem('student_user') || '{}');
   const STUDENT_ID = session.id || 101;
   const { students, teachers, materials, schedules, getNotifications, getSchedulesByStudent, rateTeacher, getTeacherRating, RATING_CRITERIA, privateEvaluations, submitPrivateEvaluation, studentTrainingData, studentQuestions } = useData();

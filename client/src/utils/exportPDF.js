@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { toast } from 'react-hot-toast';
 
 /**
  * Xuất hóa đơn từ DOM element sang PDF khổ A5 ngang
@@ -13,7 +14,7 @@ const exportPDF = async (data = {}) => {
 
   if (!element) {
     console.error('[PDF] Không tìm thấy element #invoice-template');
-    alert('Không tìm thấy mẫu hóa đơn. Vui lòng thử lại.');
+    toast.error('Không tìm thấy mẫu hóa đơn. Vui lòng thử lại.');
     return false;
   }
 
@@ -111,7 +112,7 @@ const exportPDF = async (data = {}) => {
 
   } catch (error) {
     console.error('[PDF] Lỗi xuất hóa đơn:', error);
-    alert('Có lỗi khi xuất PDF. Vui lòng thử lại.');
+    toast.error('Có lỗi khi xuất PDF. Vui lòng thử lại.');
     return false;
   }
 };

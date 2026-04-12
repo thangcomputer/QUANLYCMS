@@ -8,6 +8,7 @@ import { useData } from '../context/DataContext';
 import InvoiceTemplate from './InvoiceTemplate';
 import exportPDF from '../utils/exportPDF';
 import { generateVietQRUrl } from './BankSelect';
+import { useModal } from '../utils/Modal.jsx';
 
 const API   = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const TOTAL = 5 * 60; // 5 phút = 300 giây
@@ -280,9 +281,17 @@ const RegistrationForm = ({ onNavigate }) => {
     }
   };
 
+  const { showModal } = useModal();
+
   const handleNext = () => {
-    if (!formData.name.trim()) { alert('Vui lòng nhập họ tên học viên!'); return; }
-    if (!formData.zalo.trim()) { alert('Vui lòng nhập số Zalo!'); return; }
+    if (!formData.name.trim()) { 
+        showModal({ title: 'Thiếu thông tin', content: 'Vui lòng nhập họ tên học viên!', type: 'warning' }); 
+        return; 
+    }
+    if (!formData.zalo.trim()) { 
+        showModal({ title: 'Thiếu thông tin', content: 'Vui lòng nhập số Zalo!', type: 'warning' }); 
+        return; 
+    }
     sessionRef.current = null; // reset để tạo session mới
     setStep(2);
   };

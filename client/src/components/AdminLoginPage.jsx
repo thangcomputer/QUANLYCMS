@@ -83,7 +83,7 @@ const AdminLoginPage = ({ onLogin }) => {
         const role = actualUser.role || 'admin';
         
         // Merge tokens into the user object for compatibility
-        const finalUserObj = { ...actualUser, token: accessToken, refreshToken };
+        const finalUserObj = { ...actualUser, id: actualUser.id || actualUser._id, token: accessToken, refreshToken };
 
         // Save properly with correct role prefix
         localStorage.setItem(`${role}_user`, JSON.stringify(finalUserObj));

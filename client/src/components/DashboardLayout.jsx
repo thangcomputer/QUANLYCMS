@@ -56,10 +56,16 @@ const DashboardLayout = ({ role, session, onLogout }) => {
     ? teachers.find(t => String(t.id) === String(session.id))
     : null;
 
-  const isTeacherPending = role === 'teacher' && session?.id ? (
-    currentTeacher
-      ? String(currentTeacher.status || '').toLowerCase() !== 'active'
-      : String(session?.status || '').toLowerCase() !== 'active'
+  // ⭐ Fix: Chuyển sang logic "Pessimistic" (Mặc định là Pending trừ khi có bằng chứng là Active)
+  // Việc này giúp tránh bị "Flash" mở khóa menu khi login (do data chưa load kịp)
+  const isTeacherPending = (role === 'teacher' && session?.id) ? (
+     String(session?.status || '').toLowerCase() !== 'active' && 
+     (!currentTeacher || String(currentTeacher.status || '').toLowerCase() !== 'active')
+  ) : false;
+
+  const isTeacherActive = (role === 'teacher' && session?.id) ? (
+     String(session?.status || '').toLowerCase() === 'active' || 
+     (currentTeacher && String(currentTeacher.status || '').toLowerCase() === 'active')
   ) : false;
 
   useEffect(() => {
@@ -77,13 +83,16 @@ const DashboardLayout = ({ role, session, onLogout }) => {
   useEffect(() => {
     if (role !== 'teacher' || !session?.id) return;
     const status = String(currentTeacher?.status || session?.status || '').toLowerCase();
-    if (status === 'pending' && window.location.pathname === '/teacher') {
+    
+    // Nếu đang Pending mà cố truy cập các trang khác (finance, students...)
+    if (status === 'pending' && !window.location.pathname.includes('/teacher/test')) {
       navigate('/teacher/test', { replace: true });
     }
-    if (status === 'active' && window.location.pathname === '/teacher/test') {
+    // Nếu đang Active mà lại vào trang Test
+    if (status === 'active' && window.location.pathname.includes('/teacher/test')) {
       navigate('/teacher', { replace: true });
     }
-  }, [currentTeacher, role, session, navigate]);
+  }, [currentTeacher?.status, session?.status, role, session?.id, navigate]);
 
   const handleLogout = () => onLogout?.();
 
