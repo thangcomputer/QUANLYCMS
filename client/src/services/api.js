@@ -403,11 +403,11 @@ export const evaluationsAPI = {
 // ─── ASSIGNMENT API ─────────────────────────────────────────────────────────
 export const assignmentsAPI = {
   getByCourse: async (courseId) => {
-    const res = await apiFetch(`/assignments/course/${courseId}`);
+    const res = await apiFetch(`/assignments/course/${encodeURIComponent(courseId)}`);
     return res.json();
   },
   getByStudentAndCourse: async (studentId, courseId) => {
-    const res = await apiFetch(`/assignments/student/${studentId}/course/${courseId}`);
+    const res = await apiFetch(`/assignments/student/${encodeURIComponent(studentId)}/course/${encodeURIComponent(courseId)}`);
     return res.json();
   },
   create: async (data) => {

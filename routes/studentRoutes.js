@@ -680,9 +680,9 @@ router.post('/:id/reset-today-attendance', authMiddleware, async (req, res) => {
     // Xóa record hôm nay khỏi grades
     const newGrades = oldGrades.filter(g => g.date !== todayVN);
 
-    // Khôi phục số buổi (đảo ngược 1 buổi đã cộng)
-    const newCompleted = Math.max(0, (student.completedSessions || 0) - 1);
-    const newRemaining = (student.remainingSessions || 0) + 1;
+    // Khôi phục số buổi (tính toán toán học tuyệt đối để tránh sai số)
+    const newCompleted = newGrades.length;
+    const newRemaining = Math.max(0, (student.totalSessions || 12) - newCompleted);
 
     await Student.findByIdAndUpdate(req.params.id, {
       grades: newGrades,

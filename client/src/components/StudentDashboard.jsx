@@ -1443,7 +1443,9 @@ const StudentDashboard = ({ onNavigate }) => {
                             </div>
                             <div>
                                <h4 className="font-bold text-slate-800 text-sm">Bài tập về nhà</h4>
-                               <p className="text-orange-600 text-xs font-semibold mt-1">2 bài cần nộp</p>
+                               <p className="text-orange-600 text-xs font-semibold mt-1">
+                                 {myAssignments ? myAssignments.filter(a => !a.mySubmission || a.mySubmission.status !== 'graded').length : 0} bài cần nộp
+                               </p>
                             </div>
                          </div>
                          
@@ -1555,34 +1557,7 @@ const StudentDashboard = ({ onNavigate }) => {
                     </div>
                   </div>
 
-                  {/* Nộp bài */}
-                  <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-5 md:p-6 rounded-2xl text-white shadow-lg">
-                    <h3 className="font-bold text-sm mb-3 flex items-center gap-2 uppercase">
-                      <FileUp size={16} /> Nộp bài tập
-                    </h3>
-                    <p className="text-[10px] opacity-60 mb-4 italic">Giảng viên sẽ chấm điểm ngay sau khi bạn nộp.</p>
-                    {!uploadDone ? (
-                      <>
-                        <label className="border-2 border-dashed border-white/20 rounded-xl p-4 text-center cursor-pointer hover:bg-white/5 transition-all block">
-                          <FileUp size={24} className="mx-auto opacity-40 mb-1" />
-                          <p className="text-xs font-medium">{uploadFile ? uploadFile.name : 'Nhấn để chọn file'}</p>
-                          <p className="text-[9px] opacity-40">.xlsx, .docx, .pdf, .zip</p>
-                          <input type="file" accept=".xlsx,.xls,.docx,.pdf,.zip" className="hidden" onChange={(e) => setUploadFile(e.target.files[0])} />
-                        </label>
-                        <button disabled={!uploadFile}
-                          onClick={() => setUploadDone(true)}
-                          className="w-full mt-3 bg-blue-600 hover:bg-blue-700 py-3 rounded-xl font-bold text-xs transition disabled:opacity-30 uppercase">
-                          Tải file bài làm lên
-                        </button>
-                      </>
-                    ) : (
-                      <div className="text-center py-4">
-                        <CheckCircle size={32} className="mx-auto mb-2 text-green-400" />
-                        <p className="font-bold">Đã nộp bài thành công!</p>
-                        <p className="text-[10px] opacity-60 mt-1">Chờ giảng viên chấm điểm.</p>
-                      </div>
-                    )}
-                  </div>
+
 
                   {/* Tài liệu nhanh */}
                   <div className="bg-slate-800 p-5 md:p-6 rounded-2xl text-white">
