@@ -649,6 +649,7 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
 
   // STANDARD COMPACT VIEW (For Dashboard/List)
   return (
+    <React.Fragment>
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
       {/* Header */}
       <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-4">
@@ -823,6 +824,7 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
           </div>
         )}
       </div>
+    </div>
 
       {/* === DUY NHẤT 1 MODAL ĐIỂM DANH (dùng chung cho cả 2 view) === */}
       {showAttendanceModal && (
@@ -894,7 +896,7 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
           </div>
         </div>
       )}
-    </>
+    </React.Fragment>
   );
 };
 

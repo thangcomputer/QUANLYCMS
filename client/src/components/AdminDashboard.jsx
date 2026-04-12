@@ -4388,6 +4388,7 @@ const AdminDashboard = ({ onNavigate }) => {
               {editTeacher._tab === 'history' ? (
                 <TeacherScheduleHistoryPanel teacherId={editTeacher.id || editTeacher._id} />
               ) : (
+              <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* Cột 1 */}
                 <div className="space-y-4">
@@ -4534,6 +4535,7 @@ const AdminDashboard = ({ onNavigate }) => {
                   </div>
                 </div>
               </div>
+              </>
               )}
             </div>
 
