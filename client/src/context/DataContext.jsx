@@ -1350,7 +1350,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
   const updateSchedule = useCallback((scheduleId, updates) => {
     let updatedSched = null;
     setSchedules(prev => prev.map(sch => {
-      if (sch.id === scheduleId) {
+      if (String(sch.id) === String(scheduleId) || String(sch._id) === String(scheduleId)) {
         updatedSched = { ...sch, ...updates };
         return updatedSched;
       }
@@ -1376,7 +1376,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
   const cancelSchedule = useCallback((scheduleId, reason) => {
     let cancelled = null;
     setSchedules(prev => prev.map(sch => {
-      if (sch.id === scheduleId) {
+      if (String(sch.id) === String(scheduleId) || String(sch._id) === String(scheduleId)) {
         cancelled = { ...sch, status: 'cancelled', cancelReason: reason };
         return cancelled;
       }

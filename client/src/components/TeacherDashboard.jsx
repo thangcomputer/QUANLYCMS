@@ -985,15 +985,16 @@ const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSch
     if (!cancelTarget) return;
     setCancelling(true);
     try {
+      const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
       const token = localStorage.getItem('teacher_access_token') || localStorage.getItem('admin_access_token');
-      const res = await fetch(`/api/schedules/${cancelTarget._id || cancelTarget.id}/cancel`, {
+      const res = await fetch(`${API}/api/schedules/${cancelTarget._id || cancelTarget.id}/cancel`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ reason: cancelReason }),
       });
       const data = await res.json();
       if (data.success) {
-        if (onCancelSchedule) onCancelSchedule(cancelTarget._id || cancelTarget.id, 'cancelled');
+        if (onCancelSchedule) onCancelSchedule(cancelTarget._id || cancelTarget.id, cancelReason);
       } else {
         alert(data.message || 'Lỗi khi hủy lịch');
       }
@@ -2341,9 +2342,8 @@ const TeacherDashboard = ({ onNavigate }) => {
                 setEditingSchedule({ date: `${yyyy}-${mm}-${dd}` }); // pre-fill correctly localized
                 setShowScheduleModal(true);
               }}
-              onCancelSchedule={(scheduleId) => {
-                // Update local state: mark schedule as cancelled  
-                cancelSchedule(scheduleId);
+              onCancelSchedule={(scheduleId, reason) => {
+                cancelSchedule(scheduleId, reason);
               }}
             />
           </div>
