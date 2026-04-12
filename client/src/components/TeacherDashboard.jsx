@@ -868,7 +868,37 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
                    value={attForm.note}
                    onChange={(e) => setAttForm({ ...attForm, note: e.target.value })}
                    placeholder="Ví dụ: Học tốt, nộp bài đầy đủ..."
-                   className="w-full bg-slate-50 border-2 border-slate-100 foc// ─── MONTHLY CALENDAR (Upgraded) ───────────────────────────────────────────────────
+                   className="w-full bg-slate-50 border-2 border-slate-100 focus:border-emerald-500 focus:bg-white rounded-2xl px-6 py-4 text-sm font-semibold text-slate-700 outline-none transition-all resize-none h-24"
+                 />
+              </div>
+
+            </div>
+
+            <div className="bg-slate-50 px-8 py-6 flex gap-4 flex-shrink-0">
+              <button 
+                onClick={closeModal}
+                className="flex-[1] py-4 bg-white border-2 border-slate-200 rounded-2xl font-bold text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition"
+                disabled={submitting}
+              >
+                Hủy bỏ
+              </button>
+              <button 
+                onClick={handleSubmit}
+                disabled={submitting || (attForm._originalData?.status === 'completed' && !activeTab)}
+                className="flex-[2] py-4 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 text-white rounded-2xl font-black shadow-lg shadow-emerald-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {submitting ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+                {attForm._originalData?.status === 'completed' ? 'Cập nhật' : 'Xác nhận Điểm danh'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+// ─── MONTHLY CALENDAR (Upgraded) ───────────────────────────────────────────────────
 
 const STATUS_COLORS = {
   completed: {
