@@ -1105,7 +1105,7 @@ const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSch
                   </div>
                 )}
                 {/* Diagonal line for full-cancelled days */}
-                {!past && !selected && daySchs.length > 0 && !hasScheduled && daySchs.every(s => s.status === 'cancelled') && (
+                {!past && !selected && daySchs.length > 0 && daySchs.every(s => s.status === 'cancelled') && (
                   <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
                     <div className="absolute top-0 left-0 w-full h-full" style={{ background: 'repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(239,68,68,0.15) 4px, rgba(239,68,68,0.15) 5px)' }} />
                   </div>
