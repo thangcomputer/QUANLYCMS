@@ -260,6 +260,20 @@ export const teachersAPI = {
     const res = await apiFetch(`/teachers/${teacherId}/finance`);
     return res.json();
   },
+  uploadPractical: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    // Since apiFetch might automatically set headers['Content-Type'] to 'application/json' if not using FormData, 
+    // we need to be careful. Wait, apiFetch logic in api.js handles FormData by removing Content-Type.
+    const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    const token = localStorage.getItem('teacher_access_token') || localStorage.getItem('admin_access_token');
+    const res = await fetch(`${API}/teachers/upload-practical`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData
+    });
+    return res.json();
+  },
 };
 
 // ─── FINANCE / INVOICES API ─────────────────────────────────────────────────
@@ -394,6 +408,10 @@ export const evaluationsAPI = {
     const res = await apiFetch('/evaluations/admin');
     return res.json();
   },
+  getByTeacher: async (teacherId) => {
+    const res = await apiFetch(`/evaluations/teacher/${encodeURIComponent(teacherId)}`);
+    return res.json();
+  },
   submit: async (data) => {
     const res = await apiFetch('/evaluations', {
       method: 'POST',
@@ -519,6 +537,17 @@ export const settingsAPI = {
   },
   getPopup: async () => {
     const res = await apiFetch('/settings/popup');
+    return res.json();
+  },
+  getTrainingData: async () => {
+    const res = await apiFetch('/settings/training-data');
+    return res.json();
+  },
+  updateTrainingData: async (trainingData) => {
+    const res = await apiFetch('/settings/training-data', {
+      method: 'PUT',
+      body: JSON.stringify({ trainingData }),
+    });
     return res.json();
   },
 };

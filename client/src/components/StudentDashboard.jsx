@@ -194,14 +194,34 @@ const ScheduleView = ({ schedules, student }) => {
                 }`}>
                 {day}
                 {hasSchedule && (
-                  <div className="flex gap-1 mt-1">
-                    {hasUpcoming && <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-500'}`} />}
-                    {hasCompleted && <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-green-300' : 'bg-green-500'}`} />}
+                  <div className="flex gap-1 mt-1 flex-wrap justify-center px-1">
+                    {daySchedules.filter(s => s.status === 'scheduled').slice(0,2).map((s, idx) => (
+                      <div key={'s-'+s.id+idx} className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-amber-500'} shadow-sm`} />
+                    ))}
+                    {daySchedules.filter(s => s.status === 'completed').slice(0,2).map((s, idx) => (
+                      <div key={'c-'+s.id+idx} className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-emerald-500'} shadow-sm`} />
+                    ))}
+                    {daySchedules.filter(s => s.status === 'cancelled').slice(0,2).map((s, idx) => (
+                      <div key={'x-'+s.id+idx} className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-red-500'} shadow-sm`} />
+                    ))}
+                  </div>
+                )}
+                {/* Diagonal line for full-cancelled days */}
+                {!isSelected && daySchedules.length > 0 && daySchedules.every(s => s.status === 'cancelled') && (
+                  <div className="absolute inset-0 rounded-xl overflow-hidden pointer-events-none">
+                    <div className="absolute top-0 left-0 w-full h-full" style={{ background: 'repeating-linear-gradient(-45deg, transparent, transparent 4px, rgba(239,68,68,0.15) 4px, rgba(239,68,68,0.15) 5px)' }} />
                   </div>
                 )}
               </button>
             );
           })}
+        </div>
+
+        {/* Legend */}
+        <div className="px-6 pb-4 flex flex-wrap gap-5 text-[10px] text-gray-500 border-t border-gray-50 pt-4 mt-2">
+          <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-emerald-500" /> Đã học xong</span>
+          <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-amber-500" /> Sắp diễn ra</span>
+          <span className="flex items-center gap-1.5"><div className="w-3 h-3 rounded bg-red-500" /> Đã hủy</span>
         </div>
       </div>
 
@@ -222,14 +242,22 @@ const ScheduleView = ({ schedules, student }) => {
                 <div key={s.id} className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 hover:bg-white/20 transition-all">
                   <div className="flex justify-between items-start mb-2">
                     <h4 className="font-extrabold text-base leading-tight">{s.topic || s.course}</h4>
-                    <span className={`text-[9px] font-black px-2 py-1 rounded-lg uppercase whitespace-nowrap ${
-                      s.status === 'completed' ? 'bg-emerald-400/20 text-emerald-200' : 'bg-blue-400/20 text-blue-200'
-                    }`}>
-                      {s.status === 'completed' ? 'Đã xong' : 'Sắp tới'}
-                    </span>
+                    {(() => {
+                      let text = 'SẮP HỌC';
+                      let style = 'bg-blue-400/20 text-blue-200';
+                      if (s.status === 'completed') { text = 'ĐÃ XONG'; style = 'bg-emerald-400/20 text-emerald-300'; }
+                      else if (s.status === 'cancelled') { text = 'ĐÃ HỦY'; style = 'bg-red-400/20 text-red-300'; }
+                      else if (s.status === 'no_show') { text = 'VẮNG MẶT'; style = 'bg-orange-400/20 text-orange-300'; }
+                      return <span className={`text-[9px] font-black px-2 py-1 rounded-lg uppercase whitespace-nowrap ${style}`}>{text}</span>;
+                    })()}
                   </div>
                   <p className="text-blue-100 text-xs font-semibold">🕐 {s.startTime} - {s.endTime}</p>
                   <p className="text-blue-100 text-xs font-semibold mt-0.5">👤 GV: {s.teacherName}</p>
+                  {s.note && (
+                    <p className="text-blue-200/80 text-[11px] mt-2 bg-white/5 p-2.5 rounded-xl border border-white/5 italic">
+                      <span className="font-bold block text-blue-200/90 mb-0.5">Ghi chú từ GV:</span> {s.note}
+                    </p>
+                  )}
                   
                   {s.status === 'scheduled' && (
                     <div className="flex gap-2 mt-4">
@@ -395,7 +423,7 @@ const MaterialsView = ({ trainingData, courseName, studentQuestions, onSelectAss
                         <div className="flex items-center gap-4 mt-3 flex-wrap">
                           <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">📅 Ngày tạo: {m.createdAt}</span>
                           {m.isDynamicAssignment && m.rawAssignment?.deadline && (
-                            <span className="text-[10px] font-bold text-orange-500 flex items-center gap-1">⏰ Hạn nộp: {new Date(m.rawAssignment.deadline).toLocaleDateString('vi-VN')}</span>
+                            <span className="text-[10px] font-bold text-orange-500 flex items-center gap-1">⏰ Hạn nộp: {new Date(m.rawAssignment.deadline).toLocaleString('vi-VN', {hour: '2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'})}</span>
                           )}
                         </div>
                       </div>
@@ -509,7 +537,8 @@ const EvaluationView = ({
   setRatingComment,
   RATING_CRITERIA,
   rateTeacher,
-  privateEvaluations
+  privateEvaluations,
+  teacherRatingData
 }) => {
   const [privateForm, setPrivateForm] = useState({ satisfied: 'yes', lessonClear: 'yes', comment: '' });
   const [activeTab, setActiveTab] = useState('admin'); // 'admin' | 'teacher'
@@ -709,8 +738,7 @@ const EvaluationView = ({
             </div>
             
             {studentData.teacherId && (() => {
-              const teacherRating = getTeacherRating(studentData.teacherId);
-              const existingRating = teacherRating.ratings.find(r => String(r.studentId) === String(STUDENT_ID));
+              const existingRating = teacherRatingData.ratings.find(r => String(r.studentId) === String(STUDENT_ID));
               const hasRated = existingRating || ratingSubmitted;
               const isEditing = isEditingRating;
               const showForm = !hasRated || isEditing;
@@ -732,10 +760,10 @@ const EvaluationView = ({
                   {hasRated && !isEditing ? (
                     <div className="bg-yellow-50/50 rounded-[32px] p-8 border border-yellow-100 space-y-6 text-center">
                        <div className="flex flex-col items-center gap-2">
-                          <span className="text-5xl font-black text-yellow-600 tracking-tighter">{existingRating?.stars || 5}</span>
+                          <span className="text-5xl font-black text-yellow-600 tracking-tighter">{existingRating?.criteria?.stars || 5}</span>
                           <div className="flex gap-1.5">
                             {[...Array(5)].map((_, i) => (
-                              <Star key={i} size={24} className={i < Math.round(existingRating?.stars || 5) ? 'text-yellow-400 fill-yellow-400' : 'text-slate-200'} />
+                              <Star key={i} size={24} className={i < Math.round(existingRating?.criteria?.stars || 5) ? 'text-yellow-400 fill-yellow-400' : 'text-slate-200'} />
                             ))}
                           </div>
                           <p className="text-[10px] font-black text-yellow-700/50 uppercase tracking-widest mt-2">Điểm bạn đã đánh giá</p>
@@ -920,10 +948,18 @@ const StudentDashboard = ({ onNavigate }) => {
     [materials, student]
   );
   
-  const teacherRatingData = useMemo(() => {
-    if (!studentData?.teacherId) return { avg: 0, count: 0, ratings: [] };
-    return getTeacherRating(studentData.teacherId);
-  }, [getTeacherRating, studentData?.teacherId]);
+  const [teacherRatingData, setTeacherRatingData] = useState({ avg: 0, count: 0, ratings: [] });
+  useEffect(() => {
+    if (!studentData?.teacherId) return;
+    api.evaluations.getByTeacher(studentData.teacherId).then(res => {
+      if (res.success && res.data) {
+        const validRatings = res.data.filter(r => r.criteria && r.criteria.stars);
+        const count = validRatings.length;
+        const avg = count > 0 ? (Math.round((validRatings.reduce((s, r) => s + r.criteria.stars, 0) / count) * 10) / 10) : 0;
+        setTeacherRatingData({ avg, count, ratings: res.data });
+      }
+    }).catch(err => console.error(err));
+  }, [studentData?.teacherId]);
 
   const isNew = studentData?.completedSessions === 0;
 
@@ -1151,6 +1187,7 @@ const StudentDashboard = ({ onNavigate }) => {
             RATING_CRITERIA={RATING_CRITERIA}
             rateTeacher={rateTeacher}
             privateEvaluations={privateEvaluations}
+            teacherRatingData={teacherRatingData}
           />
 
         ) : currentHash === 'profile' ? (
@@ -1235,7 +1272,7 @@ const StudentDashboard = ({ onNavigate }) => {
                             <p className="text-sm text-slate-500 mt-1">{a.description}</p>
                             {!isSubmitted && !isLate && (
                               <p className="text-xs text-orange-500 font-semibold flex items-center gap-1 mt-2">
-                                <Clock size={12} /> Hạn nộp: Còn {daysRemaining} ngày {hoursRemaining} giờ (tới {deadline.toLocaleDateString()})
+                                <Clock size={12} /> Hạn nộp: Còn {daysRemaining} ngày {hoursRemaining} giờ (tới {deadline.toLocaleString('vi-VN', {hour: '2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'})})
                               </p>
                             )}
                             {a.mySubmission?.teacherFeedback && (

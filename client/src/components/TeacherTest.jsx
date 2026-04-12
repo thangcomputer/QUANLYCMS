@@ -9,7 +9,7 @@ import { gradeAnswers } from '../data/questionBank';
 import { useData } from '../context/DataContext';
 import { useModal } from '../utils/Modal.jsx';
 import ExamMonitor, { CameraHeaderPanel } from './ExamMonitor';
-import { API_BASE } from '../services/api';
+import api, { API_BASE } from '../services/api';
 
 const TOTAL_QUESTIONS = 10;
 const TIME_LIMIT      = 600; 
@@ -256,14 +256,26 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
     }
   }, [questions, answers, teacherId, updateTeacher]);
 
-  const handlePracticalSubmit = useCallback((fileName) => {
-    if (!teacherId) return;
-    updateTeacher(teacherId, {
-      practicalFile: fileName,
-      practicalStatus: 'submitted'
-    });
-    setPracticalSubmitted(true);
-  }, [teacherId, updateTeacher]);
+  const handlePracticalSubmit = useCallback(async (fileObj) => {
+    if (!teacherId || !fileObj) return;
+
+    try {
+      showModal({ title: 'Đang tải file...', content: 'Vui lòng chờ trong giây lát.', type: 'info' });
+      const res = await api.teachers.uploadPractical(fileObj);
+      if (res.success && res.fileUrl) {
+         updateTeacher(teacherId, {
+           practicalFile: res.fileUrl,
+           practicalStatus: 'submitted'
+         });
+         setPracticalSubmitted(true);
+         showModal({ title: 'Thành công', content: 'Bài thực hành đã được lưu.', type: 'success' });
+      } else {
+         showModal({ title: 'Lỗi', content: res.message || 'Lỗi tải file.', type: 'error' });
+      }
+    } catch (err) {
+      showModal({ title: 'Lỗi', content: 'Lỗi máy chủ khi tải file lên.', type: 'error' });
+    }
+  }, [teacherId, updateTeacher, showModal]);
 
   // UI LAYOUTS
   if (phase === 'banned') return (
@@ -549,7 +561,7 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
                                      return; 
                                   }
                                   setUploadFile(file);
-                                  handlePracticalSubmit(file.name);
+                                  handlePracticalSubmit(file);
                                 }}
                               >
                                 <input
@@ -564,7 +576,7 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
                                       return;
                                     }
                                     setUploadFile(file);
-                                    handlePracticalSubmit(file.name);
+                                    handlePracticalSubmit(file);
                                   }}
                                 />
                                 <div className="w-20 h-20 bg-blue-50 text-blue-500 rounded-3xl flex items-center justify-center group-hover:scale-110 transition-transform mx-auto">

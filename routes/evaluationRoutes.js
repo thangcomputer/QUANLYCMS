@@ -57,4 +57,20 @@ router.post('/', async (req, res) => {
   }
 });
 
+// ─── Đánh dấu đã đọc đánh giá ───────────────────────────────────────────────
+router.post('/:id/read', async (req, res) => {
+  try {
+    const ev = await Evaluation.findById(req.params.id);
+    if (!ev) return res.status(404).json({ success: false, message: 'Không tìm thấy đánh giá' });
+    
+    ev.read = true;
+    ev.isReadByAdmin = true;
+    await ev.save();
+    
+    return res.json({ success: true, message: 'Đã đánh dấu đã xem' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
+
 module.exports = router;

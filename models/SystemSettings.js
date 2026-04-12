@@ -35,6 +35,12 @@ const systemSettingsSchema = new mongoose.Schema({
     content:   { type: String, default: '' },
     updatedAt: { type: Date,   default: Date.now },
   },
+
+  // ── Training Data Raw (Dữ liệu Admin tạo ra cho khóa học nội bộ) ─────────
+  trainingRawData: { 
+    type: mongoose.Schema.Types.Mixed, 
+    default: { videos: [], guides: [], files: [] } 
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.model('SystemSettings', systemSettingsSchema);

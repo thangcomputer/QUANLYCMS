@@ -8,7 +8,7 @@ import {
   FileSpreadsheet, Download, Eye, AlertTriangle, Unlock, Lock, User,
   Phone, CalendarCheck, MessageSquare, Video, FileText, ShieldAlert,
   Edit3, X, PlayCircle, Save, RefreshCw, Trophy, ClipboardList, CreditCard, HelpCircle,
-  MoreHorizontal, AlertCircle, Landmark, Loader2, Settings, RotateCcw, MapPin
+  MoreHorizontal, AlertCircle, Landmark, Loader2, Settings, RotateCcw, MapPin, Layers
 } from 'lucide-react';
 
 
@@ -31,6 +31,7 @@ import EmployeeManagementTab from './EmployeeManagementTab';
 import StudentDetailModal from './StudentDetailModal';
 import StudentImportModal from './StudentImportModal';
 import TeacherScheduleHistoryPanel from './TeacherScheduleHistoryPanel';
+import AdminCourseBuilder from './AdminCourseBuilder';
 
 // ─── RICH TEXT EDITOR (tương thích React 18, không dùng prompt) ──────────────
 const RichTextEditor = ({ value, onChange, placeholder }) => {
@@ -1186,6 +1187,7 @@ const AdminDashboard = ({ onNavigate }) => {
   // Training management state
   const [trainingTab, setTrainingTab] = useState('videos');
   const [trainingForm, setTrainingForm] = useState(null);
+  const [courseBuilderMode, setCourseBuilderMode] = useState(null); // The course object being edited
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   // Student Training management state
@@ -2544,10 +2546,17 @@ const AdminDashboard = ({ onNavigate }) => {
                 </h2>
               </div>
 
+              {courseBuilderMode ? (
+                 <AdminCourseBuilder course={courseBuilderMode} onBack={() => setCourseBuilderMode(null)} onSave={(updatedCourse) => {
+                     updateTrainingItem('videos', courseBuilderMode.id, updatedCourse);
+                     setCourseBuilderMode(null);
+                 }} />
+              ) : (
+                <>
               {/* Sub-tabs */}
               <div className="flex flex-wrap gap-2 bg-white rounded-2xl p-1.5 shadow-sm border border-gray-100 w-fit">
                 {[
-                  { key: 'videos', icon: Video, label: 'Video hướng dẫn', count: trainingData?.videos?.length || 0 },
+                  { key: 'videos', icon: Video, label: 'Quản lý Khóa học', count: trainingData?.videos?.length || 0 },
                   { key: 'guides', icon: FileText, label: 'Quy trình', count: trainingData?.guides?.length || 0 },
                   { key: 'files', icon: Download, label: 'Tài liệu', count: trainingData?.files?.length || 0 },
                   { key: 'questions', icon: ClipboardList, label: 'Ngân hàng câu hỏi', count: questions?.length || 0 },
@@ -2568,7 +2577,7 @@ const AdminDashboard = ({ onNavigate }) => {
               {trainingTab !== 'questions' && trainingTab !== 'exam-results-gv' && (
                 <button onClick={() => setTrainingForm({})}
                   className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-md transition flex items-center gap-2">
-                  <Plus size={15} /> Thêm {trainingTab === 'videos' ? 'video' : trainingTab === 'guides' ? 'quy trình' : 'tài liệu'}
+                  <Plus size={15} /> {trainingTab === 'videos' ? 'Thêm Khóa học' : trainingTab === 'guides' ? 'Thêm quy trình' : 'Thêm tài liệu'}
                 </button>
               )}
               {trainingTab === 'exam-results-gv' && (
@@ -2594,18 +2603,11 @@ const AdminDashboard = ({ onNavigate }) => {
                         className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-purple-400 outline-none" placeholder="Nhập tiêu đề..." />
                     </div>
                     {trainingTab === 'videos' && (
-                      <>
-                        <div>
-                          <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Link video (YouTube)</label>
-                          <input value={trainingForm.url || ''} onChange={e => setTrainingForm({ ...trainingForm, url: e.target.value })}
-                            className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-purple-400 outline-none" placeholder="https://youtube.com/..." />
-                        </div>
-                        <div>
-                          <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Thời lượng</label>
-                          <input value={trainingForm.duration || ''} onChange={e => setTrainingForm({ ...trainingForm, duration: e.target.value })}
-                            className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-purple-400 outline-none" placeholder="15:30" />
-                        </div>
-                      </>
+                      <div className="sm:col-span-2">
+                        <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Mô tả Khóa học (Tóm tắt)</label>
+                        <input value={trainingForm.desc || ''} onChange={e => setTrainingForm({ ...trainingForm, desc: e.target.value })}
+                          className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-purple-400 outline-none" placeholder="Nhập mô tả tóm tắt..." />
+                      </div>
                     )}
                     {trainingTab === 'guides' && (
                       <div>
@@ -2631,15 +2633,17 @@ const AdminDashboard = ({ onNavigate }) => {
                       </>
                     )}
                   </div>
-                  {/* Mô tả - Rich Text Editor */}
-                  <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nội dung mô tả (có định dạng)</label>
-                    <RichTextEditor
-                      value={trainingForm.desc || ''}
-                      onChange={(val) => setTrainingForm(prev => ({ ...prev, desc: val }))}
-                      placeholder="Nhập nội dung mô tả chi tiết..."
-                    />
-                  </div>
+                  {/* Mô tả - Rich Text Editor (ẩn với khóa học) */}
+                  {trainingTab !== 'videos' && (
+                    <div>
+                      <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nội dung mô tả (có định dạng)</label>
+                      <RichTextEditor
+                        value={trainingForm.desc || ''}
+                        onChange={(val) => setTrainingForm(prev => ({ ...prev, desc: val }))}
+                        placeholder="Nhập nội dung mô tả chi tiết..."
+                      />
+                    </div>
+                  )}
                   <button onClick={() => {
                     if (!trainingForm.title?.trim()) { 
                         showGlobalModal({ title: 'Thiếu thông tin', content: 'Vui lòng nhập tiêu đề bài học!', type: 'warning' });
@@ -3049,8 +3053,8 @@ const AdminDashboard = ({ onNavigate }) => {
                     <div key={item.id} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50/50 transition">
                       <div className="flex items-center gap-4 min-w-0 flex-1">
                         {trainingTab === 'videos' && (
-                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center flex-shrink-0">
-                            <PlayCircle size={20} className="text-white" />
+                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center flex-shrink-0 cursor-pointer hover:scale-105 transition" onClick={() => setCourseBuilderMode(item)}>
+                            <BookOpen size={20} className="text-white" />
                           </div>
                         )}
                         {trainingTab === 'guides' && (
@@ -3071,7 +3075,12 @@ const AdminDashboard = ({ onNavigate }) => {
                           {item.fileSize && <p className="text-[10px] text-gray-400 mt-0.5">{item.fileSize}</p>}
                         </div>
                       </div>
-                      <div className="flex gap-2 ml-3 flex-shrink-0">
+                      <div className="flex gap-2 ml-3 flex-shrink-0 items-center">
+                        {trainingTab === 'videos' && (
+                           <button onClick={() => setCourseBuilderMode(item)} className="px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 text-indigo-600 text-xs font-bold transition whitespace-nowrap flex items-center gap-1.5">
+                             <Layers size={13} /> Giáo trình
+                           </button>
+                        )}
                         <button onClick={() => setTrainingForm({ ...item })}
                           className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 transition"><Edit3 size={14} /></button>
                         <button onClick={() => setDeleteConfirm({ category: trainingTab, id: item.id, title: item.title })}
@@ -3088,6 +3097,8 @@ const AdminDashboard = ({ onNavigate }) => {
                   )}
                 </div>
               </div>
+              )}
+                </>
               )}
             </div>
           )}

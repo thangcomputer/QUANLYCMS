@@ -197,6 +197,35 @@ router.put('/web', authMiddleware, isAdmin, async (req, res) => {
   }
 });
 
+// ── GET /api/settings/training-data ── Lấy training data (Cho mọi user) ───────────
+router.get('/training-data', authMiddleware, async (req, res) => {
+  try {
+    const settings = await getSettings();
+    const data = settings.trainingRawData || { videos: [], guides: [], files: [] };
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
+
+// ── PUT /api/settings/training-data ── Cập nhật training data (Admin) ─────────────
+router.put('/training-data', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    const settings = await SystemSettings.findOneAndUpdate(
+      { _key: 'main' },
+      { $set: { trainingRawData: req.body.trainingData } },
+      { upsert: true, new: true }
+    );
+    // Broadcast via socket that training data was updated
+    const io = req.app.get('io');
+    if (io) io.emit('data:refresh');
+
+    return res.json({ success: true, message: 'Đã cập nhật training data' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // ── POST /api/settings/upload-logo ── Upload logo thương hiệu ────────────────
 const logoDir = path.join(__dirname, '..', 'uploads', 'logo');
 if (!fs.existsSync(logoDir)) fs.mkdirSync(logoDir, { recursive: true });

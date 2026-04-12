@@ -1191,13 +1191,13 @@ const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSch
                   <div className="flex gap-1 mt-0.5 flex-wrap justify-center px-1">
                     {/* Render different color dots depending on status */}
                     {daySchs.filter(s => s.status === 'scheduled').slice(0,2).map(s => (
-                      <div key={'s-'+s._id} className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-500 shadow-sm" />
+                      <div key={'s-'+s._id} className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-400 shadow-sm" />
                     ))}
                     {daySchs.filter(s => s.status === 'completed').slice(0,2).map(s => (
-                      <div key={'c-'+s._id} className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-yellow-500 shadow-sm" />
+                      <div key={'c-'+s._id} className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-400 shadow-sm" />
                     ))}
                     {daySchs.filter(s => s.status === 'cancelled').slice(0,2).map(s => (
-                      <div key={'x-'+s._id} className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-purple-500 shadow-sm" />
+                      <div key={'x-'+s._id} className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-red-400 shadow-sm" />
                     ))}
                     {daySchs.length > 4 && (
                       <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-slate-400 shadow-sm" />
@@ -1468,7 +1468,7 @@ const TeacherRatingDisplay = ({ rating, RATING_CRITERIA }) => {
           </div>
           <div className="flex-1 space-y-1.5">
             {[5, 4, 3, 2, 1].map(star => {
-              const count = rating.ratings.filter(r => Math.round(r.stars) === star).length;
+              const count = rating.ratings.filter(r => Math.round(r.criteria?.stars) === star).length;
               const pct = rating.count > 0 ? (count / rating.count) * 100 : 0;
               return (
                 <div key={star} className="flex items-center gap-2 text-xs">
@@ -1497,7 +1497,7 @@ const TeacherRatingDisplay = ({ rating, RATING_CRITERIA }) => {
                     <p className="text-[10px] text-gray-400">{r.date}</p>
                   </div>
                 </div>
-                <StarIcons count={r.stars} />
+                <StarIcons count={r.criteria?.stars} />
               </div>
               {/* Criteria tags */}
               {r.criteria && (
@@ -2233,7 +2233,17 @@ const TeacherDashboard = ({ onNavigate }) => {
   const completed = stats.completed;
 
   const mySchedules = useMemo(() => getSchedulesByTeacher(TEACHER_ID), [getSchedulesByTeacher, TEACHER_ID]);
-  const teacherRating = useMemo(() => getTeacherRating(TEACHER_ID), [getTeacherRating, TEACHER_ID]);
+  const [teacherRating, setTeacherRating] = useState({ avg: 0, count: 0, ratings: [] });
+  useEffect(() => {
+    api.evaluations.getByTeacher(TEACHER_ID).then(res => {
+      if (res.success && res.data) {
+        const validRatings = res.data.filter(r => r.criteria && r.criteria.stars);
+        const count = validRatings.length;
+        const avg = count > 0 ? (Math.round((validRatings.reduce((s, r) => s + r.criteria.stars, 0) / count) * 10) / 10) : 0;
+        setTeacherRating({ avg, count, ratings: res.data });
+      }
+    }).catch(err => console.error('Failed to fetch teacher rating:', err));
+  }, [TEACHER_ID]);
   const myTransactions = useMemo(() => getTransactionsByTeacher(TEACHER_ID), [getTransactionsByTeacher, TEACHER_ID]);
 
   const monthlyTransactions = useMemo(() => {
@@ -2562,7 +2572,7 @@ const TeacherDashboard = ({ onNavigate }) => {
                            </div>
                         </div>
                      </div>
-                     <button onClick={() => navigate('/teacher/finances')} 
+                     <button onClick={() => navigate('/teacher/finance')} 
                         className="bg-white/10 hover:bg-white/20 border border-white/10 px-8 py-4 rounded-3xl text-sm font-black uppercase tracking-widest transition-all flex items-center gap-2 group">
                         Chi tiết thu nhập <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
                      </button>

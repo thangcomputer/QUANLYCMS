@@ -14,6 +14,60 @@ import api, { getRolePrefix } from '../services/api';
 
 // MOCK_PAYMENTS removed - using real data from context
 
+const MOCK_COURSES = [
+  { id: 1, title: 'Đào tạo Giảng viên Mới', progress: 0, 
+    videos: [{ title: 'Giới thiệu về Thắng Tin Học', url: 'https://youtube.com/embed/demo1', duration: '10:35' }, { title: 'Tổng quan công việc', url: 'https://youtube.com/embed/demo1b', duration: '15:20' }],
+    files: [{ title: 'Quy trình giảng dạy.pdf', type: 'PDF', size: '2 MB' }, { title: 'Sổ tay Giảng viên.docx', type: 'DOCX', size: '1 MB' }],
+    notices: ['Chào mừng các bạn đến với TT', 'Hãy xem hết các video trước khi nhận lớp']
+  },
+  { id: 2, title: 'Kỹ năng Đứng lớp Chuyên sâu', progress: 45, 
+    videos: [{ title: 'Xử lý tình huống học viên yếu', url: 'https://youtube.com/embed/demo2', duration: '40:12' }],
+    files: [{ title: 'Quy trình xử lý.docx', type: 'DOCX', size: '500 KB' }],
+    notices: ['Nhớ nộp bài thu hoạch trước 15/4 ngay sau khi xem video']
+  },
+  { id: 3, title: 'Khóa học Excel Nâng cao', progress: 100, 
+    videos: [{ title: 'Hàm logic phức tạp', url: 'https://youtube.com/embed/demo3', duration: '35:00' }],
+    files: [{ title: 'Bài tập thực hành.xlsx', type: 'EXCEL', size: '3.5 MB' }],
+    notices: []
+  },
+  { id: 4, title: 'Bảo mật và An toàn thông tin', progress: 80, 
+    videos: [{ title: 'Bảo quản dữ liệu học viên', url: 'https://youtube.com/embed/demo4', duration: '20:10' }],
+    files: [],
+    notices: ['Bắt buộc hoàn thành trong tháng 4']
+  }
+];
+
+const CircularProgress = ({ progress }) => {
+  const radius = 35;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (progress / 100) * circumference;
+
+  let strokeColor = 'text-gray-100';
+  let pathColor = 'text-blue-500';
+  if (progress === 0) pathColor = 'text-gray-300';
+  else if (progress === 100) pathColor = 'text-green-500';
+
+  return (
+    <div className="relative flex items-center justify-center">
+      <svg className="w-28 h-28 transform -rotate-90 drop-shadow-sm">
+        <circle cx="56" cy="56" r={radius} stroke="currentColor" strokeWidth="8" fill="transparent" className={strokeColor} />
+        <circle cx="56" cy="56" r={radius} stroke="currentColor" strokeWidth="8" fill="transparent"
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+          className={`${pathColor} transition-all duration-1000 ease-out`} />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center flex-col">
+        {progress === 100 ? (
+           <CheckCircle2 size={32} className="text-green-500 drop-shadow-sm" />
+        ) : (
+           <span className="text-xl font-black text-gray-800 tracking-tighter">{progress}%</span>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
 const TeacherFinanceAndTraining = () => {
   const { trainingData } = useData();
@@ -32,6 +86,8 @@ const TeacherFinanceAndTraining = () => {
   });
   const [isLoadingFinance, setIsLoadingFinance] = useState(false);
   const [myTrainingData, setMyTrainingData] = useState({ videos: [], guides: [], files: [] });
+  const [activeCourse, setActiveCourse] = useState(null);
+  const [courseTab, setCourseTab] = useState('video');
 
   React.useEffect(() => {
     if (!isTraining) {
@@ -183,9 +239,9 @@ const TeacherFinanceAndTraining = () => {
                      <BarChart className="text-blue-600" size={20} />
                      <h3 className="font-extrabold text-slate-800 uppercase tracking-tight">Biểu đồ thu nhập</h3>
                   </div>
-                  <div className="h-[220px] w-full flex items-end gap-2 md:gap-4 mt-8 pb-4 border-b border-dashed border-slate-200 px-2">
+                  <div className="h-[220px] w-full flex items-end justify-center gap-6 md:gap-10 mt-8 pb-4 border-b border-dashed border-slate-200 px-2 overflow-x-auto">
                      {chartData.length > 0 ? chartData.map((d, i) => (
-                         <div key={i} className="flex-1 flex flex-col items-center justify-end h-full gap-2 group relative">
+                         <div key={i} className="w-16 md:w-20 flex-shrink-0 flex flex-col items-center justify-end h-full gap-2 group relative">
                              <div className="absolute -top-7 opacity-0 group-hover:opacity-100 transition-opacity bg-blue-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg pointer-events-none whitespace-nowrap">
                                  {d.amount.toLocaleString('vi-VN')}đ
                              </div>
@@ -297,113 +353,140 @@ const TeacherFinanceAndTraining = () => {
             </div>
           </div>
 
+        ) : activeCourse ? (
+          /* ════════ CHI TIẾT KHÓA HỌC (TABS) ════════ */
+          <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden min-h-[500px] flex flex-col">
+             {/* Header */}
+             <div className="bg-slate-50 px-8 py-6 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                   <button onClick={() => setActiveCourse(null)} className="text-slate-400 hover:text-slate-700 text-sm font-bold flex items-center gap-2 mb-2 transition-colors">
+                     ← Quay lại danh sách
+                   </button>
+                   <h2 className="text-2xl font-black text-slate-800 tracking-tight">{activeCourse.title}</h2>
+                </div>
+                <CircularProgress progress={activeCourse.progress} />
+             </div>
+
+             {/* TabsMenu */}
+             <div className="flex px-8 border-b border-slate-100 bg-white">
+                <button onClick={() => setCourseTab('video')} className={`px-6 py-4 text-xs font-black uppercase tracking-widest border-b-2 transition-all ${courseTab === 'video' ? 'text-blue-600 border-blue-600' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
+                  <Video size={14} className="inline mr-2" /> BÀI GIẢNG VIDEO
+                </button>
+                <button onClick={() => setCourseTab('data')} className={`px-6 py-4 text-xs font-black uppercase tracking-widest border-b-2 transition-all ${courseTab === 'data' ? 'text-green-600 border-green-600' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
+                  <FileBox size={14} className="inline mr-2" /> TÀI LIỆU CỦA KHÓA
+                </button>
+                <button onClick={() => setCourseTab('notice')} className={`px-6 py-4 text-xs font-black uppercase tracking-widest border-b-2 transition-all ${courseTab === 'notice' ? 'text-orange-600 border-orange-600' : 'text-slate-400 border-transparent hover:text-slate-600'}`}>
+                  <AlertCircle size={14} className="inline mr-2" /> THÔNG BÁO TỪ ADMIN
+                </button>
+             </div>
+
+             {/* Tab Content */}
+             <div className="p-8 flex-1 bg-slate-50/50">
+               {courseTab === 'video' && (
+                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div className="lg:col-span-2 space-y-4">
+                       <div className="aspect-video bg-black rounded-2xl overflow-hidden shadow-xl ring-1 ring-slate-200">
+                          {activeCourse.videos[0] ? (
+                            <iframe src={activeCourse.videos[0].url} className="w-full h-full" allowFullScreen></iframe>
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-500 font-bold">Chưa có video bài giảng nào</div>
+                          )}
+                       </div>
+                       <div>
+                         <h3 className="text-xl font-bold text-slate-800">{activeCourse.videos[0]?.title || 'Bài giảng đang được cập nhật'}</h3>
+                       </div>
+                    </div>
+                    <div className="lg:col-span-1 border border-slate-100 bg-white rounded-2xl overflow-hidden self-start">
+                       <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
+                         <h4 className="font-bold text-slate-700 text-sm">Danh sách bài học</h4>
+                       </div>
+                       <div className="divide-y divide-slate-50 max-h-[400px] overflow-y-auto">
+                         {activeCourse.videos.map((vid, idx) => (
+                           <button key={idx} className="w-full text-left px-5 py-4 hover:bg-blue-50 transition-colors group flex gap-3">
+                              <div className="text-slate-300 font-black mt-0.5 group-hover:text-blue-400">{String(idx + 1).padStart(2, '0')}</div>
+                              <div>
+                                <p className="font-semibold text-slate-700 text-sm group-hover:text-blue-700 line-clamp-2 leading-snug">{vid.title}</p>
+                                <p className="text-[10px] text-slate-400 font-bold mt-1.5 flex items-center gap-1"><Clock size={10} /> {vid.duration}</p>
+                              </div>
+                           </button>
+                         ))}
+                       </div>
+                    </div>
+                 </div>
+               )}
+
+               {courseTab === 'data' && (
+                 <div className="max-w-4xl mx-auto space-y-4">
+                    {activeCourse.files.length === 0 ? (
+                      <div className="text-center py-12 text-slate-400 font-bold bg-white rounded-2xl border border-dashed border-slate-200">Khóa học này chưa có tài liệu đính kèm.</div>
+                    ) : (
+                      activeCourse.files.map((file, idx) => (
+                        <div key={idx} className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex items-center justify-between hover:border-green-200 transition-colors">
+                           <div className="flex items-center gap-4">
+                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-[10px] font-black text-white shadow-sm ${file.type === 'PDF' ? 'bg-red-500' : file.type === 'DOCX' ? 'bg-blue-500' : 'bg-green-500'}`}>{file.type}</div>
+                              <div>
+                                <h4 className="font-bold text-slate-700">{file.title}</h4>
+                                <p className="text-xs text-slate-400 mt-1 font-semibold">{file.size}</p>
+                              </div>
+                           </div>
+                           <button className="px-5 py-2.5 bg-green-50 hover:bg-green-100 text-green-700 font-bold text-xs rounded-xl flex items-center gap-2 transition-colors">
+                             <Download size={14} /> Tải file
+                           </button>
+                        </div>
+                      ))
+                    )}
+                 </div>
+               )}
+
+               {courseTab === 'notice' && (
+                 <div className="max-w-4xl mx-auto space-y-4">
+                    {activeCourse.notices.length === 0 ? (
+                      <div className="text-center py-12 text-slate-400 font-bold bg-white rounded-2xl border border-dashed border-slate-200">Chưa có thông báo nào.</div>
+                    ) : (
+                      activeCourse.notices.map((n, idx) => (
+                        <div key={idx} className="bg-orange-50 border-l-4 border-orange-400 p-5 rounded-r-2xl">
+                          <p className="text-sm font-semibold text-orange-900 leading-relaxed">{n}</p>
+                        </div>
+                      ))
+                    )}
+                 </div>
+               )}
+             </div>
+          </div>
         ) : (
-          /* ════════ ĐÀO TẠO (dữ liệu từ Admin) ════════ */
-          <>
+          /* ════════ ĐÀO TẠO TỔNG QUAN (GRID) ════════ */
+          <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                <BookOpen size={20} className="text-purple-600" /> Đào tạo & Tài liệu
+              <h2 className="text-2xl font-black text-gray-800 flex items-center gap-3">
+                <BookOpen size={28} className="text-purple-600" /> Các khóa đào tạo
               </h2>
-              <p className="text-xs text-gray-400">Nội dung do Admin quản lý · GV: {teacherName}</p>
+              <p className="text-sm font-bold text-gray-400 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100">
+                Hiển thị {MOCK_COURSES.length} khóa học
+              </p>
             </div>
 
-            {/* Video hướng dẫn */}
-            {videos.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                    <Video size={18} className="text-red-500" /> VIDEO HƯỚNG DẪN CỦA TRUNG TÂM
-                  </h3>
-                  <p className="text-xs text-gray-400 mt-1">{videos.length} video đào tạo</p>
-                </div>
-                <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {videos.map(m => (
-                    <a key={m.id} href={m.url} target="_blank" rel="noreferrer"
-                      className="group block rounded-xl overflow-hidden border border-gray-100 hover:shadow-lg transition-all hover:-translate-y-0.5">
-                      <div className="relative aspect-video bg-gradient-to-br from-purple-500 to-indigo-600 overflow-hidden flex items-center justify-center">
-                        <PlayCircle size={48} className="text-white/80 drop-shadow-lg group-hover:scale-110 transition-transform" />
-                        {m.duration && (
-                          <span className="absolute bottom-2 right-2 bg-black/80 text-white text-xs px-2 py-0.5 rounded font-mono">{m.duration}</span>
-                        )}
-                      </div>
-                      <div className="p-3">
-                        <p className="font-bold text-sm text-gray-800 line-clamp-1">{m.title}</p>
-                        <div className="text-xs text-gray-400 mt-0.5 line-clamp-2 ql-desc" dangerouslySetInnerHTML={{ __html: m.desc }} />
-                        {m.createdAt && <p className="text-[10px] text-gray-300 mt-1">📅 {m.createdAt}</p>}
-                      </div>
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Quy trình hướng dẫn */}
-            {guides.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                    <FileText size={18} className="text-blue-600" /> QUY TRÌNH HƯỚNG DẪN
-                  </h3>
-                  <p className="text-xs text-gray-400 mt-1">Quy trình chuẩn cho giảng viên tại Thắng Tin Học</p>
-                </div>
-                <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {guides.map(g => (
-                    <div key={g.id} className="flex items-start gap-4 p-4 rounded-xl border border-gray-100 hover:bg-blue-50/30 hover:border-blue-200 transition-all cursor-pointer group">
-                      <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-2xl flex-shrink-0 group-hover:scale-110 transition-transform">
-                        {g.icon || '📄'}
-                      </div>
-                      <div>
-                        <p className="font-bold text-sm text-gray-800">{g.title}</p>
-                        <div className="text-xs text-gray-500 mt-1 leading-relaxed ql-desc" dangerouslySetInnerHTML={{ __html: g.desc }} />
-                      </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+               {MOCK_COURSES.map(course => (
+                 <div onClick={() => { setActiveCourse(course); setCourseTab('video'); }} key={course.id} className="bg-white rounded-[2rem] p-8 pb-6 border border-slate-100 shadow-md hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group flex flex-col relative overflow-hidden">
+                    {/* Background decoration */}
+                    <div className="absolute -top-12 -right-12 w-32 h-32 bg-slate-50 rounded-full group-hover:bg-blue-50 transition-colors pointer-events-none" />
+                    
+                    <div className="flex-1 flex justify-center py-4 relative z-10">
+                      <CircularProgress progress={course.progress} />
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Tài liệu */}
-            {files.length > 0 && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100">
-                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                    <Download size={18} className="text-green-600" /> TÀI LIỆU CỦA GIẢNG VIÊN
-                  </h3>
-                  <p className="text-xs text-gray-400 mt-1">File mẫu, slide, bài tập dùng trong giảng dạy</p>
-                </div>
-                <div className="divide-y divide-gray-50">
-                  {files.map(m => (
-                    <div key={m.id} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xs font-black text-white shadow-sm ${
-                          m.fileType === 'PDF' ? 'bg-red-500' : m.fileType === 'PPTX' ? 'bg-orange-500' : 'bg-green-500'
-                        }`}>
-                          {m.fileType || 'FILE'}
-                        </div>
-                        <div>
-                          <p className="font-semibold text-gray-800 text-sm">{m.title}</p>
-                          <div className="text-xs text-gray-400 mt-0.5 ql-desc" dangerouslySetInnerHTML={{ __html: m.desc }} />
-                          {m.fileSize && <p className="text-[10px] text-gray-300 mt-0.5">{m.fileSize}</p>}
-                        </div>
-                      </div>
-                      <button className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors">
-                        <Download size={14} /> Tải về
-                      </button>
+                    
+                    <div className="mt-4 text-center pb-2 border-b border-dashed border-slate-100 z-10">
+                      <h3 className="font-extrabold text-slate-800 text-lg group-hover:text-blue-600 transition-colors line-clamp-2 leading-tight">{course.title}</h3>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
-            {/* Empty state */}
-            {videos.length === 0 && guides.length === 0 && files.length === 0 && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
-                <BookOpen size={48} className="mx-auto text-gray-300 mb-3" />
-                <p className="text-gray-500 font-semibold">Chưa có nội dung đào tạo</p>
-                <p className="text-xs text-gray-400 mt-1">Admin sẽ cập nhật video, quy trình và tài liệu cho giảng viên.</p>
-              </div>
-            )}
-          </>
+                    <div className="flex justify-between items-center mt-4 text-slate-400 text-[10px] font-black uppercase tracking-widest z-10">
+                       <span className="flex items-center gap-1"><Video size={14} className="text-blue-400" /> {course.videos.length} VIDEO</span>
+                       <span className="flex items-center gap-1"><FileBox size={14} className="text-green-400" /> {course.files.length} TÀI LIỆU</span>
+                    </div>
+                 </div>
+               ))}
+            </div>
+          </div>
         )}
       </div>
     </div>

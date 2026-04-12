@@ -59,6 +59,8 @@ function describeAction(method, path, body, responseBody) {
   if (p.includes('/teachers') && p.includes('/approve'))  return { action: 'DUYỆT GV', category: 'teacher', desc: `Duyệt cấp quyền giảng viên` };
   if (p.includes('/teachers') && p.includes('/reject'))   return { action: 'TỪ CHỐI GV', category: 'teacher', desc: `Từ chối giảng viên` };
   if (p.includes('/teachers') && p.includes('/score'))    return { action: 'CHẤM ĐIỂM GV', category: 'teacher', desc: `Chấm điểm bài test giảng viên` };
+  if (p.includes('/teachers') && p.includes('/finance/pay-flexible')) return { action: 'THANH TOÁN GV', category: 'finance', desc: `Thanh toán lương giảng viên: ${body?.amount ? body.amount + 'đ' : ''}` };
+  if (p.includes('/teachers') && p.includes('/finance/pay-all')) return { action: 'THANH TOÁN TẤT CẢ', category: 'finance', desc: `Thanh toán toàn bộ lương giảng viên` };
   if (p.includes('/teachers') && method === 'PUT') {
     const tName = responseBody?.data?.name || body?.name || '';
     return { action: 'CẬP NHẬT GV', category: 'teacher', desc: `Cập nhật thông tin giảng viên${tName ? ': ' + tName : ''}` };
@@ -89,8 +91,16 @@ function describeAction(method, path, body, responseBody) {
   // ── Webhook ──
   if (p.includes('/webhooks/sepay'))  return { action: 'THANH TOÁN', category: 'finance', desc: `Webhook SePay: nhận thanh toán tự động` };
 
+  // ── Assignments ──
+  if (p.includes('/assignments/upload')) return {}; // Bỏ qua log file bẩn (trả về empty obj để !action bắt được ở dưới nếu có logic chặn)
+  if (p.includes('/assignments/submit') && method === 'POST') return { action: 'NỘP BÀI TẬP', category: 'assignment', desc: `Học viên nộp bài` };
+  if (p.includes('/assignments/grade') && method === 'POST') return { action: 'CHẤM ĐIỂM BÀI TẬP', category: 'assignment', desc: `Giảng viên chấm bài` };
+  if (p.includes('/assignments') && method === 'POST') return { action: 'TẠO BÀI TẬP', category: 'assignment', desc: `Tạo bài tập/tài liệu mới` };
+  if (p.includes('/assignments') && method === 'DELETE') return { action: 'XÓA BÀI TẬP', category: 'assignment', desc: `Xóa bài tập hệ thống` };
+
   // ── Evaluation ──
-  if (p.includes('/evaluation'))  return { action: 'ĐÁNH GIÁ', category: 'evaluation', desc: `Gửi/cập nhật đánh giá` };
+  if (p.includes('/evaluations') && p.includes('/read')) return { action: 'ĐỌC PHẢN HỒI', category: 'evaluation', desc: `Đánh dấu đã đọc đánh giá/phản hồi` };
+  if (p.includes('/evaluations') && method === 'POST')  return { action: 'ĐÁNH GIÁ', category: 'evaluation', desc: `Gửi/cập nhật đánh giá` };
 
   // ── Employees (HR & Payroll) ──
   if (p.includes('/employees') && p.includes('/pay') && method === 'POST') {
@@ -123,6 +133,8 @@ const systemLogger = (req, res, next) => {
       if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
 
         const { action, category, desc } = describeAction(req.method, req.originalUrl, req.body, body);
+        if (!action) return originalJson.call(this, body);
+
         const ua = req.headers['user-agent'] || '';
         const device = parseDevice(ua);
 

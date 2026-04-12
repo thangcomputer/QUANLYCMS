@@ -259,8 +259,10 @@ export const DataProvider = ({ children, user, onLogout }) => {
       }
 
       // Handle Groups (everyone except student has groups at this index)
-      // Actually everyone needs groups
       promises.push(api.messages.getGroups(currentUser.id || currentUser._id).catch(() => ({ success: false })));
+
+      // Fetch training data for all (Admin & Teacher)
+      promises.push(api.settings.getTrainingData().catch(() => ({ success: false })));
 
       const results = await Promise.all(promises);
       let idx = 0;
@@ -313,9 +315,15 @@ export const DataProvider = ({ children, user, onLogout }) => {
         })));
       }
 
-      // Groups are always the last one (except if results ended early, but idx++ handles it)
+      // Groups
       const groupsRes = results[idx++];
-      if (groupsRes?.success) setGroups(groupsRes.data || []);
+      if (groupsRes?.success) setGroups(groupsRes.data.map(g => ({ ...g, id: g._id })));
+
+      // Training Data is the last promise
+      const trainingDataRes = results[idx++];
+      if (trainingDataRes?.success) {
+        setTrainingData(trainingDataRes.data);
+      }
     } catch (e) {
       if (e.status === 401 && onLogout) {
         onLogout();
@@ -1497,7 +1505,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
     }
   };
 
-  const rateTeacher = useCallback((teacherId, studentId, criteria, comment) => {
+  const rateTeacher = useCallback(async (teacherId, studentId, criteria, comment) => {
     // criteria = { teaching: 'effective', voice: 'good', guidance: 'ok', support: 'enthusiastic' }
     const student = students.find(s => s.id === studentId);
     // Auto-calculate stars from criteria scores
@@ -1506,6 +1514,20 @@ export const DataProvider = ({ children, user, onLogout }) => {
       return opt ? opt.score : 3;
     });
     const stars = Math.round((scores.reduce((s, v) => s + v, 0) / scores.length) * 10) / 10;
+
+    // Call API to persist
+    try {
+      await api.evaluations.submit({
+        studentId,
+        studentName: student?.name || '',
+        targetTeacherId: teacherId,
+        type: 'teacher_rating',
+        criteria: { ...criteria, stars }, // Store stars inside criteria payload for ease
+        content: comment
+      });
+    } catch (err) {
+      console.error('Failed to save public rating to backend', err);
+    }
 
     setTeachers(prev => prev.map(t => {
       if (String(t.id) !== String(teacherId)) return t;
@@ -1527,7 +1549,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
   const getTeacherRating = useCallback((teacherId) => {
     const teacher = teachers.find(t => String(t.id) === String(teacherId));
     if (!teacher || !teacher.ratings?.length) return { avg: 0, count: 0, ratings: [] };
-    const avg = Math.round((teacher.ratings.reduce((s, r) => s + r.stars, 0) / teacher.ratings.length) * 10) / 10;
+    const avg = Math.round((teacher.ratings.reduce((s, r) => s + (r.criteria?.stars || 0), 0) / teacher.ratings.length) * 10) / 10;
     return { avg, count: teacher.ratings.length, ratings: teacher.ratings };
   }, [teachers]);
 
@@ -1659,22 +1681,34 @@ export const DataProvider = ({ children, user, onLogout }) => {
       }));
     }, []),
     addTrainingItem: useCallback((category, item) => {
-      setTrainingData(prev => ({
-        ...prev,
-        [category]: [...(prev[category] || []), { ...item, id: Date.now() }]
-      }));
+      setTrainingData(prev => {
+        const newData = {
+          ...prev,
+          [category]: [...(prev[category] || []), { ...item, id: Date.now() }]
+        };
+        api.settings?.updateTrainingData(newData).catch(console.error);
+        return newData;
+      });
     }, []),
     updateTrainingItem: useCallback((category, id, updates) => {
-      setTrainingData(prev => ({
-        ...prev,
-        [category]: (prev[category] || []).map(item => item.id === id ? { ...item, ...updates } : item)
-      }));
+      setTrainingData(prev => {
+        const newData = {
+          ...prev,
+          [category]: (prev[category] || []).map(item => String(item.id) === String(id) ? { ...item, ...updates } : item)
+        };
+        api.settings?.updateTrainingData(newData).catch(console.error);
+        return newData;
+      });
     }, []),
     removeTrainingItem: useCallback((category, id) => {
-      setTrainingData(prev => ({
-        ...prev,
-        [category]: (prev[category] || []).filter(item => item.id !== id)
-      }));
+      setTrainingData(prev => {
+        const newData = {
+          ...prev,
+          [category]: (prev[category] || []).filter(item => String(item.id) !== String(id))
+        };
+        api.settings?.updateTrainingData(newData).catch(console.error);
+        return newData;
+      });
     }, []),
 
     // ── Question Bank CRUD ────────────────────────────────────────────────────

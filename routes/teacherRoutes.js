@@ -1,11 +1,55 @@
 const express  = require('express');
 const mongoose = require('mongoose');
+const multer   = require('multer');
+const path     = require('path');
+const fs       = require('fs');
+
 const Teacher  = require('../models/Teacher');
 const Schedule = require('../models/Schedule');
 const Transaction = require('../models/Transaction');
 const { authMiddleware, isAdmin, isTeacher, branchFilter } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Tự động tạo thư mục uploads/practical nếu chưa có
+const uploadDir = path.join(__dirname, '..', 'uploads', 'practical');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) { cb(null, uploadDir); },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname);
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'practical-' + uniqueSuffix + ext);
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
+  fileFilter: (req, file, cb) => {
+    const allowed = /zip|rar|tar|7z|pdf|doc|docx|xls|xlsx|ppt|pptx|mp4/;
+    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
+    const mime = allowed.test(file.mimetype);
+    if (ext && mime) return cb(null, true);
+    cb(new Error('Chỉ hỗ trợ file Văn bản, Nén hoặc Video MP4 (Tối đa 50MB)!'));
+  }
+});
+
+// ─── POST /api/teachers/upload-practical ──────────────────────────────────────
+router.post('/upload-practical', upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Chưa chọn file để tải lên' });
+    }
+    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/practical/${req.file.filename}`;
+    return res.json({ success: true, fileUrl, message: 'Tải file bài thực hành lên thành công!' });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Lỗi server khi tải file thực hành' });
+  }
+});
 
 // ⭐ RBAC Guard: Chặn STAFF thực hiện thao tác ghi trên teachers
 // STAFF chỉ được GET (xem), KHÔNG được POST/PUT/DELETE
@@ -114,9 +158,18 @@ router.get('/', [authMiddleware, branchFilter], async (req, res) => {
       ];
     }
 
-    const teachers = await Teacher.find(filter)
+    const Evaluation = require('../models/Evaluation');
+    const evals = await Evaluation.find({ type: 'teacher_rating' }).lean();
+
+    let teachers = await Teacher.find(filter)
       .select('-password -refreshToken')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
+
+    teachers = teachers.map(t => {
+      const myRatings = evals.filter(e => String(e.targetTeacherId) === String(t._id));
+      return { ...t, ratings: myRatings, id: t._id };
+    });
 
     return res.json({ success: true, count: teachers.length, data: teachers });
   } catch (error) {
@@ -578,10 +631,11 @@ router.put('/:id/finance/pay-flexible', [authMiddleware, isAdmin, superAdminOnly
     const teacher = await Teacher.findById(req.params.id);
     if (!teacher) return res.status(404).json({ success: false, message: 'Teacher not found' });
 
-    // Tìm buổi chưa thanh toán theo FIFO (bao gồm cả 'completed' và 'scheduled')
+    // Tìm buổi chưa thanh toán theo FIFO (chỉ tính các buổi đã hoàn thành - completed)
     // Nếu không có → vẫn tạo giao dịch (thanh toán thủ công do Admin nhập)
     const pendingSessions = await Schedule.find({
       teacherId: req.params.id,
+      status: 'completed',
       is_paid_to_teacher: { $ne: true }
     }).sort({ date: 1, createdAt: 1 }).limit(Number(sessionsCount));
 
