@@ -1977,6 +1977,81 @@ const TeacherDashboard = ({ onNavigate }) => {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState(null);
 
+  // Active Attendance Modal State
+  const [pendingAttendanceSchedule, setPendingAttendanceSchedule] = useState(null);
+  const [noShowReason, setNoShowReason] = useState('');
+
+  // Active Attendance Checker
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Don't override if already handling one
+      if (pendingAttendanceSchedule) return;
+
+      const now = new Date();
+      const mySchedulesList = getSchedulesByTeacher(TEACHER_ID);
+
+      const pending = mySchedulesList.find(s => {
+        if (s.status !== 'scheduled') return false;
+        
+        // Ensure the date is today
+        const sd = new Date(s.date);
+        if (
+          sd.getFullYear() !== now.getFullYear() ||
+          sd.getMonth() !== now.getMonth() ||
+          sd.getDate() !== now.getDate()
+        ) return false;
+
+        // Check time
+        if (!s.endTime) return false;
+        const [eh, em] = s.endTime.split(':');
+        // Subtract 0 so it's a number
+        const endObj = new Date(now.getFullYear(), now.getMonth(), now.getDate(), parseInt(eh, 10), parseInt(em, 10), 0);
+        
+        return now >= endObj;
+      });
+
+      if (pending) {
+        setPendingAttendanceSchedule(pending);
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [pendingAttendanceSchedule, getSchedulesByTeacher, TEACHER_ID]);
+
+  const handleActiveAttend = async () => {
+    if (!pendingAttendanceSchedule) return;
+    try {
+      const s = pendingAttendanceSchedule;
+      // Mark local students attendance + minus lesson
+      await markAttendance(s.studentId, 'Hệ thống: Điểm danh tự động', 0);
+      // Update schedule to completed
+      updateSchedule(s.id || s._id, { status: 'completed' });
+    } catch (e) {
+      console.error(e);
+      toast.error('Lỗi điểm danh!');
+    }
+    setPendingAttendanceSchedule(null);
+  };
+
+  const handleActiveNoShow = async () => {
+    if (!pendingAttendanceSchedule || !noShowReason.trim()) return;
+    try {
+      const s = pendingAttendanceSchedule;
+      const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const token = localStorage.getItem('teacher_access_token') || localStorage.getItem('admin_access_token');
+      await fetch(`${API}/api/schedules/${s._id || s.id}/cancel`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reason: noShowReason }),
+      });
+      cancelSchedule(s._id || s.id, noShowReason);
+    } catch (e) {
+      console.error(e);
+    }
+    setPendingAttendanceSchedule(null);
+    setNoShowReason('');
+  };
+
   const handleScheduleSubmit = (form) => {
     // Nếu có ID hợp lệ thì mới là Update, ngược lại (chỉ có date prefill) là Create Mới
     if (editingSchedule && (editingSchedule.id || editingSchedule._id)) {
@@ -2589,6 +2664,71 @@ const TeacherDashboard = ({ onNavigate }) => {
           onSubmit={handleScheduleSubmit}
         />
       )}
+      {/* ─ ACTIVE ATTENDANCE MODAL ─ */}
+      {pendingAttendanceSchedule && (
+        <div className="fixed inset-0 bg-slate-900/80 z-[999] flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-[24px] w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border-4 border-blue-500/20">
+            <div className="bg-blue-600 p-6 text-white flex items-center gap-4">
+              <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center shadow-inner">
+                <Clock size={24} className="animate-pulse" />
+              </div>
+              <div>
+                <h3 className="font-black text-lg">Xác nhận hoàn thành buổi dạy</h3>
+                <p className="text-blue-100 text-sm mt-1">Đã quá giờ kết thúc, vui lòng điểm danh.</p>
+              </div>
+            </div>
+            
+            <div className="p-8 space-y-6">
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                <div className="grid gap-2">
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                    <span className="text-slate-500 text-sm font-semibold">Học viên</span>
+                    <span className="font-bold text-slate-800 text-base">{pendingAttendanceSchedule.studentName}</span>
+                  </div>
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                    <span className="text-slate-500 text-sm font-semibold">Môn học</span>
+                    <span className="font-bold text-blue-700">{pendingAttendanceSchedule.course}</span>
+                  </div>
+                  <div className="flex justify-between items-center pt-1">
+                    <span className="text-slate-500 text-sm font-semibold">Thời gian</span>
+                    <span className="font-black text-slate-800 tracking-wide bg-white px-2 py-1 rounded-md shadow-sm border border-slate-100">
+                      {pendingAttendanceSchedule.startTime} - {pendingAttendanceSchedule.endTime}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4 pt-2">
+                <button
+                  onClick={handleActiveAttend}
+                  className="w-full py-4 text-white font-black bg-blue-600 rounded-2xl hover:bg-blue-700 shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 text-lg hover:-translate-y-0.5"
+                >
+                  <CheckCircle size={22} /> Điểm danh ngay
+                </button>
+                
+                <div className="border border-red-100 bg-red-50/50 rounded-2xl p-4">
+                  <label className="text-xs font-black text-red-800 uppercase tracking-widest block mb-2">Học viên không học?</label>
+                  <textarea
+                    rows={2}
+                    value={noShowReason}
+                    onChange={e => setNoShowReason(e.target.value)}
+                    placeholder="Bắt buộc nhập lý do (VD: HS xin nghỉ, GV bận đột xuất...)"
+                    className="w-full border-2 border-red-200 focus:border-red-400 rounded-xl px-4 py-3 text-sm outline-none resize-none bg-white mb-3"
+                  />
+                  <button
+                    onClick={handleActiveNoShow}
+                    disabled={!noShowReason.trim()}
+                    className="w-full py-3 text-red-600 font-bold bg-white border-2 border-red-200 rounded-xl hover:bg-red-50 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    Báo hủy buổi học
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
