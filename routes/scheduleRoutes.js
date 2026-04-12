@@ -289,7 +289,7 @@ router.post('/', async (req, res) => {
       action: 'CREATED',
       reason: '',
       oldValue: null,
-      newValue: { status: schedule.status, date: schedule.date, studentId, course: courseFinal },
+      newValue: { status: schedule.status, date: schedule.date, startTime, endTime: endTime || '', studentId, course: courseFinal },
       studentName,
       teacherName,
       scheduledDate: schedule.date,
