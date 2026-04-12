@@ -1008,81 +1008,100 @@ const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSch
   return (
     <div className="space-y-4">
       {/* ─ CALENDAR GRID ─ */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-3xl shadow-sm border-0 p-2 sm:p-4">
         {/* Header Nav */}
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="font-bold text-gray-700 flex items-center gap-2">
-            <Calendar size={16} className="text-blue-500" />
-            Lịch dạy theo tháng
+        <div className="px-2 py-4 flex items-center justify-between mb-2">
+          <h3 className="font-extrabold text-teal-800 text-base sm:text-lg tracking-wide">
+            Lịch theo tháng
           </h3>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setCurrentDate(new Date(year, month - 1, 1))} className="p-1.5 rounded-lg hover:bg-gray-100 transition">
-              <ChevronLeft size={18} className="text-gray-500" />
+          <div className="flex items-center gap-1.5 sm:gap-3">
+            <button onClick={() => setCurrentDate(new Date(year, month - 1, 1))} className="p-1 sm:p-2 rounded-xl hover:bg-slate-50 transition text-slate-500 hover:text-slate-800 active:scale-95">
+              <ChevronLeft size={18} />
             </button>
-            <span className="text-sm font-bold text-gray-700 min-w-[120px] text-center">{monthNames[month]} {year}</span>
-            <button onClick={() => setCurrentDate(new Date(year, month + 1, 1))} className="p-1.5 rounded-lg hover:bg-gray-100 transition">
-              <ChevronRight size={18} className="text-gray-500" />
+            <div className="flex items-center gap-2 border-2 border-slate-100 rounded-xl px-3 py-1.5 sm:py-2 text-sm font-bold text-slate-700 shadow-sm bg-white">
+              <span className="min-w-[90px] sm:min-w-[110px] text-center">tháng {month + 1} {year}</span>
+              <Calendar size={14} className="text-slate-400" />
+            </div>
+            <button onClick={() => setCurrentDate(new Date(year, month + 1, 1))} className="p-1 sm:p-2 rounded-xl hover:bg-slate-50 transition text-slate-500 hover:text-slate-800 active:scale-95">
+              <ChevronRight size={18} />
             </button>
           </div>
         </div>
 
         {/* Day labels */}
-        <div className="grid grid-cols-7 text-center px-4 pt-3">
+        <div className="grid grid-cols-7 text-center px-1 border-b border-slate-50 pb-3 mb-3">
           {['CN','T2','T3','T4','T5','T6','T7'].map((d, i) => (
-            <div key={d} className={`text-[11px] font-bold py-2 ${i === 0 ? 'text-red-500' : 'text-gray-500'}`}>{d}</div>
+            <div key={d} className={`text-xs font-black uppercase tracking-widest ${i === 0 ? 'text-orange-500' : 'text-slate-500'}`}>
+              {d}
+            </div>
           ))}
         </div>
 
         {/* Calendar cells */}
-        <div className="grid grid-cols-7 px-4 pb-4 gap-1">
+        <div className="grid grid-cols-7 px-1 gap-y-2 gap-x-1 sm:gap-y-3 sm:gap-x-2">
           {days.map((day, idx) => {
             if (!day) return <div key={`e-${idx}`} />;
 
             const daySchs  = scheduleMap[day] || [];
-            const status   = getDayStatus(daySchs);
             const past     = isPast(day);
             const todayDay = isToday(day);
             const selected = selectedDay === day;
-            const hasScheduled = daySchs.some(s => s.status === 'scheduled');
-            const colors   = status ? STATUS_COLORS[status] : null;
-            const canAddNew = !past && daySchs.length === 0;
+            const hasData  = daySchs.length > 0;
+            const canAddNew = !past && !hasData;
+
+            // Xác định ngày Chủ Nhật để highlight số
+            const isSunday = (idx % 7 === 0);
 
             return (
               <button
                 key={day}
                 onClick={() => {
-                  if (past && !daySchs.length) return;
+                  if (past && !hasData) return;
                   setSelectedDay(day === selectedDay ? null : day);
                   if (canAddNew && onAddSchedule) onAddSchedule(new Date(year, month, day));
                 }}
-                title={past && !daySchs.length ? 'Ngày đã qua, không thể sắp lịch' : canAddNew ? 'Click để sắp lịch hôm này' : ''}
-                className={`relative aspect-square rounded-xl flex flex-col items-center justify-center text-sm font-semibold transition-all border
+                title={past && !hasData ? 'Ngày đã qua, không thể sắp lịch' : canAddNew ? 'Click để sắp lịch hôm này' : ''}
+                className={`relative aspect-[4/5] rounded-xl flex flex-col items-center pt-2 sm:pt-3 text-sm font-bold transition-all border-2
                   ${
                     selected
-                      ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-300 border-blue-600'
-                    : todayDay
-                      ? 'bg-blue-50 text-blue-700 ring-2 ring-blue-400 border-blue-200'
-                    : past
-                      ? `opacity-40 cursor-not-allowed border-transparent ${colors?.cell || 'text-gray-400'}`
-                    : colors
-                      ? `${colors.cell} cursor-pointer hover:brightness-95 border`
-                    : 'text-gray-600 hover:bg-gray-50 border-transparent cursor-pointer'
+                      ? 'bg-teal-50/50 border-teal-600 shadow-sm text-teal-800'
+                    : todayDay && !hasData
+                      ? 'bg-white border-slate-200 text-slate-800 ring-2 ring-slate-100 ring-offset-2'
+                    : past && !hasData
+                      ? 'opacity-30 cursor-not-allowed border-transparent text-slate-400'
+                    : hasData 
+                      ? 'bg-[#B2DFDB]/50 border-transparent hover:bg-[#B2DFDB]/70 text-slate-700'
+                    : 'text-slate-600 hover:bg-slate-50 border-transparent hover:border-slate-100 cursor-pointer'
                   }
                 `}
               >
-                {day}
-                {/* Status dots */}
-                {daySchs.length > 0 && (
-                  <div className="flex gap-0.5 mt-0.5">
-                    {['completed','scheduled','cancelled'].filter(st => daySchs.some(s => s.status === st)).map(st => (
-                      <div key={st} className={`w-1.5 h-1.5 rounded-full ${STATUS_COLORS[st].dot}`} />
+                <span className={`${isSunday ? 'text-orange-500' : ''} ${(todayDay && !selected) ? 'text-blue-600 font-black' : ''}`}>
+                  {day}
+                </span>
+
+                {/* Status dots container - stacked below number */}
+                {hasData && (
+                  <div className="flex gap-1 mt-1 sm:mt-1.5 flex-wrap justify-center px-1">
+                    {/* Render different color dots depending on status */}
+                    {daySchs.filter(s => s.status === 'scheduled').slice(0,2).map(s => (
+                      <div key={'s-'+s._id} className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-500 shadow-sm" />
                     ))}
+                    {daySchs.filter(s => s.status === 'completed').slice(0,2).map(s => (
+                      <div key={'c-'+s._id} className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-yellow-500 shadow-sm" />
+                    ))}
+                    {daySchs.filter(s => s.status === 'cancelled').slice(0,2).map(s => (
+                      <div key={'x-'+s._id} className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-purple-500 shadow-sm" />
+                    ))}
+                    {daySchs.length > 4 && (
+                      <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-slate-400 shadow-sm" />
+                    )}
                   </div>
                 )}
+                
                 {/* Quick-add hint on empty future day */}
                 {canAddNew && (
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                    <Plus size={16} className="text-blue-400" />
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity bg-white/50 backdrop-blur-[1px] rounded-xl border border-dashed border-teal-300">
+                    <Plus size={16} className="text-teal-600" />
                   </div>
                 )}
                 {/* Diagonal line for full-cancelled days */}
