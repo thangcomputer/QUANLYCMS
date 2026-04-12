@@ -5,7 +5,7 @@ const AssignmentSchema = new mongoose.Schema({
   teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', required: true },
   title: { type: String, required: true },
   description: { type: String, default: '' },
-  attachedFileUrl: { type: String, default: '' },
+  fileUrl: { type: String, default: '' },
   deadline: { type: Date, required: true },
   status: { type: String, enum: ['active', 'closed'], default: 'active' }
 }, {

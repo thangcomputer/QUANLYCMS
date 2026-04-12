@@ -417,6 +417,19 @@ export const assignmentsAPI = {
     });
     return res.json();
   },
+  update: async (assignmentId, data) => {
+    const res = await apiFetch(`/assignments/${assignmentId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+  delete: async (assignmentId) => {
+    const res = await apiFetch(`/assignments/${assignmentId}`, {
+      method: 'DELETE',
+    });
+    return res.json();
+  },
   submit: async (assignmentId, data) => {
     const res = await apiFetch(`/assignments/${assignmentId}/submit`, {
       method: 'POST',

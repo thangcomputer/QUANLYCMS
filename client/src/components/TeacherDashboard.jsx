@@ -154,6 +154,8 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
   const [loadingAssign, setLoadingAssign] = useState(false);
   const [showAddAssign, setShowAddAssign] = useState(false);
   const [newAssign, setNewAssign] = useState({ title: '', deadline: '', fileUrl: '', description: '' });
+  const [editingAssignmentId, setEditingAssignmentId] = useState(null);
+  const [editingAssign, setEditingAssign] = useState({ title: '', deadline: '', fileUrl: '', description: '' });
 
   const done = student.completedSessions != null ? student.completedSessions : (student.totalSessions - student.remainingSessions);
   const progressPct = Math.round((done / student.totalSessions) * 100);
@@ -194,6 +196,37 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
       if (res.success) {
         setShowAddAssign(false);
         setNewAssign({ title: '', deadline: '', fileUrl: '', description: '' });
+        fetchStudentAssignments();
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const handleEditAssign = (assign) => {
+    setEditingAssignmentId(assign._id);
+    setEditingAssign({
+      title: assign.title,
+      deadline: assign.deadline ? new Date(assign.deadline).toISOString().slice(0,16) : '',
+      fileUrl: assign.fileUrl || '',
+      description: assign.description || ''
+    });
+  };
+
+  const handleUpdateAssign = async () => {
+    if (!editingAssign.title || !editingAssign.deadline) return;
+    try {
+      const res = await api.assignments.update(editingAssignmentId, editingAssign);
+      if (res.success) {
+        setEditingAssignmentId(null);
+        fetchStudentAssignments();
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const handleDeleteAssign = async (id) => {
+    if (!window.confirm("Bạn có chắc muốn xóa bài tập này?")) return;
+    try {
+      const res = await api.assignments.delete(id);
+      if (res.success) {
         fetchStudentAssignments();
       }
     } catch (e) { console.error(e); }
@@ -489,22 +522,55 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
                       const isSubmitted = !!submission;
                       const isGraded = submission?.status === 'graded';
                       
-                      return (
+                      return editingAssignmentId === assign._id ? (
+                        <div key={`edit-${assign._id}`} className="bg-indigo-50 border border-indigo-200 rounded-[32px] p-6 space-y-4 shadow-inner animate-in zoom-in-95 relative z-10 transition-all">
+                          <div className="flex items-center justify-between">
+                             <h4 className="text-[11px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-2">Chỉnh sửa Bài tập</h4>
+                             <button onClick={() => setEditingAssignmentId(null)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={16}/></button>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-[9px] font-black text-indigo-400 uppercase mb-1 block">Tiêu đề bài tập</label>
+                              <input type="text" value={editingAssign.title} onChange={e => setEditingAssign({...editingAssign, title: e.target.value})}
+                                className="w-full bg-white border border-indigo-200 rounded-2xl px-4 py-3 text-sm font-bold text-indigo-900 focus:border-indigo-500 outline-none"/>
+                            </div>
+                            <div>
+                              <label className="text-[9px] font-black text-indigo-400 uppercase mb-1 block">Hạn nộp (Deadline)</label>
+                              <input type="datetime-local" value={editingAssign.deadline} onChange={e => setEditingAssign({...editingAssign, deadline: e.target.value})}
+                                className="w-full bg-white border border-indigo-200 rounded-2xl px-4 py-3 text-sm font-bold text-indigo-900 focus:border-indigo-500 outline-none text-center" />
+                            </div>
+                            <div className="md:col-span-2">
+                              <label className="text-[9px] font-black text-indigo-400 uppercase mb-1 block">Tài liệu đính kèm (Link Drive/File)</label>
+                              <input type="text" value={editingAssign.fileUrl} onChange={e => setEditingAssign({...editingAssign, fileUrl: e.target.value})}
+                                className="w-full bg-white border border-indigo-200 rounded-2xl px-4 py-3 text-sm font-bold text-indigo-900 focus:border-indigo-500 outline-none" placeholder="Dán link Drive/File..." />
+                            </div>
+                            <button onClick={handleUpdateAssign} className="md:col-span-2 bg-indigo-600 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest hover:bg-indigo-700 transition shadow-lg shadow-indigo-100">CẬP NHẬT BÀI TẬP</button>
+                          </div>
+                        </div>
+                      ) : (
                         <div key={assign._id} className="bg-white rounded-[40px] p-6 border border-gray-100 hover:border-indigo-200 hover:shadow-2xl hover:shadow-slate-200/50 transition-all group relative overflow-hidden">
                           {isGraded && <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/5 rounded-full translate-x-12 -translate-y-12" />}
                           <div className="flex items-start justify-between gap-6 relative z-10">
-                            <div className="flex-1">
-                              <h5 className="font-black text-slate-800 text-base mb-2 group-hover:text-indigo-600 transition-colors uppercase leading-tight">{assign.title}</h5>
+                            <div className="flex-1 min-w-0">
+                              <h5 className="font-black text-slate-800 text-base mb-2 group-hover:text-indigo-600 transition-colors uppercase leading-tight truncate pr-4">{assign.title}</h5>
                               <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
                                  <p className="text-[10px] font-black text-slate-400 flex items-center gap-1.5"><Clock size={12} className="text-orange-400"/> HẠN: {new Date(assign.deadline).toLocaleDateString('vi-VN')}</p>
                                  {assign.fileUrl && (
-                                   <a href={assign.fileUrl} target="_blank" rel="noreferrer" className="text-[10px] font-black text-blue-600 hover:text-blue-800 flex items-center gap-1.5 bg-blue-50 px-3 py-1 rounded-lg">
+                                   <a href={assign.fileUrl.startsWith('http') ? assign.fileUrl : `https://${assign.fileUrl}`} target="_blank" rel="noreferrer" className="text-[10px] font-black text-blue-600 hover:text-blue-800 flex items-center gap-1.5 bg-blue-50 px-3 py-1 rounded-lg">
                                      <Link2 size={12} /> XEM ĐỀ BÀI
                                    </a>
                                  )}
+                                 <div className="flex items-center gap-2 mt-2 w-full sm:w-auto sm:mt-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => handleEditAssign(assign)} title="Sửa bài tập" className="text-slate-400 hover:text-indigo-600 transition-colors bg-slate-50 hover:bg-indigo-50 p-1.5 rounded-lg">
+                                      <Edit3 size={14} />
+                                    </button>
+                                    <button onClick={() => handleDeleteAssign(assign._id)} title="Xóa bài tập" className="text-slate-400 hover:text-red-500 transition-colors bg-slate-50 hover:bg-red-50 p-1.5 rounded-lg">
+                                      <Trash2 size={14} />
+                                    </button>
+                                 </div>
                               </div>
                             </div>
-                            <div className="flex flex-col items-end gap-3 font-black">
+                            <div className="flex flex-col items-end gap-3 font-black flex-shrink-0">
                               {isSubmitted ? (
                                 <div className={`px-4 py-1.5 rounded-2xl text-[10px] uppercase tracking-widest flex items-center gap-2 ${isGraded ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
                                   {isGraded ? <Check size={12}/> : <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />}

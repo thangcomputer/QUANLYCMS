@@ -53,6 +53,38 @@ router.post('/', async (req, res) => {
   }
 });
 
+// ─── Giáo viên cập nhật bài tập ────────────────────────────────────────────
+router.put('/:id', async (req, res) => {
+  try {
+    const updated = await Assignment.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!updated) return res.status(404).json({ success: false, message: 'Không tìm thấy bài tập' });
+    
+    const io = req.app.get('io');
+    if (io) io.to(`course_${updated.courseId}`).emit('assignment:updated', updated);
+    
+    return res.json({ success: true, data: updated });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
+
+// ─── Giáo viên xóa bài tập ─────────────────────────────────────────────────
+router.delete('/:id', async (req, res) => {
+  try {
+    const deleted = await Assignment.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ success: false, message: 'Không tìm thấy bài tập' });
+    
+    await Submission.deleteMany({ assignmentId: req.params.id });
+    
+    const io = req.app.get('io');
+    if (io) io.to(`course_${deleted.courseId}`).emit('assignment:deleted', deleted._id);
+    
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
+
 // ─── Học viên nộp bài ──────────────────────────────────────────────────────
 router.post('/:id/submit', async (req, res) => {
   try {
