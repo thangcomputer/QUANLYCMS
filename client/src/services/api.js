@@ -238,10 +238,10 @@ export const teachersAPI = {
     const res = await apiFetch(`/teachers/${id}/finance/pending`);
     return res.json();
   },
-  payFlexible: async (teacherId, sessions, amount, note) => {
-    const res = await apiFetch(`/teachers/${teacherId}/pay-flexible`, {
-      method: 'POST',
-      body: JSON.stringify({ sessions, amount, note }),
+  payFlexible: async (teacherId, sessionsCount, amount, note) => {
+    const res = await apiFetch(`/teachers/${teacherId}/finance/pay-flexible`, {
+      method: 'PUT',
+      body: JSON.stringify({ sessionsCount, amount, note }),
     });
     return res.json();
   },
