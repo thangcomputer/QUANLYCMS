@@ -1451,7 +1451,7 @@ const AdminDashboard = ({ onNavigate }) => {
   const statPendingTeachers = branchStats?.pendingTeachers ?? teachers.filter(t => t.status === 'Pending').length;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="bg-transparent h-full">
 
       {/* Main content */}
       <div className="min-w-0">

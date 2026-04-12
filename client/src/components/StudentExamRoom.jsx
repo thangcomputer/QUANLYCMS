@@ -258,7 +258,7 @@ const StudentExamRoom = ({ onNavigate, onStartExam }) => {
 
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans">
+    <div className="bg-transparent font-sans h-full">
       {/* Navbar removed - using DashboardLayout header */}
       <div className="pt-6"></div>
 

@@ -907,7 +907,7 @@ const StudentDashboard = ({ onNavigate }) => {
   // ── RENDER ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans">
+    <div className="bg-transparent font-sans h-full">
       {/* Popup thông báo — hiện 1 lần/ngày */}
       <PopupBanner role="student" />
 

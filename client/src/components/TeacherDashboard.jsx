@@ -2161,7 +2161,7 @@ const TeacherDashboard = ({ onNavigate }) => {
   
   if (session.role === 'teacher' && isPending) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
+      <div className="bg-transparent flex items-center justify-center p-6 h-full">
         <div className="max-w-lg w-full">
           {/* Card trung tâm */}
           <div className="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
@@ -2277,7 +2277,7 @@ const TeacherDashboard = ({ onNavigate }) => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="bg-transparent h-full">
       {/* Popup thông báo — hiện 1 lần/ngày */}
       <PopupBanner role="teacher" />
 

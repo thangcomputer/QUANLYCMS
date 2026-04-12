@@ -267,7 +267,7 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
 
   // UI LAYOUTS
   if (phase === 'banned') return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-6">
+    <div className="h-full  bg-black flex items-center justify-center p-6">
       <div className="bg-white rounded-[40px] p-10 max-w-md w-full text-center shadow-2xl border-t-[12px] border-red-600">
         <XCircle size={80} className="text-red-600 mx-auto mb-6" />
         <h2 className="text-3xl font-black text-red-600 uppercase italic">BÀI THI BỊ HỦY</h2>
@@ -280,7 +280,7 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
   );
 
   if (phase === 'hardware_check') return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-6 relative overflow-hidden">
+    <div className="h-full  bg-slate-900 flex items-center justify-center p-6 relative overflow-hidden">
       <div className="absolute inset-0 border-[16px] border-[#203DB5]/30 pointer-events-none rounded-[40px] m-4 animate-pulse" />
       <div className="bg-white rounded-[40px] p-10 max-w-xl w-full text-center shadow-2xl z-10 border-t-8 border-[#203DB5] animate-in zoom-in duration-500">
          <Monitor size={72} className="text-[#203DB5] mx-auto mb-6" />
@@ -329,7 +329,7 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
   );
 
   if (phase === 'intro') return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8 pt-20">
+    <div className="h-full  bg-slate-50 p-4 md:p-8 pt-20">
       <div className="max-w-6xl mx-auto">
         <EvaluationStepper 
           currentStep={1} 
@@ -478,7 +478,7 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
   );
 
   if (phase === 'result') return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+    <div className="h-full  bg-slate-50 p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
         <EvaluationStepper 
             currentStep={practicalSubmitted || currentTeacher?.practicalFile ? 3 : 2} 
@@ -638,7 +638,7 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
   );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] relative font-sans selection:bg-red-100 selection:text-red-900 overflow-x-hidden">
+    <div className="h-full  bg-[#F8FAFC] relative font-sans selection:bg-red-100 selection:text-red-900 overflow-x-hidden">
       {/* Background Decor */}
       <div className="fixed inset-0 pointer-events-none -z-10">
         <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[40%] bg-blue-50/50 rounded-full blur-[120px]" />
