@@ -70,7 +70,7 @@ const ScheduleModal = ({ schedule, students, onClose, onSubmit }) => {
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
         <div className="bg-blue-600 px-6 py-4 text-white flex justify-between items-center">
-          <h3 className="font-bold flex items-center gap-2"><Calendar size={18}/> {schedule ? 'Cập nhật lịch học' : 'Xếp lịch học mới'}</h3>
+          <h3 className="font-bold flex items-center gap-2"><Calendar size={18}/> {(schedule?.id || schedule?._id) ? 'Cập nhật lịch học' : 'Xếp lịch học mới'}</h3>
           <button onClick={onClose}><X size={20}/></button>
         </div>
         <div className="p-6 space-y-4">
@@ -128,7 +128,7 @@ const ScheduleModal = ({ schedule, students, onClose, onSubmit }) => {
             <input type="text" name="topic" value={form.topic} onChange={handleChange} placeholder="VD: Ôn tập hàm IF, VLOOKUP" className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl p-3 text-sm focus:border-blue-400 outline-none" />
           </div>
           <button onClick={() => onSubmit(form)} className="w-full bg-blue-600 py-4 rounded-2xl text-white font-bold shadow-lg shadow-blue-100 hover:bg-blue-700 transition">
-            {schedule ? 'CẬP NHẬT LỊCH' : 'XẾP LỊCH NGAY'}
+            {(schedule?.id || schedule?._id) ? 'CẬP NHẬT LỊCH' : 'XẾP LỊCH NGAY'}
           </button>
         </div>
       </div>
@@ -1963,8 +1963,9 @@ const TeacherDashboard = ({ onNavigate }) => {
   const [editingSchedule, setEditingSchedule] = useState(null);
 
   const handleScheduleSubmit = (form) => {
-    if (editingSchedule) {
-      updateSchedule(editingSchedule.id, form);
+    // Nếu có ID hợp lệ thì mới là Update, ngược lại (chỉ có date prefill) là Create Mới
+    if (editingSchedule && (editingSchedule.id || editingSchedule._id)) {
+      updateSchedule(editingSchedule.id || editingSchedule._id, form);
     } else {
       addSchedule({ ...form, teacherId: TEACHER_ID });
     }
