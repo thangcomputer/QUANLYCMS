@@ -259,7 +259,7 @@ const ScheduleView = ({ schedules, student }) => {
 
 // ─── Materials Section ──────────────────────────────────────────────────────
 
-const MaterialsView = ({ trainingData, courseName, studentQuestions }) => {
+const MaterialsView = ({ trainingData, courseName, studentQuestions, onSelectAssignment }) => {
   const [activeTab, setActiveTab] = useState('videos');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -399,12 +399,23 @@ const MaterialsView = ({ trainingData, courseName, studentQuestions }) => {
                     </div>
                     
                     <div className="flex flex-row md:flex-col gap-2 flex-shrink-0 mt-2 md:mt-0">
-                      <button className="flex-1 justify-center text-xs font-bold text-slate-600 bg-slate-100 px-4 py-2 rounded-xl hover:bg-slate-200 transition flex items-center gap-2">
-                        <Download size={14} /> Tải bài tập
-                      </button>
-                      <button className={`flex-1 justify-center text-xs font-bold px-4 py-2 rounded-xl transition flex items-center gap-2 shadow-sm bg-blue-50 text-blue-600 hover:bg-blue-100`}>
-                        <FileUp size={14} /> Nộp bài
-                      </button>
+                      {m.url && m.url.trim() && (
+                        <a href={m.url.startsWith('http') ? m.url : `https://${m.url}`} target="_blank" rel="noreferrer" className="flex-1 justify-center text-xs font-bold text-slate-600 bg-slate-100 px-4 py-2 rounded-xl hover:bg-slate-200 transition flex items-center gap-2">
+                          <Download size={14} /> Tải đề bài
+                        </a>
+                      )}
+                      
+                      {m.isDynamicAssignment ? (
+                        <button 
+                          onClick={() => onSelectAssignment && onSelectAssignment(m.rawAssignment)}
+                          className={`flex-1 justify-center text-xs font-bold px-4 py-2 rounded-xl transition flex items-center gap-2 shadow-sm ${m.rawAssignment.mySubmission ? 'bg-blue-50 text-blue-600 hover:bg-blue-100' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+                          <FileUp size={14} /> {m.rawAssignment.mySubmission ? 'Nộp lại bài' : 'Nộp bài'}
+                        </button>
+                      ) : (
+                        <button className={`flex-1 justify-center text-xs font-bold px-4 py-2 rounded-xl transition flex items-center gap-2 shadow-sm bg-blue-50 text-blue-600 hover:bg-blue-100`}>
+                          <FileUp size={14} /> Nộp bài
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1089,9 +1100,29 @@ const StudentDashboard = ({ onNavigate }) => {
               <h2 className="text-lg font-black text-gray-800 flex items-center gap-2">
                 <BookOpen size={20} className="text-purple-500" /> Tài liệu khóa học
               </h2>
-              <span className="text-xs text-gray-400">{studentTrainingData ? (studentTrainingData.videos?.length + studentTrainingData.files?.length + studentTrainingData.guides?.length) : 0} tài liệu</span>
+              <span className="text-xs text-gray-400">{(studentTrainingData?.videos?.length || 0) + (studentTrainingData?.files?.length || 0) + ((studentTrainingData?.guides?.length || 0) + (myAssignments?.length || 0))} tài liệu</span>
             </div>
-            <MaterialsView trainingData={studentTrainingData} courseName={studentData.course} studentQuestions={studentQuestions} />
+            <MaterialsView 
+              trainingData={{
+                 ...studentTrainingData,
+                 guides: [
+                   ...(studentTrainingData?.guides || []),
+                   ...(myAssignments || []).map(a => ({
+                     id: a._id,
+                     title: a.title,
+                     desc: a.description || 'Bài tập được giao trực tiếp từ Giảng viên',
+                     createdAt: new Date(a.createdAt).toLocaleDateString('vi-VN'),
+                     url: a.fileUrl || '',
+                     fileType: 'ASSIGNMENT',
+                     isDynamicAssignment: true,
+                     rawAssignment: a
+                   }))
+                 ]
+              }} 
+              courseName={studentData.course} 
+              studentQuestions={studentQuestions}
+              onSelectAssignment={(assign) => setActiveAssignment(assign)}
+            />
           </div>
 
         ) : currentHash === 'evaluation' ? (
