@@ -173,7 +173,9 @@ StudentSchema.virtual('sessionsCompleted').get(function () {
 // ── Virtual: % tiến độ ────────────────────────────────────────────
 StudentSchema.virtual('progressPercent').get(function () {
   if (!this.totalSessions) return 0;
-  return Math.round(((this.totalSessions - this.remainingSessions) / this.totalSessions) * 100);
+  const done = this.completedSessions != null ? this.completedSessions : Math.max(0, this.totalSessions - this.remainingSessions);
+  const total = Math.max(this.totalSessions, done + this.remainingSessions);
+  return Math.round((done / total) * 100);
 });
 
 // ── Middleware: Hash password trước khi save ───────────────────────

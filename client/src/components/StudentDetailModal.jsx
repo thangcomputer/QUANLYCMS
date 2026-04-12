@@ -4,7 +4,7 @@ import {
   MapPin, Phone, MessageSquare, Calendar, ChevronRight,
   TrendingUp, CreditCard, ClipboardList, ShieldCheck, 
   Printer, Loader2, AlertCircle, CheckCircle2, Star,
-  Smartphone, Hash, ArrowUpRight, Building2
+  Smartphone, Hash, ArrowUpRight, Building2, Plus, Download
 } from 'lucide-react';
 import api from '../services/api';
 import { useModal } from '../utils/Modal.jsx';
