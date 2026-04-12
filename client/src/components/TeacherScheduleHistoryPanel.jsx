@@ -30,7 +30,11 @@ export default function TeacherScheduleHistoryPanel({ teacherId }) {
         const result = await res.json();
         if (!active) return;
         if (result.success) {
-          setData(result.data);
+          // Backend returns: { success: true, data: [...], stats: {...} }
+          setData({
+            history: result.data || [],
+            ...result.stats
+          });
         } else {
           setError(result.message || 'Lỗi tải lịch sử');
         }
@@ -66,18 +70,18 @@ export default function TeacherScheduleHistoryPanel({ teacherId }) {
 
   if (!data) return null;
 
-  const { totalCreated, totalCancelled, cancelRate, history } = data;
+  const { total = 0, created = 0, cancelled = 0, cancelRate = 0, history = [] } = data;
 
   return (
     <div className="space-y-5">
       {/* 4-Stat Box */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100/50 rounded-2xl p-4 text-center shadow-sm">
-          <p className="text-3xl font-black text-blue-700">{totalCreated}</p>
+          <p className="text-3xl font-black text-blue-700">{created}</p>
           <p className="text-[10px] uppercase font-black text-blue-500 mt-1.5 tracking-wider">Lịch đã xếp</p>
         </div>
         <div className="bg-gradient-to-br from-red-50 to-rose-50 border border-red-100/50 rounded-2xl p-4 text-center shadow-sm">
-          <p className="text-3xl font-black text-red-600">{totalCancelled}</p>
+          <p className="text-3xl font-black text-red-600">{cancelled}</p>
           <p className="text-[10px] uppercase font-black text-red-500 mt-1.5 tracking-wider">Đã huỷ</p>
         </div>
         <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-100/50 rounded-2xl p-4 text-center shadow-sm">
