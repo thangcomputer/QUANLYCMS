@@ -5,8 +5,7 @@ import {
   Bell, LogOut, Plus, ChevronRight, BookOpen, Award, Zap,
   BarChart3, Users, ArrowLeft, ChevronLeft, Eye, X, XCircle,
   Search, Download, AlertCircle, Clipboard, Send, UserCheck, Check,
-  Activity, DollarSign, Filter, User, Phone, Mail, Building2,
-  CreditCard, Landmark, Copy, Edit3, Shield, MapPin, Trash2, Ban, PlayCircle
+  CreditCard, Landmark, Copy, Edit3, Shield, MapPin, Trash2, Ban, PlayCircle, Upload
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import TeacherAssignmentsView from './TeacherAssignmentsView';
@@ -230,6 +229,28 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
         fetchStudentAssignments();
       }
     } catch (e) { console.error(e); }
+  };
+
+  const handleAssignmentUpload = async (e, type = 'new') => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
+      alert("File đính kèm quá lớn. Xin vui lòng giới hạn dưới 3MB!");
+      e.target.value = '';
+      return;
+    }
+    try {
+      const res = await api.assignments.uploadFile(file);
+      if (res.success) {
+        if (type === 'new') setNewAssign(prev => ({...prev, fileUrl: res.fileUrl}));
+        else setEditingAssign(prev => ({...prev, fileUrl: res.fileUrl}));
+      } else {
+        alert(res.message || "Lỗi khi tải file lên");
+      }
+    } catch(err) {
+      alert("Lỗi mạng khi tải file");
+    }
+    e.target.value = '';
   };
 
   const handleUndoAttendance = async () => {
@@ -504,9 +525,16 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
                           className="w-full bg-white border border-indigo-200 rounded-2xl px-4 py-3 text-sm font-bold text-indigo-900 focus:border-indigo-500 outline-none" />
                       </div>
                       <div className="md:col-span-2">
-                        <label className="text-[9px] font-black text-indigo-400 uppercase mb-1 block">Link tài liệu / Đề bài</label>
-                        <input type="text" value={newAssign.fileUrl} onChange={e => setNewAssign({...newAssign, fileUrl: e.target.value})}
-                          className="w-full bg-white border border-indigo-200 rounded-2xl px-4 py-3 text-sm font-bold text-indigo-900 focus:border-indigo-500 outline-none" placeholder="Dán link Drive/File..." />
+                        <label className="text-[9px] font-black text-indigo-400 uppercase mb-1 block">Tài liệu đính kèm (Link Drive/File hoặc Tải lên)</label>
+                        <div className="flex items-center gap-2">
+                          <input type="text" value={newAssign.fileUrl} onChange={e => setNewAssign({...newAssign, fileUrl: e.target.value})}
+                            className="flex-1 bg-white border border-indigo-200 rounded-2xl px-4 py-3 text-sm font-bold text-indigo-900 focus:border-indigo-500 outline-none" placeholder="Dán link Drive/File..." />
+                          <label className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-4 py-3 rounded-2xl cursor-pointer transition flex items-center justify-center" title="Tải file lên (Tối đa 3MB)">
+                            <Upload size={18} />
+                            <input type="file" className="hidden" onChange={(e) => handleAssignmentUpload(e, 'new')} accept=".pdf,.doc,.docx,.xls,.xlsx,.zip,.rar" />
+                          </label>
+                        </div>
+                        <p className="text-[9px] text-gray-400 font-medium italic mt-1.5 ml-1">* Cho phép: PDF, Word, Excel, ZIP, RAR. Tối đa 3MB.</p>
                       </div>
                       <button onClick={handleCreateAssign} className="md:col-span-2 bg-indigo-600 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest hover:bg-indigo-700 transition shadow-lg shadow-indigo-100">GỬI BÀI TẬP CHO HỌC VIÊN</button>
                     </div>
@@ -540,9 +568,16 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
                                 className="w-full bg-white border border-indigo-200 rounded-2xl px-4 py-3 text-sm font-bold text-indigo-900 focus:border-indigo-500 outline-none text-center" />
                             </div>
                             <div className="md:col-span-2">
-                              <label className="text-[9px] font-black text-indigo-400 uppercase mb-1 block">Tài liệu đính kèm (Link Drive/File)</label>
-                              <input type="text" value={editingAssign.fileUrl} onChange={e => setEditingAssign({...editingAssign, fileUrl: e.target.value})}
-                                className="w-full bg-white border border-indigo-200 rounded-2xl px-4 py-3 text-sm font-bold text-indigo-900 focus:border-indigo-500 outline-none" placeholder="Dán link Drive/File..." />
+                              <label className="text-[9px] font-black text-indigo-400 uppercase mb-1 block">Tài liệu đính kèm (Link Drive/File hoặc Tải lên)</label>
+                              <div className="flex items-center gap-2">
+                                <input type="text" value={editingAssign.fileUrl} onChange={e => setEditingAssign({...editingAssign, fileUrl: e.target.value})}
+                                  className="flex-1 bg-white border border-indigo-200 rounded-2xl px-4 py-3 text-sm font-bold text-indigo-900 focus:border-indigo-500 outline-none" placeholder="Dán link Drive/File..." />
+                                <label className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-4 py-3 rounded-2xl cursor-pointer transition flex items-center justify-center" title="Tải file lên (Tối đa 3MB)">
+                                  <Upload size={18} />
+                                  <input type="file" className="hidden" onChange={(e) => handleAssignmentUpload(e, 'edit')} accept=".pdf,.doc,.docx,.xls,.xlsx,.zip,.rar" />
+                                </label>
+                              </div>
+                              <p className="text-[9px] text-gray-400 font-medium italic mt-1.5 ml-1">* Cho phép: PDF, Word, Excel, ZIP, RAR. Tối đa 3MB.</p>
                             </div>
                             <button onClick={handleUpdateAssign} className="md:col-span-2 bg-indigo-600 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest hover:bg-indigo-700 transition shadow-lg shadow-indigo-100">CẬP NHẬT BÀI TẬP</button>
                           </div>

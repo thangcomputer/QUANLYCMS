@@ -1,10 +1,72 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
 const Assignment = require('../models/Assignment');
 const Submission = require('../models/Submission');
 const Student = require('../models/Student');
 const Teacher = require('../models/Teacher');
 
 const router = express.Router();
+
+// Tự động tạo thư mục uploads/assignments nếu chưa có
+const uploadDir = path.join(__dirname, '..', 'uploads', 'assignments');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// Cấu hình Multer cho Bài tập (Giới hạn 3MB)
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const ext = path.extname(file.originalname);
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+  }
+});
+
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 3 * 1024 * 1024 }, // Giới hạn 3MB
+  fileFilter: (req, file, cb) => {
+    // Chỉ cho phép các định dạng cơ bản: zip, rar, pdf, doc, docx, xls, xlsx, v.v
+    const allowed = /zip|rar|tar|7z|pdf|doc|docx|xls|xlsx|ppt|pptx|jpg|jpeg|png/;
+    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
+    const mime = allowed.test(file.mimetype);
+    if (ext && mime) {
+      return cb(null, true);
+    }
+    cb(new Error('Chỉ hỗ trợ file Văn bản, Cờ, hoặc Nén (Tối đa 3MB)!'));
+  }
+});
+
+// ─── Tải file đính kèm/nộp bài chung ─────────────────────────────────────────
+router.post('/upload', upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Chưa chọn file để tải lên' });
+    }
+    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/assignments/${req.file.filename}`;
+    return res.json({ success: true, fileUrl, message: 'Tải file lên thành công!' });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Lỗi server khi tải file' });
+  }
+});
+
+// Error handling cho multer lỗi kích thước
+router.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ success: false, message: 'File tải lên quá lớn. Xin vui lòng giới hạn dưới 3MB!' });
+    }
+  } else if (err) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+  next();
+});
 
 // ─── Lấy danh sách giao bài (Theo Course) ──────────────────────────────────
 router.get('/course/:courseId', async (req, res) => {

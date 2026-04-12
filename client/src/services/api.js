@@ -430,6 +430,20 @@ export const assignmentsAPI = {
     });
     return res.json();
   },
+  uploadFile: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const options = { method: 'POST', body: formData };
+    // Khong send Content-Type ngam dinh de fetch auto sinh multipart content-type boundary
+    const token = localStorage.getItem('token');
+    const res = await fetch(`http://localhost:5000/api/assignments/upload`, {
+      ...options,
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    return res.json();
+  },
   submit: async (assignmentId, data) => {
     const res = await apiFetch(`/assignments/${assignmentId}/submit`, {
       method: 'POST',

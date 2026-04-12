@@ -854,6 +854,29 @@ const StudentDashboard = ({ onNavigate }) => {
   const [submissionLink, setSubmissionLink] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const handleStudentUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
+      alert("File bài làm quá lớn. Xin vui lòng giới hạn dưới 3MB!");
+      e.target.value = '';
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const res = await api.assignments.uploadFile(file);
+      if (res.success) {
+        setSubmissionLink(res.fileUrl);
+      } else {
+        alert(res.message || "Lỗi tải file");
+      }
+    } catch(err) {
+      alert("Lỗi mạng khi tải file");
+    }
+    setIsSubmitting(false);
+    e.target.value = '';
+  };
+
   useEffect(() => {
     if (studentData && studentData.course) {
       api.assignments.getByStudentAndCourse(STUDENT_ID, studentData.course)
@@ -957,15 +980,21 @@ const StudentDashboard = ({ onNavigate }) => {
               </div>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">Link bài làm (Google Drive, Dropbox...)</label>
-                  <input 
-                    type="url"
-                    placeholder="https://drive.google.com/..." 
-                    className="w-full border-2 border-slate-200 focus:border-blue-500 rounded-xl px-4 py-3 outline-none transition-all placeholder:text-slate-300 font-medium"
-                    value={submissionLink}
-                    onChange={(e) => setSubmissionLink(e.target.value)}
-                  />
-                  <p className="text-[10px] text-slate-400 mt-2 italic">* Hãy chắc chắn bạn đã mở quyền truy cập (Anyone with the link) trước khi nộp.</p>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">Link bài làm hoặc Tải file lên</label>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="url"
+                      placeholder="https://drive.google.com/... hoặc link file" 
+                      className="flex-1 border-2 border-slate-200 focus:border-blue-500 rounded-xl px-4 py-3 outline-none transition-all placeholder:text-slate-300 font-medium"
+                      value={submissionLink}
+                      onChange={(e) => setSubmissionLink(e.target.value)}
+                    />
+                    <label className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-3 rounded-xl cursor-pointer transition flex items-center justify-center font-bold" title="Tải file trực tiếp (Tối đa 3MB)">
+                      {isSubmitting ? <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /> : <FileUp size={20} />}
+                      <input type="file" className="hidden" onChange={handleStudentUpload} accept=".pdf,.doc,.docx,.xls,.xlsx,.zip,.rar" disabled={isSubmitting} />
+                    </label>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-2 italic">* Tối đa 3MB (PDF, Word, Excel, ZIP, RAR). Nhớ mở quyền truy cập nếu là link Drive.</p>
                 </div>
                 <button
                   disabled={!submissionLink || isSubmitting}
