@@ -48,7 +48,7 @@ const ScheduleModal = ({ schedule, students, onClose, onSubmit }) => {
     startTime: '19:30',
     endTime: '21:00',
     dayOfWeek: getDayOfWeek(initDate),
-    topic: schedule?.topic || '',
+    topic: schedule?.topic || schedule?.note || '',
     course: students[0]?.course || '',
     sessionNumber: 1,
     ...(schedule ? { ...schedule, studentId: String(schedule.studentId || firstStudentId) } : {}),
@@ -1061,7 +1061,7 @@ const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSch
                   if (canAddNew && onAddSchedule) onAddSchedule(new Date(year, month, day));
                 }}
                 title={
-                  hasData ? daySchs.map(s => `${s.startTime} - ${s.studentName || s.course}${s.topic ? ` (${s.topic})` : ''}`).join('\n') 
+                  hasData ? daySchs.map(s => `${s.startTime} - ${s.studentName || s.course}${(s.topic || s.note) ? ` (${s.topic || s.note})` : ''}`).join('\n') 
                   : past ? 'Ngày đã qua, không thể sắp lịch' 
                   : 'Click để sắp lịch hôm này'
                 }
@@ -1177,9 +1177,9 @@ const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSch
                       <p className="text-[10px] text-gray-400 mt-0.5">
                         {s.startTime}{s.endTime ? ` – ${s.endTime}` : ''} &bull; {s.course}
                       </p>
-                      {s.topic && (
+                      {(s.topic || s.note) && (
                         <p className="text-[11px] font-medium text-blue-600 mt-1 truncate border-l-2 border-blue-500 pl-2 bg-blue-50/50 py-0.5 rounded-r">
-                          {s.topic}
+                          {s.topic || s.note}
                         </p>
                       )}
                       <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-block mt-1 ${cfg.badge}`}>
@@ -1247,9 +1247,9 @@ const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSch
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-gray-800 truncate">{s.studentName || s.course}</p>
                     <p className="text-[10px] text-gray-400">{s.startTime} – {s.endTime} &bull; {s.course}</p>
-                    {s.topic && (
+                    {(s.topic || s.note) && (
                       <p className="text-[10px] font-medium text-amber-600 mt-0.5 truncate">
-                        📖 {s.topic}
+                        📖 {s.topic || s.note}
                       </p>
                     )}
                   </div>
