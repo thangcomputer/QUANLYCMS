@@ -394,6 +394,9 @@ const MaterialsView = ({ trainingData, courseName, studentQuestions, onSelectAss
                         
                         <div className="flex items-center gap-4 mt-3 flex-wrap">
                           <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">📅 Ngày tạo: {m.createdAt}</span>
+                          {m.isDynamicAssignment && m.rawAssignment?.deadline && (
+                            <span className="text-[10px] font-bold text-orange-500 flex items-center gap-1">⏰ Hạn nộp: {new Date(m.rawAssignment.deadline).toLocaleDateString('vi-VN')}</span>
+                          )}
                         </div>
                       </div>
                     </div>

@@ -7,7 +7,12 @@ const router = express.Router();
 router.get('/admin', async (req, res) => {
   try {
     const evals = await Evaluation.find({ type: 'admin_feedback' }).sort({ createdAt: -1 });
-    return res.json({ success: true, data: evals });
+    const data = evals.map(e => ({
+      ...e.toObject(),
+      id: e._id,
+      date: new Date(e.createdAt).toLocaleDateString('vi-VN')
+    }));
+    return res.json({ success: true, data });
   } catch (err) {
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
@@ -17,7 +22,12 @@ router.get('/admin', async (req, res) => {
 router.get('/teacher/:teacherId', async (req, res) => {
   try {
     const evals = await Evaluation.find({ type: 'teacher_rating', targetTeacherId: req.params.teacherId }).sort({ createdAt: -1 });
-    return res.json({ success: true, data: evals });
+    const data = evals.map(e => ({
+      ...e.toObject(),
+      id: e._id,
+      date: new Date(e.createdAt).toLocaleDateString('vi-VN')
+    }));
+    return res.json({ success: true, data });
   } catch (err) {
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
@@ -26,9 +36,9 @@ router.get('/teacher/:teacherId', async (req, res) => {
 // ─── Học viên gửi đánh giá ──────────────────────────────────────────────────
 router.post('/', async (req, res) => {
   try {
-    const { studentId, targetTeacherId, courseId, type, criteria, content } = req.body;
+    const { studentId, targetTeacherId, courseId, type, criteria, content, studentName, teacherName, courseName, milestone } = req.body;
     const newEval = new Evaluation({
-      studentId, targetTeacherId, courseId, type, criteria, content
+      studentId, targetTeacherId, courseId, type, criteria, content, studentName, teacherName, courseName, milestone
     });
     
     await newEval.save();

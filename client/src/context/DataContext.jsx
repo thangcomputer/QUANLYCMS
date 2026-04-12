@@ -247,6 +247,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
         promises.push(api.teachers.getAll().catch(() => ({ success: false })));
         promises.push(api.transactions.getAll().catch(() => ({ success: false })));
         promises.push(api.examResults.getAll().catch(() => ({ success: false })));
+        promises.push(api.evaluations.getPrivate().catch(() => ({ success: false })));
       } else if (isTeacher) {
         promises.push(api.transactions.getByTeacher(currentUser.id).catch(() => ({ success: false })));
         promises.push(api.teachers.getById(currentUser.id || currentUser._id).catch(() => ({ success: false })));
@@ -291,6 +292,8 @@ export const DataProvider = ({ children, user, onLogout }) => {
         if (transactionsRes?.success) setTransactions(transactionsRes.data.map(tx => ({ ...tx, id: tx._id })));
         const examResultsRes = results[idx++];
         if (Array.isArray(examResultsRes)) setExamResults(examResultsRes.map(r => ({ ...r, id: r._id || r.id })));
+        const evalsRes = results[idx++];
+        if (evalsRes?.success) setPrivateEvaluations(evalsRes.data.map(e => ({ ...e, id: e._id || e.id })));
       } else if (isTeacher) {
         const transactionsRes = results[idx++];
         if (transactionsRes?.success) setTransactions(transactionsRes.data.map(tx => ({ ...tx, id: tx._id })));
@@ -1532,8 +1535,17 @@ export const DataProvider = ({ children, user, onLogout }) => {
 
   const submitPrivateEvaluation = useCallback((data) => {
     // data = { studentId, teacherId, milestone, courseName, criteria, comment }
-    const student = students.find(s => s.id === data.studentId);
-    const teacher = teachers.find(t => t.id === data.teacherId);
+    const student = students.find(s => String(s.id) === String(data.studentId));
+    const teacher = teachers.find(t => String(t.id) === String(data.teacherId));
+
+    const evalData = {
+      ...data,
+      studentName: student?.name || 'Học viên',
+      teacherName: teacher?.name || 'Giảng viên',
+      type: 'admin_feedback',
+      targetTeacherId: data.teacherId,
+      content: data.comment || '',
+    };
 
     setPrivateEvaluations(prev => {
       // Find matching evaluation: same student AND same courseName AND same specific milestone
@@ -1543,35 +1555,38 @@ export const DataProvider = ({ children, user, onLogout }) => {
         ev.milestone === data.milestone
       );
 
-      const evalData = {
-        ...data,
+      const optimisticData = {
+        ...evalData,
         id: existingIdx >= 0 ? prev[existingIdx].id : Date.now() + Math.random(),
-        studentName: student?.name || 'Học viên',
-        teacherName: teacher?.name || 'Giảng viên',
         date: new Date().toISOString().split('T')[0],
         read: false
       };
 
       if (existingIdx >= 0) {
         const next = [...prev];
-        next[existingIdx] = evalData;
+        next[existingIdx] = optimisticData;
         return next;
       }
-      return [...prev, evalData];
+      return [...prev, optimisticData];
     });
+
+    api.evaluations?.submit(evalData).then(() => triggerBackgroundSync()).catch(e => console.error(e));
 
     // Notify admin
     addNotification(null, 'admin',
-      `ðŸ“¢ Đánh giá RIÊNG (Mốc: ${data.milestone === 'lesson_1' ? 'Buổi 1' : data.milestone === 'manual_feedback' ? 'Theo khóa học' : '50% khóa'}): HV ${student?.name} đánh giá GV ${teacher?.name}`
+      `📢 Đánh giá RIÊNG (Mốc: ${data.milestone === 'lesson_1' ? 'Buổi 1' : data.milestone === 'manual_feedback' ? 'Theo khóa học' : '50% khóa'}): HV ${student?.name} đánh giá GV ${teacher?.name}`
     );
-  }, [students, teachers]);
+  }, [students, teachers, triggerBackgroundSync, addNotification]);
 
   const getPrivateEvaluationsForAdmin = useCallback(() => {
     return [...privateEvaluations].sort((a, b) => b.id - a.id);
   }, [privateEvaluations]);
 
-  const markEvaluationRead = useCallback((evalId) => {
+  const markEvaluationRead = useCallback(async (evalId) => {
     setPrivateEvaluations(prev => prev.map(ev => ev.id === evalId ? { ...ev, read: true } : ev));
+    try {
+      await api.evaluations?.markRead(evalId);
+    } catch (e) {}
   }, []);
 
   // ── VALUE ──────────────────────────────────────────────────────────────────

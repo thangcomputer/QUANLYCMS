@@ -391,7 +391,14 @@ export const schedulesAPI = {
 // ─── EVALUATION API ─────────────────────────────────────────────────────────
 export const evaluationsAPI = {
   getPrivate: async () => {
-    const res = await apiFetch('/evaluations/private');
+    const res = await apiFetch('/evaluations/admin');
+    return res.json();
+  },
+  submit: async (data) => {
+    const res = await apiFetch('/evaluations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
     return res.json();
   },
   markRead: async (id) => {

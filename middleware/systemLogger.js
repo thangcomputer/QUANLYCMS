@@ -48,7 +48,10 @@ function describeAction(method, path, body, responseBody) {
   // ── Students ──
   if (p.includes('/students') && method === 'POST')   return { action: 'THÊM HỌC VIÊN', category: 'student', desc: `Thêm học viên mới: ${body?.name || ''}` };
   if (p.includes('/students') && p.includes('/price')) return { action: 'SỬA HỌC PHÍ', category: 'student', desc: `Điều chỉnh học phí học viên` };
-  if (p.includes('/students') && method === 'PUT')    return { action: 'CẬP NHẬT HV', category: 'student', desc: `Cập nhật thông tin học viên` };
+  if (p.includes('/students') && method === 'PUT') {
+    const sName = responseBody?.data?.name || body?.name || '';
+    return { action: 'CẬP NHẬT HV', category: 'student', desc: `Cập nhật thông tin học viên${sName ? ': ' + sName : ''}` };
+  }
   if (p.includes('/students') && method === 'DELETE')  return { action: 'XÓA HỌC VIÊN', category: 'student', desc: `Xóa học viên khỏi hệ thống` };
 
   // ── Teachers ──
@@ -56,7 +59,10 @@ function describeAction(method, path, body, responseBody) {
   if (p.includes('/teachers') && p.includes('/approve'))  return { action: 'DUYỆT GV', category: 'teacher', desc: `Duyệt cấp quyền giảng viên` };
   if (p.includes('/teachers') && p.includes('/reject'))   return { action: 'TỪ CHỐI GV', category: 'teacher', desc: `Từ chối giảng viên` };
   if (p.includes('/teachers') && p.includes('/score'))    return { action: 'CHẤM ĐIỂM GV', category: 'teacher', desc: `Chấm điểm bài test giảng viên` };
-  if (p.includes('/teachers') && method === 'PUT')    return { action: 'CẬP NHẬT GV', category: 'teacher', desc: `Cập nhật thông tin giảng viên` };
+  if (p.includes('/teachers') && method === 'PUT') {
+    const tName = responseBody?.data?.name || body?.name || '';
+    return { action: 'CẬP NHẬT GV', category: 'teacher', desc: `Cập nhật thông tin giảng viên${tName ? ': ' + tName : ''}` };
+  }
   if (p.includes('/teachers') && method === 'DELETE')  return { action: 'XÓA GIẢNG VIÊN', category: 'teacher', desc: `Xóa giảng viên khỏi hệ thống` };
 
   // ── Schedule ──
