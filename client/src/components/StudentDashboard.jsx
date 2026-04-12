@@ -399,10 +399,14 @@ const MaterialsView = ({ trainingData, courseName, studentQuestions, onSelectAss
                     </div>
                     
                     <div className="flex flex-row md:flex-col gap-2 flex-shrink-0 mt-2 md:mt-0">
-                      {m.url && m.url.trim() && (
+                      {m.url && m.url.trim() ? (
                         <a href={m.url.startsWith('http') ? m.url : `https://${m.url}`} target="_blank" rel="noreferrer" className="flex-1 justify-center text-xs font-bold text-slate-600 bg-slate-100 px-4 py-2 rounded-xl hover:bg-slate-200 transition flex items-center gap-2">
                           <Download size={14} /> Tải đề bài
                         </a>
+                      ) : (
+                        <button type="button" onClick={() => alert("Giảng viên chưa đính kèm file đề bài cho bài tập này.")} className="flex-1 justify-center text-xs font-bold text-gray-400 bg-gray-50 px-4 py-2 rounded-xl hover:bg-gray-100 transition flex items-center gap-2">
+                          <Download size={14} /> Tải đề bài
+                        </button>
                       )}
                       
                       {m.isDynamicAssignment ? (
