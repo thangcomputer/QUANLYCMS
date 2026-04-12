@@ -820,7 +820,17 @@ const StudentDashboard = ({ onNavigate }) => {
       // Cung cấp mảng courses từ trường course đơn lẻ nếu cần
       courses: (student.courses && student.courses.length > 0) 
         ? student.courses 
-        : (student.course ? [{ id: 'main', name: student.course, teacherId: actualTeacherId }] : []),
+        : (student.course ? [{ 
+            id: 'main', 
+            name: student.course, 
+            teacherId: actualTeacherId, 
+            teacherName: extractedTeacherName || student.teacherName || 'Chưa phân công',
+            completedSessions: student.sessionsCompleted || (student.totalSessions - student.remainingSessions) || 0,
+            totalSessions: student.totalSessions || 12,
+            avgGrade: student.avgGrade || 0,
+            registeredAt: student.createdAt || new Date(),
+            status: student.status === 'Hoàn thành' ? 'completed' : 'active'
+          }] : []),
       completedSessions: student.sessionsCompleted || (student.totalSessions - student.remainingSessions) || 0,
       totalSessions: student.totalSessions || 12,
     };

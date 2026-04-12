@@ -685,7 +685,9 @@ export const DataProvider = ({ children, user, onLogout }) => {
         api.students?.update(studentId, {
           lastGrade: grade !== undefined ? grade : s.lastGrade,
           avgGrade: avg,
-          grades: newGrades
+          grades: newGrades,
+          completedSessions: s.completedSessions, // Preserve
+          remainingSessions: s.remainingSessions, // Preserve
         }).then(() => triggerBackgroundSync());
 
         return {
@@ -721,6 +723,8 @@ export const DataProvider = ({ children, user, onLogout }) => {
         lastGrade: grade || s.lastGrade,
         avgGrade: avg,
         grades: newGrades,
+        completedSessions: newCompleted,
+        remainingSessions: newRemaining,
         status: newRemaining <= 0 ? 'Hoàn thành' : 'Đang học',
       })
       .then(() => triggerBackgroundSync())
