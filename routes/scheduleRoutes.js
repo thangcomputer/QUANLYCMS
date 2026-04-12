@@ -201,6 +201,32 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // ✅ COOLDOWN 12H: Chống điểm danh trùng lặp giữa Admin và Giảng viên
+    // Chỉ áp dụng khi tạo schedule với status = 'completed' (tức là đang điểm danh)
+    const incomingStatus = status || 'scheduled';
+    if (incomingStatus === 'completed') {
+      const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+      const lastAttendance = await Schedule.findOne({
+        studentId,
+        course: courseFinal,
+        status: 'completed',
+        createdAt: { $gte: twelveHoursAgo },
+      }).sort({ createdAt: -1 });
+
+      if (lastAttendance) {
+        const diffMs = Date.now() - new Date(lastAttendance.createdAt).getTime();
+        const diffHrs = (diffMs / (1000 * 60 * 60)).toFixed(1);
+        const remainHrs = (12 - parseFloat(diffHrs)).toFixed(1);
+        return res.status(400).json({
+          success: false,
+          cooldown: true,
+          message: `Học viên này đã được điểm danh. Vui lòng thử lại sau ${remainHrs} tiếng.`,
+          lastAttendanceAt: lastAttendance.createdAt,
+          remainingHours: parseFloat(remainHrs),
+        });
+      }
+    }
+
     let finalPaidToTeacher = false;
     let paymentStatus = 'pending';
     const studentDoc = await Student.findById(studentId).lean();
@@ -236,6 +262,19 @@ router.post('/', async (req, res) => {
         schedule,
         message: `📅 Giảng viên ${teacherName} đã đặt lịch học ${course} vào ${startTime} ngày ${new Date(date).toLocaleDateString('vi-VN')}`,
       });
+
+      // 🔐 Nếu là điểm danh (status=completed), broadcast lock cho toàn hệ thống
+      if (schedule.status === 'completed') {
+        const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+        io.emit('attendance:locked', {
+          studentId: studentId.toString(),
+          course: courseFinal,
+          lockedUntil: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
+          attendedAt: new Date().toISOString(),
+          can_check_in: false,
+          message: `🔒 Học viên ${studentName} đã được điểm danh. Khóa trong 12 tiếng.`,
+        });
+      }
     }
 
     res.status(201).json({ success: true, data: schedule });
@@ -291,16 +330,9 @@ router.put('/:scheduleId', async (req, res) => {
            });
         }
 
-        // Tuyệt đối không dùng biến đếm chung hay $inc, phải đếm động từ Schedule:
-        const realCompleted = await Schedule.countDocuments({
-          studentId: schedule.studentId,
-          course: student.course,
-          status: 'completed'
-        });
-        await Student.findByIdAndUpdate(schedule.studentId, {
-          completedSessions: realCompleted,
-          remainingSessions: Math.max(0, (student.totalSessions || 12) - realCompleted)
-        });
+        // ✅ Không cần ghi completedSessions vào Student ở đây.
+        // GET /api/students đã tính động từ Schedule.countDocuments() mỗi lần fetch.
+        // Ghi ở đây gây race condition khi triggerBackgroundSync chạy ngay sau.
       }
 
       // Thông báo học viên

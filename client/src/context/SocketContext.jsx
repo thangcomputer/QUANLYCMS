@@ -193,7 +193,7 @@ export const SocketProvider = ({ userId, role, name, children }) => {
   }, []);
 
   const value = {
-    socket: socketRef.current,
+    socket,
     isConnected,
     onlineUsers,
     notifications,

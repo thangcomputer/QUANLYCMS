@@ -90,8 +90,35 @@ export const DataProvider = ({ children, user, onLogout }) => {
   // ── SOCKET LISTENERS (Global Data Sync) ───────────────────────────────────
   const { 
     onGroupNew, onRecallReceive, onReactionReceive, onDataRefresh, onMessageReceive,
-    notifications: socketNotifications, setNotifications: setSocketNotifications
+    notifications: socketNotifications, setNotifications: setSocketNotifications,
+    socket,
   } = useSocket();
+
+  // 🔐 COOLDOWN REAL-TIME SYNC: Lắng nghe sự kiện attendance:locked từ server
+  // Khi GV hoặc Admin điểm danh, tất cả client sẽ nhận được sự kiện này
+  // và cập nhật trạng thái can_check_in = false cho học viên được điểm danh
+  useEffect(() => {
+    if (!socket) return;
+    const handleAttendanceLocked = (data) => {
+      console.log('[SOCKET] attendance:locked received:', data);
+      setStudents(prev => prev.map(s => {
+        const sid = String(s._id || s.id);
+        if (sid === String(data.studentId)) {
+          return {
+            ...s,
+            can_check_in: false,
+            remaining_cooldown_hours: 12,
+            last_attendance_at: data.attendedAt,
+          };
+        }
+        return s;
+      }));
+    };
+    socket.on('attendance:locked', handleAttendanceLocked);
+    return () => {
+      socket.off('attendance:locked', handleAttendanceLocked);
+    };
+  }, [socket]);
 
   useEffect(() => {
     let unsubGroup, unsubRecall, unsubMsg;
@@ -605,7 +632,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
   // ── TEACHER ACTIONS ────────────────────────────────────────────────────────
 
   // Điểm danh
-  const markAttendance = useCallback((studentId, note, grade) => {
+  const markAttendance = useCallback(async (studentId, note, grade) => {
     let wasAlreadyAttendedToday = false;
     
     // Check synchronously to avoid race conditions with React state updates when spam-clicking
@@ -622,6 +649,16 @@ export const DataProvider = ({ children, user, onLogout }) => {
       (new Date(sch.date).toISOString().split('T')[0] === todayISO) && 
       sch.status === 'completed'
     );
+
+    // 🔐 COOLDOWN 12H: Kiểm tra cờ can_check_in từ dữ liệu học viên (đồng bộ từ Backend)
+    // Nếu can_check_in === false (nghĩa là đã điểm danh trong vòng 12h), chặn ngay lập tức
+    if (targetStudentSync && targetStudentSync.can_check_in === false) {
+      const remain = targetStudentSync.remaining_cooldown_hours || 0;
+      const err = new Error(`Học viên này đã được điểm danh. Vui lòng thử lại sau ${remain} tiếng.`);
+      err.cooldown = true;
+      err.remainingHours = remain;
+      throw err;
+    }
 
     setStudents(prev => prev.map(s => {
       const isTargetStudent = String(s.id) === String(studentId) || String(s._id) === String(studentId);
@@ -677,9 +714,10 @@ export const DataProvider = ({ children, user, onLogout }) => {
       const newCompleted = (s.completedSessions || 0) + 1;
       const newRemaining = s.remainingSessions - 1;
       
+      // ✅ FIX: KHÔNG ghi completedSessions/remainingSessions vào Student document
+      // vì studentRoutes.js đã tính lại từ Schedule.countDocuments() khi GET
+      // → Nếu ghi vào Student sẽ bị cộng đôi khi background sync kéo về
       api.students?.update(studentId, {
-        completedSessions: newCompleted,
-        remainingSessions: newRemaining,
         lastGrade: grade || s.lastGrade,
         avgGrade: avg,
         grades: newGrades,
@@ -690,113 +728,114 @@ export const DataProvider = ({ children, user, onLogout }) => {
 
       return {
         ...s,
-        completedSessions: newCompleted,
-        remainingSessions: newRemaining,
+        completedSessions: newCompleted,  // optimistic local only
+        remainingSessions: newRemaining,  // optimistic local only
         lastGrade: grade || s.lastGrade,
         avgGrade: avg,
         grades: newGrades,
         status: newRemaining <= 0 ? 'Hoàn thành' : 'Đang học',
+        // Optimistic: khoá nút điểm danh ngay sau khi điểm danh thành công
+        can_check_in: false,
+        remaining_cooldown_hours: 12,
       };
     }));
     console.log(`[markAttendance] Success for student: ${studentId}, grade: ${grade}`);
     addNotification(studentId, 'student', `Giảng viên đã điểm danh buổi học. Điểm: ${grade || 0}/10`);
 
-    // Cập nhật schedule
-    setSchedules(prev => {
+    // Cập nhật schedule — CHỈ MỘT trong hai đường: UPDATE hoặc CREATE
+    // Kiểm tra lại hasScheduleAttended (đã tính trước setStudents) làm gate dứt khoát
+    if (hasScheduleAttended) {
+      // Đường 1: Đã có schedule hôm nay → chỉ UPDATE status thành 'completed'
       const today = new Date().toISOString().split('T')[0];
-      let found = false;
-      
-      const nextPrev = prev.map(sch => {
-        const schDateStr = new Date(sch.date).toISOString().split('T')[0];
-        if (String(sch.studentId) === String(studentId) && schDateStr === today) {
-          found = true;
-          if (sch.status !== 'completed') {
-            // Sync schedule update to backend too!
-            api.schedules?.update(sch._id || sch.id, { status: 'completed' }).then(() => triggerBackgroundSync()).catch(e => console.log(e));
-            return { ...sch, status: 'completed' };
-          }
-        }
-        return sch;
+      const existSch = schedules.find(sch => {
+        const schDate = new Date(sch.date).toISOString().split('T')[0];
+        return String(sch.studentId) === String(studentId) && schDate === today;
       });
-
-      // Unified check to prevent duplicate schedules on the same day
-      if (!found && !hasAttendedSync && !hasScheduleAttended) {
-        // Fix: read from correct localStorage key (teacher_user or admin_user)
-        const getActiveSession = () => {
-          try {
-            return JSON.parse(localStorage.getItem('teacher_user') || localStorage.getItem('admin_user') || '{}');
-          } catch { return {}; }
-        };
-        const activeSession = getActiveSession();
-
-        let effectiveTeacherId = activeSession.id || activeSession._id;
-        let studentDisplayName = `HV-${String(studentId).slice(-4)}`;
-        let courseName = '';
-
-        // Safely extract info synchronously without using setStudents callback
-        const targetStudent = students.find(s => String(s.id) === String(studentId) || String(s._id) === String(studentId));
-        if (targetStudent) {
-          const rawTeacherId = typeof targetStudent.teacherId === 'object' && targetStudent.teacherId !== null
-            ? (targetStudent.teacherId._id || targetStudent.teacherId.id)
-            : (targetStudent.teacherId || null);
-          
-          // CRITICAL: Ensure teacherId is a valid ObjectId (24 chars) or fallback to activeSession's ID IF it is a valid ObjectId too
-          const isValidObjId = (id) => /^[a-f\d]{24}$/i.test(String(id));
-          if (isValidObjId(rawTeacherId)) {
-             effectiveTeacherId = rawTeacherId;
-          } else if (isValidObjId(activeSession.id || activeSession._id)) {
-             effectiveTeacherId = activeSession.id || activeSession._id;
-          } else {
-             // Fallback to a special "system" or generic teacher ID if admin is hardcoded
-             // Or leave as rawTeacherId and let the server handle it if it's already a valid format
-             effectiveTeacherId = rawTeacherId || activeSession.id || activeSession._id;
-          }
-
-          studentDisplayName = (targetStudent.name && !/^\d{5,}$/.test(targetStudent.name))
-              ? targetStudent.name
-              : targetStudent.email || targetStudent.phone || studentDisplayName;
-          courseName = targetStudent.course || '';
-        }
-
-        if (effectiveTeacherId) {
-          const now = new Date();
-          const newSch = {
-            id: 'temp-' + Date.now(), // Thêm ID ảo để chống click đúp
-            teacherId: String(effectiveTeacherId),
-            teacherName: activeSession.name || 'Giảng viên',
-            studentId: String(studentId),
-            studentName: studentDisplayName,
-            date: now.toISOString().split('T')[0],
-            startTime: now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-            endTime: new Date(now.getTime() + 2 * 60 * 60 * 1000).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-            course: courseName,
-            status: 'completed',
-            paymentStatus: 'pending',
-          };
-
-          // Chèn (lạc quan) vào mảng UI ngay lập tức để block những cú spam click tiếp theo!
-          nextPrev.push(newSch);
-
-          api.schedules?.create(newSch).then(res => {
-            if (res?.success && res.data) {
-              setSchedules(currentSch => currentSch.map(s => s.id === newSch.id ? { ...res.data, id: res.data._id } : s));
-              triggerBackgroundSync();
-            } else {
-              console.error('[markAttendance] Failed to create schedule:', res?.message);
-              // Xóa fallback nếu lỗi
-              setSchedules(currentSch => currentSch.filter(s => s.id !== newSch.id));
-            }
-          }).catch(err => {
-            console.error('[markAttendance] Schedule create error:', err);
-             setSchedules(currentSch => currentSch.filter(s => s.id !== newSch.id));
-          });
-        } else {
-           console.error('[markAttendance] Cannot auto-create schedule: no teacherId found');
-        }
+      if (existSch && existSch.status !== 'completed') {
+        api.schedules?.update(existSch._id || existSch.id, { status: 'completed' })
+          .then(() => setTimeout(() => triggerBackgroundSync(), 500))
+          .catch(e => console.log('[markAttendance] update err:', e));
+        setSchedules(prev => prev.map(s =>
+          (s._id || s.id) === (existSch._id || existSch.id) ? { ...s, status: 'completed' } : s
+        ));
       }
-      return nextPrev;
-    });
+    } else {
+      // Đường 2: Chưa có schedule hôm nay → CREATE mới
+      const getActiveSession = () => {
+        try {
+          return JSON.parse(localStorage.getItem('teacher_user') || localStorage.getItem('admin_user') || '{}');
+        } catch { return {}; }
+      };
+      const activeSession = getActiveSession();
+      const targetStudent = students.find(s => String(s.id) === String(studentId) || String(s._id) === String(studentId));
+
+      let effectiveTeacherId = activeSession.id || activeSession._id;
+      let studentDisplayName = `HV-${String(studentId).slice(-4)}`;
+      let courseName = '';
+
+      if (targetStudent) {
+        const rawTeacherId = typeof targetStudent.teacherId === 'object' && targetStudent.teacherId !== null
+          ? (targetStudent.teacherId._id || targetStudent.teacherId.id)
+          : (targetStudent.teacherId || null);
+        const isValidObjId = id => /^[a-f\d]{24}$/i.test(String(id));
+        if (isValidObjId(rawTeacherId)) effectiveTeacherId = rawTeacherId;
+        else if (isValidObjId(activeSession.id || activeSession._id)) effectiveTeacherId = activeSession.id || activeSession._id;
+        else effectiveTeacherId = rawTeacherId || activeSession.id || activeSession._id;
+
+        studentDisplayName = (targetStudent.name && !/^\d{5,}$/.test(targetStudent.name))
+          ? targetStudent.name
+          : targetStudent.email || targetStudent.phone || studentDisplayName;
+        courseName = targetStudent.course || '';
+      }
+
+      if (effectiveTeacherId) {
+        const now = new Date();
+        const tempId = 'temp-' + Date.now();
+        const newSch = {
+          id: tempId,
+          teacherId: String(effectiveTeacherId),
+          teacherName: activeSession.name || 'Giảng viên',
+          studentId: String(studentId),
+          studentName: studentDisplayName,
+          date: now.toISOString().split('T')[0],
+          startTime: now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+          endTime: new Date(now.getTime() + 2 * 60 * 60 * 1000).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+          course: courseName,
+          status: 'completed',
+          paymentStatus: 'pending',
+        };
+
+        // Optimistic: thêm vào UI ngay để chặn spam click
+        setSchedules(prev => [...prev, newSch]);
+
+        api.schedules?.create(newSch).then(res => {
+          if (res?.success && res.data) {
+            setSchedules(prev => prev.map(s => s.id === tempId ? { ...res.data, id: res.data._id } : s));
+            setTimeout(() => triggerBackgroundSync(), 500);
+          } else if (res?.cooldown) {
+            setSchedules(prev => prev.filter(s => s.id !== tempId));
+            setStudents(prev => prev.map(s =>
+              String(s.id) === String(studentId) || String(s._id) === String(studentId)
+                ? { ...s, can_check_in: false, remaining_cooldown_hours: res.remainingHours || 12 }
+                : s
+            ));
+            const err = new Error(res.message || 'Đã điểm danh trong vòng 12 tiếng');
+            err.cooldown = true;
+            throw err;
+          } else {
+            console.error('[markAttendance] Create failed:', res?.message);
+            setSchedules(prev => prev.filter(s => s.id !== tempId));
+          }
+        }).catch(err => {
+          console.error('[markAttendance] Create error:', err);
+          setSchedules(prev => prev.filter(s => s.id !== tempId));
+        });
+      } else {
+        console.error('[markAttendance] No teacherId found, cannot create schedule');
+      }
+    }
   }, [students, schedules, triggerBackgroundSync, addNotification]);
+
 
   const updateStudentLink = useCallback((studentId, linkHoc) => {
     setStudents(prev => prev.map(s =>

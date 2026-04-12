@@ -81,7 +81,28 @@ router.get('/', [authMiddleware, branchFilter], async (req, res) => {
         is_paid_to_teacher: false
       });
       doc.pendingTeacherPaymentSessions = pendingPaymentSessions;
-      
+
+      // ✅ COOLDOWN 12H FLAG: Kiểm tra xem học viên có thể điểm danh không
+      const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+      const recentAttendance = await Schedule.findOne({
+        studentId: st._id,
+        course: st.course,
+        status: 'completed',
+        createdAt: { $gte: twelveHoursAgo },
+      }).sort({ createdAt: -1 }).select('createdAt').lean();
+
+      if (recentAttendance) {
+        const diffMs = Date.now() - new Date(recentAttendance.createdAt).getTime();
+        const remainHrs = Math.max(0, 12 - diffMs / (1000 * 60 * 60));
+        doc.can_check_in = false;
+        doc.remaining_cooldown_hours = parseFloat(remainHrs.toFixed(1));
+        doc.last_attendance_at = recentAttendance.createdAt;
+      } else {
+        doc.can_check_in = true;
+        doc.remaining_cooldown_hours = 0;
+        doc.last_attendance_at = null;
+      }
+
       return doc;
     }));
 
@@ -636,6 +657,54 @@ router.delete('/:id', authMiddleware, isAdmin, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Không tìm thấy học viên' });
     }
     res.json({ success: true, message: `Đã xóa học viên ${student.name}` });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// ─── POST /api/students/:id/reset-today-attendance ─────────────────────────────
+// Xóa điểm danh HÔM NAY của học viên (Teacher hoặc Admin dùng khi nhập nhầm)
+router.post('/:id/reset-today-attendance', authMiddleware, async (req, res) => {
+  try {
+    const student = await Student.findById(req.params.id);
+    if (!student) return res.status(404).json({ success: false, message: 'Không tìm thấy học viên' });
+
+    const todayVN = new Date().toLocaleDateString('vi-VN');
+    const oldGrades = student.grades || [];
+    const hadTodayRecord = oldGrades.some(g => g.date === todayVN);
+
+    if (!hadTodayRecord) {
+      return res.json({ success: true, message: 'Học viên chưa được điểm danh hôm nay.' });
+    }
+
+    // Xóa record hôm nay khỏi grades
+    const newGrades = oldGrades.filter(g => g.date !== todayVN);
+
+    // Khôi phục số buổi (đảo ngược 1 buổi đã cộng)
+    const newCompleted = Math.max(0, (student.completedSessions || 0) - 1);
+    const newRemaining = (student.remainingSessions || 0) + 1;
+
+    await Student.findByIdAndUpdate(req.params.id, {
+      grades: newGrades,
+      completedSessions: newCompleted,
+      remainingSessions: newRemaining,
+      status: 'Đang học'
+    });
+
+    // Xóa schedule hôm nay nếu có
+    const todayISO = new Date().toISOString().split('T')[0];
+    await Schedule.deleteMany({
+      studentId: req.params.id,
+      date: { $gte: new Date(todayISO), $lt: new Date(new Date(todayISO).getTime() + 86400000) },
+      status: 'completed'
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('data:refresh', { type: 'student', id: req.params.id });
+    }
+
+    res.json({ success: true, message: `✅ Đã hủy điểm danh hôm nay cho "${student.name}"` });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

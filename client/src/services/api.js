@@ -210,6 +210,10 @@ export const studentsAPI = {
     const res = await apiFetch(`/students/stats${q ? `?${q}` : ''}`);
     return res.json();
   },
+  resetTodayAttendance: async (id) => {
+    const res = await apiFetch(`/students/${id}/reset-today-attendance`, { method: 'POST' });
+    return res.json();
+  },
 };
 
 // ─── TEACHER API ────────────────────────────────────────────────────────────

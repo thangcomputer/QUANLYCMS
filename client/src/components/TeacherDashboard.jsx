@@ -17,6 +17,7 @@ import { useToast } from '../utils/toast';
 import { useModal } from '../utils/Modal.jsx';
 import { BankSelect } from './BankSelect';
 import PopupBanner from './PopupBanner';
+import TeacherTrainingLMS from './TeacherTrainingLMS';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 /**
@@ -158,6 +159,13 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
   const progressPct = Math.round((done / student.totalSessions) * 100);
   const isCompleted = student.remainingSessions === 0;
 
+  const todayStr = new Date().toLocaleDateString('vi-VN');
+  const hasAttendedToday = (student.grades || []).some(g => g.date === todayStr);
+  // 🔐 COOLDOWN 12H: Ưu tiên dùng cờ can_check_in từ Backend (thực tế hơn)
+  // Fallback sang hasAttendedToday nếu backend chưa trả về cờ này
+  const canCheckIn = student.can_check_in !== undefined ? student.can_check_in : !hasAttendedToday;
+  const cooldownHours = student.remaining_cooldown_hours || 0;
+
   useEffect(() => {
     if (activePanel === 'assignments') {
       fetchStudentAssignments();
@@ -189,6 +197,29 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
         fetchStudentAssignments();
       }
     } catch (e) { console.error(e); }
+  };
+
+  const handleUndoAttendance = async () => {
+    const sid = student._id || student.id;
+    showModal({
+      title: 'Hủy điểm danh hôm nay',
+      content: `Xác nhận hủy điểm danh hôm nay của "${student.name || sid}"? Số buổi đã học sẽ giảm 1.`,
+      type: 'warning',
+      confirmText: 'XÁC NHẬN HỦY',
+      onConfirm: async () => {
+        try {
+          const res = await api.students.resetTodayAttendance(sid);
+          if (res.success) {
+            window.location.reload();
+          } else {
+            showModal({ title: 'Lỗi', content: res.message || 'Lỗi khi hủy điểm danh', type: 'error' });
+          }
+        } catch (e) {
+          console.error(e);
+          showModal({ title: 'Lỗi', content: 'Lỗi kết nối server', type: 'error' });
+        }
+      }
+    });
   };
 
   const handleLinkSave = () => {
@@ -315,17 +346,51 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
                     </div>
                  </div>
 
-                 {/* Big Attendance Button */}
-                 <button 
-                   onClick={() => setShowAttendanceModal(true)} 
-                   disabled={isCompleted}
-                   className={`w-full py-5 rounded-3xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-xl active:scale-[0.98] ${
-                     isCompleted ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-2 border-gray-200'
-                     : 'bg-gradient-to-r from-emerald-600 to-green-500 text-white hover:shadow-green-200 shadow-green-100'
-                   }`}
-                 >
-                   <CheckCircle size={22} /> {isCompleted ? 'KẾT THÚC KHÓA HỌC' : 'ĐIỂM DANH BUỔI HÔM NAY'}
-                 </button>
+                 {/* === 2-COLUMN LAYOUT: Điểm danh | Hủy điểm danh === */}
+                 <div className="grid grid-cols-2 gap-4">
+                   {/* CỘT TRÁI: Nút ĐIỂM DANH */}
+                   <button 
+                     onClick={() => {
+                       if (!canCheckIn && !isCompleted) return;
+                       const tGrade = (student.grades || []).find(g => g.date === todayStr);
+                       setAttForm({ note: tGrade?.note || 'Đã điểm danh hoàn thành buổi học', grade: tGrade?.grade ?? (student.lastGrade || 0) });
+                       setShowAttendanceModal(true);
+                     }} 
+                     disabled={isCompleted || !canCheckIn}
+                     title={!canCheckIn ? `Đã điểm danh. Mở khóa sau ${cooldownHours} tiếng.` : 'Bấm để điểm danh buổi học hôm nay'}
+                     className={`py-5 rounded-3xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl ${
+                       isCompleted 
+                         ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-2 border-gray-200'
+                       : !canCheckIn
+                         ? 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50 border-2 border-gray-200 pointer-events-none select-none'
+                         : 'bg-gradient-to-br from-emerald-500 to-green-600 text-white hover:shadow-green-200 shadow-green-100 active:scale-[0.97]'
+                     }`}
+                   >
+                     <CheckCircle size={20} />
+                     <span className="text-xs leading-tight text-center">
+                       {isCompleted 
+                         ? 'HOÀN THÀNH'
+                         : !canCheckIn
+                           ? (cooldownHours > 0 ? `CHỜ ${cooldownHours}H` : 'ĐÃ ĐIỂM DANH')
+                           : 'ĐIỂM DANH'}
+                     </span>
+                   </button>
+
+                   {/* CỘT PHẢI: Nút HỦY ĐIỂM DANH */}
+                   <button
+                     onClick={() => { if (hasAttendedToday) handleUndoAttendance(); }}
+                     disabled={!hasAttendedToday || isCompleted}
+                     title={hasAttendedToday ? 'Hủy điểm danh hôm nay (sửa lỗi)' : 'Chưa điểm danh hôm nay'}
+                     className={`py-5 rounded-3xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all border-2 ${
+                       hasAttendedToday && !isCompleted
+                         ? 'bg-red-50 border-red-200 text-red-500 hover:bg-red-100 active:scale-[0.97] shadow-sm cursor-pointer'
+                         : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed opacity-40 pointer-events-none select-none'
+                     }`}
+                   >
+                     <X size={20} />
+                     <span className="text-xs leading-tight text-center">HỦY<br/>ĐIỂM DANH</span>
+                   </button>
+                 </div>
 
                  {/* Notes Area */}
                  <div className="bg-gray-50/50 rounded-3xl p-6 border border-gray-100">
@@ -507,7 +572,77 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
               </div>
            )}
         </div>
+        
+        {/* Attendance Modal - Added to Detailed View */}
+        {showAttendanceModal && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex flex-col items-center justify-center z-[200] p-4 animate-in fade-in duration-300">
+            <div className="bg-white rounded-[40px] w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 border border-white">
+              <div className="bg-gradient-to-r from-emerald-600 to-green-500 p-8 text-white flex justify-between items-center">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                    <CheckCircle size={22} />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-lg uppercase tracking-tight">Điểm danh & Chấm điểm</h3>
+                    <p className="text-emerald-100 text-[10px] font-bold uppercase tracking-widest">{student.course}</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowAttendanceModal(false)} className="hover:bg-white/10 p-2 rounded-2xl transition-all">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-10 space-y-6">
+                <div className="bg-emerald-50 rounded-3xl p-6 border border-emerald-100">
+                  <p className="text-xs font-black text-emerald-800 uppercase tracking-widest mb-1">Học viên</p>
+                  <p className="text-lg font-black text-emerald-600">{getDisplayName(student)}</p>
+                  <p className="text-[10px] font-bold text-emerald-400 mt-2">Tiến độ hiện tại: {done}/{student.totalSessions} buổi</p>
+                </div>
+                
+                <div>
+                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block mb-3">Đánh giá buổi học (0-10)</label>
+                  <div className="relative">
+                    <input 
+                      type="number" min="0" max="10" step="0.5" 
+                      value={attForm.grade}
+                      onChange={(e) => setAttForm({ ...attForm, grade: e.target.value })}
+                      className="w-full bg-slate-50 border-2 border-slate-100 focus:border-emerald-500 focus:bg-white rounded-2xl px-6 py-4 text-3xl font-black text-slate-700 outline-none transition-all"
+                    />
+                    <div className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 text-lg font-black">/ 10</div>
+                  </div>
+                </div>
 
+                <div>
+                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block mb-3">Ghi chú nhanh</label>
+                   <textarea 
+                     value={attForm.note}
+                     onChange={(e) => setAttForm({ ...attForm, note: e.target.value })}
+                     placeholder="Ví dụ: Học tốt, nộp bài đầy đủ..."
+                     className="w-full bg-slate-50 border-2 border-slate-100 focus:border-emerald-500 focus:bg-white rounded-2xl px-6 py-4 text-sm font-bold text-slate-700 outline-none transition-all resize-none"
+                     rows={3}
+                   />
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                  <button 
+                    onClick={() => setShowAttendanceModal(false)}
+                    className="flex-1 py-4 text-slate-400 font-black text-xs uppercase tracking-widest bg-slate-50 rounded-2xl hover:bg-slate-100 transition-all"
+                  >
+                    Hủy
+                  </button>
+                  <button 
+                    onClick={() => {
+                      onAttendance((student._id || student.id), attForm.note, Number(attForm.grade));
+                      setShowAttendanceModal(false);
+                    }}
+                    className="flex-[2] py-4 text-white font-black text-xs uppercase tracking-widest bg-gradient-to-r from-emerald-600 to-green-500 rounded-2xl shadow-lg shadow-green-100 hover:shadow-green-200 transition-all active:scale-95"
+                  >
+                    Xác nhận Điểm danh
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -604,13 +739,47 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
                 <p className="text-xs text-purple-400">/ 10</p>
               </div>
             </div>
-            <button onClick={() => setShowAttendanceModal(true)} disabled={isCompleted}
-              className={`w-full py-4 rounded-2xl font-bold text-lg flex items-center justify-center gap-2 transition-all shadow-lg ${
-                isCompleted ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'bg-gradient-to-r from-green-600 to-green-500 text-white hover:from-green-700 hover:to-green-600 shadow-green-200'
-              }`}>
-              <CheckCircle size={20} /> {isCompleted ? 'ĐÃ HOÀN THÀNH KHÓA HỌC' : 'ĐIỂM DANH BUỔI HÔM NAY'}
-            </button>
+            {/* === 2-COLUMN LAYOUT: Điểm danh | Hủy điểm danh === */}
+            <div className="grid grid-cols-2 gap-3">
+              {/* CỘT TRÁI: Nút ĐIỂM DANH */}
+              <button onClick={() => {
+                  if (!canCheckIn && !isCompleted) return;
+                  const tGrade = (student.grades || []).find(g => g.date === todayStr);
+                  setAttForm({ note: tGrade?.note || 'Đã điểm danh hoàn thành buổi học', grade: tGrade?.grade ?? (student.lastGrade || 0) });
+                  setShowAttendanceModal(true);
+                }} disabled={isCompleted || !canCheckIn}
+                title={!canCheckIn ? `Đã điểm danh. Mở khóa sau ${cooldownHours} tiếng.` : 'Bấm để điểm danh'}
+                className={`py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md ${
+                  isCompleted 
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : !canCheckIn
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50 pointer-events-none select-none border-2 border-gray-200'
+                    : 'bg-gradient-to-br from-green-500 to-emerald-600 text-white hover:shadow-green-200 shadow-green-100 active:scale-[0.97]'
+                }`}>
+                <CheckCircle size={18} />
+                <span className="text-xs text-center leading-tight">
+                  {isCompleted 
+                    ? 'HOÀN THÀNH'
+                    : !canCheckIn
+                      ? (cooldownHours > 0 ? `CHỜ ${cooldownHours}H` : 'ĐÃ ĐIỂM DANH')
+                      : 'ĐIỂM DANH'}
+                </span>
+              </button>
+
+              {/* CỘT PHẢI: Nút HỦY */}
+              <button
+                onClick={() => { if (hasAttendedToday) handleUndoAttendance(); }}
+                disabled={!hasAttendedToday || isCompleted}
+                title={hasAttendedToday ? 'Hủy điểm danh hôm nay (sửa lỗi)' : 'Chưa điểm danh hôm nay'}
+                className={`py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all border-2 ${
+                  hasAttendedToday && !isCompleted
+                    ? 'bg-red-50 border-red-200 text-red-500 hover:bg-red-100 active:scale-[0.97] cursor-pointer shadow-sm'
+                    : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed opacity-40 pointer-events-none select-none'
+                }`}>
+                <X size={18} />
+                <span className="text-xs text-center leading-tight">HỦY<br/>ĐIỂM DANH</span>
+              </button>
+            </div>
             <div>
               <label className="text-sm font-semibold text-gray-700 block mb-2 font-black uppercase text-[10px] text-gray-400 tracking-widest">📝 Ghi chú học viên</label>
               <textarea value={notesInput} onChange={e => setNotesInput(e.target.value)}
@@ -655,61 +824,72 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
         )}
       </div>
 
+      {/* === DUY NHẤT 1 MODAL ĐIỂM DANH (dùng chung cho cả 2 view) === */}
       {showAttendanceModal && (
-        <div className="fixed inset-0 bg-black/50 flex flex-col items-center justify-center z-[200] p-4">
-          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="bg-green-600 p-5 text-white flex justify-between items-center">
-              <h3 className="font-bold flex items-center gap-2">
-                <CheckCircle size={20} /> Điểm danh & Chấm điểm
-              </h3>
-              <button onClick={() => setShowAttendanceModal(false)} className="hover:bg-green-700 p-1 rounded-lg">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex flex-col items-center justify-center z-[200] p-4 animate-in fade-in duration-300">
+          <div className="bg-white rounded-[40px] w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 border border-white">
+            <div className="bg-gradient-to-r from-emerald-600 to-green-500 p-8 text-white flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                  <CheckCircle size={22} />
+                </div>
+                <div>
+                  <h3 className="font-black text-lg uppercase tracking-tight">Điểm danh &amp; Chấm điểm</h3>
+                  <p className="text-emerald-100 text-[10px] font-bold uppercase tracking-widest">{student.course}</p>
+                </div>
+              </div>
+              <button onClick={() => setShowAttendanceModal(false)} className="hover:bg-white/10 p-2 rounded-2xl transition-all">
                 <X size={20} />
               </button>
             </div>
-            <div className="p-6 space-y-4">
-              <div className="bg-green-50 rounded-xl p-4 border border-green-100">
-                <p className="text-sm font-bold text-green-800">Học viên: {student.name}</p>
-                <p className="text-xs text-green-600">Tiến độ hiện tại: {done}/{student.totalSessions} buổi</p>
+            <div className="p-10 space-y-6">
+              <div className="bg-emerald-50 rounded-3xl p-6 border border-emerald-100">
+                <p className="text-xs font-black text-emerald-800 uppercase tracking-widest mb-1">Học viên</p>
+                <p className="text-lg font-black text-emerald-600">{getDisplayName(student)}</p>
+                <p className="text-[10px] font-bold text-emerald-400 mt-2">Tiến độ hiện tại: {done}/{student.totalSessions} buổi</p>
               </div>
               
               <div>
-                <label className="text-xs font-bold text-gray-500 uppercase block mb-2">Điểm đánh giá buổi học (0-10)</label>
-                <input 
-                  type="number" min="0" max="10" step="0.5" 
-                  value={attForm.grade}
-                  onChange={(e) => setAttForm({ ...attForm, grade: e.target.value })}
-                  className="w-full border-2 border-gray-200 focus:border-green-500 rounded-xl px-4 py-3 text-lg font-black outline-none"
-                />
+                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block mb-3">Đánh giá buổi học (0-10)</label>
+                <div className="relative">
+                  <input 
+                    type="number" min="0" max="10" step="0.5" 
+                    value={attForm.grade}
+                    onChange={(e) => setAttForm({ ...attForm, grade: e.target.value })}
+                    className="w-full bg-slate-50 border-2 border-slate-100 focus:border-emerald-500 focus:bg-white rounded-2xl px-6 py-4 text-3xl font-black text-slate-700 outline-none transition-all"
+                  />
+                  <div className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 text-lg font-black">/ 10</div>
+                </div>
               </div>
 
               <div>
-                <label className="text-xs font-bold text-gray-500 uppercase block mb-2">Ghi chú / Nhận xét nhanh</label>
-                <textarea 
-                  rows={3}
-                  value={attForm.note}
-                  onChange={(e) => setAttForm({ ...attForm, note: e.target.value })}
-                  placeholder="VD: Học viên tiếp thu bài tốt..."
-                  className="w-full border-2 border-gray-200 focus:border-green-500 rounded-xl px-4 py-3 text-sm outline-none resize-none"
-                />
+                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block mb-3">Ghi chú nhanh</label>
+                 <textarea 
+                   value={attForm.note}
+                   onChange={(e) => setAttForm({ ...attForm, note: e.target.value })}
+                   placeholder="Ví dụ: Học tốt, nộp bài đầy đủ..."
+                   className="w-full bg-slate-50 border-2 border-slate-100 focus:border-emerald-500 focus:bg-white rounded-2xl px-6 py-4 text-sm font-bold text-slate-700 outline-none transition-all resize-none"
+                   rows={3}
+                 />
               </div>
-            </div>
 
-            <div className="p-4 border-t border-gray-100 flex gap-3">
-              <button 
-                onClick={() => setShowAttendanceModal(false)}
-                className="flex-1 py-3 text-gray-500 font-bold bg-gray-50 rounded-xl hover:bg-gray-100"
-              >
-                Hủy
-              </button>
-              <button 
-                onClick={() => {
-                  onAttendance(student._id || student.id, attForm.note, Number(attForm.grade));
-                  setShowAttendanceModal(false);
-                }}
-                className="flex-[2] py-3 text-white font-bold bg-green-600 rounded-xl shadow-lg shadow-green-200 hover:bg-green-700"
-              >
-                Xác nhận Điểm danh
-              </button>
+              <div className="flex gap-4 pt-4">
+                <button 
+                  onClick={() => setShowAttendanceModal(false)}
+                  className="flex-1 py-4 text-slate-400 font-black text-xs uppercase tracking-widest bg-slate-50 rounded-2xl hover:bg-slate-100 transition-all"
+                >
+                  Hủy
+                </button>
+                <button 
+                  onClick={() => {
+                    onAttendance((student._id || student.id), attForm.note, Number(attForm.grade));
+                    setShowAttendanceModal(false);
+                  }}
+                  className="flex-[2] py-4 text-white font-black text-xs uppercase tracking-widest bg-gradient-to-r from-emerald-600 to-green-500 rounded-2xl shadow-lg shadow-green-100 hover:shadow-green-200 transition-all active:scale-95"
+                >
+                  Xác nhận Điểm danh
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1604,11 +1784,20 @@ const TeacherDashboard = ({ onNavigate }) => {
     }
   }, [students, selectedStudentId]);
 
-  const markAttendance = (id, noteParam, gradeParam) => {
+  const markAttendance = async (id, noteParam, gradeParam) => {
     const note = noteParam || noteInputs[id] || 'Đã điểm danh';
     const grade = gradeParam !== undefined ? gradeParam : (gradeInputs[id] || 0);
-    ctxMarkAttendance(id, note, Number(grade));
-    toast.success('Đã điểm danh thành công!');
+    try {
+      await ctxMarkAttendance(id, note, Number(grade));
+      toast.success('Đã điểm danh thành công!');
+    } catch (err) {
+      if (err.cooldown) {
+        toast.error(err.message || 'Học viên này đã được điểm danh. Vui lòng thử lại sau 12 tiếng.');
+      } else {
+        toast.error('Lỗi khi điểm danh. Vui lòng thử lại.');
+        console.error('[TeacherDashboard] markAttendance error:', err);
+      }
+    }
   };
 
   const updateLink = (id, newLink) => updateStudentLink(id, newLink);
@@ -1783,7 +1972,9 @@ const TeacherDashboard = ({ onNavigate }) => {
 
 
         {/* ═══ CONTENT ═══ */}
-        {currentHash === 'students' ? (
+        {currentHash === 'training' ? (
+           <TeacherTrainingLMS onBack={() => window.location.hash = ''} />
+        ) : currentHash === 'students' ? (
           /* ═══ QUẢN LÝ HỌC VIÊN 2 CỘT ═══ */
           <div className="px-4 md:px-8 py-6 h-[calc(100vh-120px)] flex flex-col lg:flex-row gap-6 overflow-hidden">
             

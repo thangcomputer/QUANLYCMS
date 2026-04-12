@@ -48,7 +48,7 @@ const MENU_CONFIG = {
       { key: 'schedule',   icon: Calendar,         label: 'Lịch dạy',      path: '/teacher', hash: 'schedule' },
       { key: 'test',       icon: ClipboardList,    label: 'Bài Test',       path: '/teacher/test' },
       { key: 'finance',    icon: DollarSign,       label: 'Tài chính',      path: '/teacher/finance' },
-      { key: 'training',   icon: BookOpen,          label: 'Đào tạo',        path: '/teacher/finance', hash: 'training' },
+      {key: 'training',   icon: BookOpen,          label: 'Đào tạo',        path: '/teacher', hash: 'training' },
       { key: 'inbox',      icon: MessageSquare,    label: 'Hộp thư',        path: '/teacher/inbox' },
     ],
     bottomItems: [
