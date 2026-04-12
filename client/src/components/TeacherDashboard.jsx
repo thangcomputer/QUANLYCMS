@@ -2320,7 +2320,10 @@ const TeacherDashboard = ({ onNavigate }) => {
               schedules={mySchedules}
               onEditSchedule={startEditSchedule}
               onAddSchedule={(date) => {
-                setEditingSchedule({ date: date.toISOString().split('T')[0] }); // pre-fill date
+                const yyyy = date.getFullYear();
+                const mm = String(date.getMonth() + 1).padStart(2, '0');
+                const dd = String(date.getDate()).padStart(2, '0');
+                setEditingSchedule({ date: `${yyyy}-${mm}-${dd}` }); // pre-fill correctly localized
                 setShowScheduleModal(true);
               }}
               onCancelSchedule={(scheduleId) => {

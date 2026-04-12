@@ -1334,10 +1334,12 @@ export const DataProvider = ({ children, user, onLogout }) => {
       } else {
         // Rollback nếu fail
         console.error('[addSchedule] Server error:', res?.message);
+        alert(`Không thể xếp lịch: ${res?.message || 'Lỗi không xác định'}`);
         setSchedules(prev => prev.filter(s => s.id !== tempId));
       }
     }).catch(err => {
       console.error('[addSchedule] Network error:', err);
+      alert('Lỗi mạng kết nối, không thể xếp lịch.');
       setSchedules(prev => prev.filter(s => s.id !== tempId));
     });
 
