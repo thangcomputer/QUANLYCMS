@@ -3196,7 +3196,7 @@ const AdminDashboard = ({ onNavigate }) => {
               <div className="flex flex-wrap gap-2 bg-white rounded-2xl p-1.5 shadow-sm border border-gray-100 w-fit">
                 {[
                   { key: 'videos', icon: Video, label: 'Quản lý Khóa học', count: studentTrainingData?.videos?.length || 0 },
-                  { key: 'guides', icon: FileText, label: 'Quy trình', count: studentTrainingData?.guides?.length || 0 },
+                  
                   { key: 'files', icon: Download, label: 'Tài liệu', count: studentTrainingData?.files?.length || 0 },
                   { key: 'questions', icon: HelpCircle, label: 'Ngân hàng câu hỏi', count: studentQuestions?.length || 0 },
                   { key: 'exam-results', icon: Trophy, label: 'Kết quả thi', count: (examResults || []).filter(r => r.type === 'student').length },
@@ -3216,7 +3216,7 @@ const AdminDashboard = ({ onNavigate }) => {
               {sTrainingTab !== 'questions' && sTrainingTab !== 'exam-results' && (
                 <button onClick={() => setSTrainingForm({})}
                   className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-md transition flex items-center gap-2">
-                  <Plus size={15} /> {sTrainingTab === 'videos' ? 'Thêm Khóa học' : sTrainingTab === 'guides' ? 'Thêm quy trình' : 'Thêm tài liệu'}
+                  <Plus size={15} /> {sTrainingTab === 'videos' ? 'Thêm Khóa học' : 'Thêm tài liệu'}
                 </button>
               )}
               {sTrainingTab === 'questions' && (
@@ -3254,13 +3254,7 @@ const AdminDashboard = ({ onNavigate }) => {
                           className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-green-400 outline-none" placeholder="Nhập mô tả tóm tắt..." />
                       </div>
                     )}
-                    {sTrainingTab === 'guides' && (
-                      <div>
-                        <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Icon (emoji)</label>
-                        <input value={sTrainingForm.icon || ''} onChange={e => setSTrainingForm({ ...sTrainingForm, icon: e.target.value })}
-                          className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-green-400 outline-none" placeholder="📝" />
-                      </div>
-                    )}
+
                     {sTrainingTab === 'files' && (
                       <>
                         <div>
@@ -3524,11 +3518,7 @@ const AdminDashboard = ({ onNavigate }) => {
                               <BookOpen size={20} className="text-white" />
                             </div>
                           )}
-                          {sTrainingTab === 'guides' && (
-                            <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center text-2xl flex-shrink-0">
-                              {item.icon || '📄'}
-                            </div>
-                          )}
+
                           {sTrainingTab === 'files' && (
                             <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xs font-black text-white flex-shrink-0 shadow-sm ${item.fileType === 'PDF' ? 'bg-red-500' : item.fileType === 'PPTX' ? 'bg-orange-500' : 'bg-green-500'
                               }`}>

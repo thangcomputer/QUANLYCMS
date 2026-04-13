@@ -95,7 +95,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
   // Socket & Data
   const session = JSON.parse(localStorage.getItem('student_user') || '{}');
   const STUDENT_ID = session.id || 101;
-  const { students } = useData() || { students: [] };
+  const { students, updateStudent } = useData() || { students: [], updateStudent: ()=>{} };
   const { socket } = useSocket() || {};
   const student = students?.find(s => String(s.id) === String(STUDENT_ID));
   const { showModal } = useModal();
@@ -166,6 +166,19 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
   const handleAnswer = (qi, oi) => {
     const next = [...answers]; next[qi] = oi; setAnswers(next);
   };
+
+  const updateExamProgress = useCallback((changes) => {
+    if (!student || !updateStudent) return;
+    const progress = student.examProgress || [];
+    const idx = progress.findIndex(s => s.id === subjectId);
+    let newProgress = [...progress];
+    if (idx !== -1) {
+      newProgress[idx] = { ...newProgress[idx], ...changes };
+    } else {
+      newProgress.push({ id: subjectId, ...changes });
+    }
+    updateStudent(student.id, { examProgress: newProgress });
+  }, [student, updateStudent, subjectId]);
 
   const handleSubmitFinal = () => {
     clearInterval(timerRef.current);
@@ -541,7 +554,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
           message="bài làm đính kèm.\nVẫn nộp bài trắng?"
           confirmLabel="Nộp bài"
           cancelLabel="Quay lại chọn"
-          onConfirm={() => { setShowNoFileConfirm(false); setUploadDone(true); }}
+          onConfirm={() => { setShowNoFileConfirm(false); setUploadDone(true); updateExamProgress({ thucHanh: 'chua_nop' }); }}
           onCancel={() => setShowNoFileConfirm(false)}
         />
       )}

@@ -547,13 +547,13 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
           {[
             { key: 'courses', icon: PlayCircle, label: 'Video học tập', count: courses.length },
             { key: 'files', icon: FileBox, label: 'Tài liệu', count: trainingData?.files?.length || 0 },
-            { key: 'assignments', icon: BookOpen, label: 'Bài tập', count: trainingData?.assignments?.length || 0 },
+            { key: 'assignments', icon: BookOpen, label: 'Bài tập về nhà', count: trainingData?.assignments?.length || 0 },
             { key: 'exams', icon: Award, label: 'Điểm thi', count: trainingData?.exams?.length || 0 },
           ].map(t => (
             <button key={t.key} onClick={() => setMainTab(t.key)}
               className={`flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-[13px] font-bold tracking-wide transition-all ${mainTab === t.key
-                  ? 'bg-green-600 text-white shadow-md'
-                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                ? 'bg-green-600 text-white shadow-md'
+                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
                 }`}>
               <t.icon size={16} /> {t.label}
               <span className={`text-[10px] ml-1 px-2 py-0.5 rounded-full font-black ${mainTab === t.key ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-500'}`}>
@@ -890,8 +890,8 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
                   key={t.key}
                   onClick={() => setCourseTab(t.key)}
                   className={`px-5 py-3.5 text-[11px] font-bold tracking-wide border-b-2 transition-all ${courseTab === t.key
-                      ? 'text-white border-green-500'
-                      : 'text-slate-500 border-transparent hover:text-slate-300'
+                    ? 'text-white border-green-500'
+                    : 'text-slate-500 border-transparent hover:text-slate-300'
                     }`}
                 >
                   {t.label}
@@ -979,8 +979,8 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
               <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-300">Nội dung khóa học</h3>
               <span
                 className={`text-[10px] font-black px-2 py-0.5 rounded-md border ${overallProgress === 100
-                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20'
-                    : 'bg-green-500/15 text-green-400 border-green-500/20'
+                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20'
+                  : 'bg-green-500/15 text-green-400 border-green-500/20'
                   }`}
               >
                 {lessons.filter(l => l.isCompleted).length}/{lessons.length} BÀI

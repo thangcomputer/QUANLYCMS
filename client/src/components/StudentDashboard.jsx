@@ -1155,7 +1155,7 @@ const StudentDashboard = ({ onNavigate }) => {
                       <div key={idx} className="p-4 hover:bg-gray-50 flex items-start justify-between transition-colors">
                         <div>
                           <p className="font-bold text-gray-800 flex items-center gap-2">
-                            {g.date}
+                            {g.time ? `${g.time} - ${g.date}` : g.date}
                             <span className="text-[10px] bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-full uppercase">Điểm danh</span>
                           </p>
                           <p className="text-sm text-gray-600 mt-1">{g.note}</p>
