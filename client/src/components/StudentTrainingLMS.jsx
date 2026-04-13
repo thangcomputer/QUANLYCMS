@@ -63,7 +63,7 @@ const CircularProgress = ({ progress, size = 112 }) => {
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (progress / 100) * circumference;
   let strokeColor = 'text-slate-100';
-  let pathColor = 'text-blue-500';
+  let pathColor = 'text-green-500';
   if (progress === 0) pathColor = 'text-slate-200';
   else if (progress === 100) pathColor = 'text-emerald-500';
 
@@ -169,18 +169,18 @@ const LessonItem = ({ lesson, index, isCurrent, onClick }) => {
       onClick={() => lesson.isUnlocked && onClick(lesson)}
       className={`flex items-start gap-3 px-5 py-4 border-b border-slate-100 transition-all relative
         ${!lesson.isUnlocked ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}
-        ${isCurrent ? 'bg-blue-50 border-l-4 border-l-blue-600' : lesson.isCompleted ? 'bg-slate-50 border-l-4 border-l-transparent' : 'bg-white hover:bg-slate-50 border-l-4 border-l-transparent'}
+        ${isCurrent ? 'bg-green-50 border-l-4 border-l-blue-600' : lesson.isCompleted ? 'bg-slate-50 border-l-4 border-l-transparent' : 'bg-white hover:bg-slate-50 border-l-4 border-l-transparent'}
       `}
     >
       {/* Status Icon */}
       <div className="mt-0.5 flex-shrink-0">
         {lesson.isCompleted ? (
-          <CheckCircle size={18} className="text-blue-600" />
+          <CheckCircle size={18} className="text-green-600" />
         ) : !lesson.isUnlocked ? (
           <Lock size={16} className="text-slate-400" />
         ) : isCurrent ? (
-          <div className="w-[18px] h-[18px] rounded-full border-2 border-blue-600 flex items-center justify-center">
-            <div className="w-2 h-2 bg-blue-600 rounded-full animate-ping" />
+          <div className="w-[18px] h-[18px] rounded-full border-2 border-green-600 flex items-center justify-center">
+            <div className="w-2 h-2 bg-green-600 rounded-full animate-ping" />
           </div>
         ) : (
           <PlayCircle size={18} className="text-slate-300" />
@@ -191,7 +191,7 @@ const LessonItem = ({ lesson, index, isCurrent, onClick }) => {
         <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">
           Bài {index + 1}
         </p>
-        <h4 className={`text-sm leading-snug truncate ${isCurrent ? 'text-blue-700 font-black' : lesson.isCompleted ? 'text-slate-500 font-semibold' : 'text-slate-700 font-bold'}`}>
+        <h4 className={`text-sm leading-snug truncate ${isCurrent ? 'text-green-700 font-black' : lesson.isCompleted ? 'text-slate-500 font-semibold' : 'text-slate-700 font-bold'}`}>
           {lesson.title}
         </h4>
         {lesson.duration ? (
@@ -228,7 +228,7 @@ const AdminProgressPanel = ({ courseId }) => {
 
   return (
     <div className="bg-white rounded-[32px] border border-gray-100 overflow-hidden">
-      <div className="px-8 py-6 bg-gradient-to-r from-blue-900 to-slate-900 flex items-center justify-between">
+      <div className="px-8 py-6 bg-gradient-to-r from-green-900 to-slate-900 flex items-center justify-between">
         <div className="flex items-center gap-3 text-white">
           <Users size={20} />
           <h3 className="font-black text-base uppercase tracking-wide">Tiến độ Giảng viên</h3>
@@ -246,7 +246,7 @@ const AdminProgressPanel = ({ courseId }) => {
         <div className="divide-y divide-gray-50">
           {data.map(t => (
             <div key={t.teacherId} className="px-6 py-4 flex items-center gap-4 hover:bg-gray-50 transition-colors">
-              <div className="w-10 h-10 bg-blue-100 rounded-2xl flex items-center justify-center font-black text-blue-700 text-sm flex-shrink-0">
+              <div className="w-10 h-10 bg-green-100 rounded-2xl flex items-center justify-center font-black text-green-700 text-sm flex-shrink-0">
                 {(t.teacherName || 'GV')[0]}
               </div>
               <div className="flex-1 min-w-0">
@@ -261,7 +261,7 @@ const AdminProgressPanel = ({ courseId }) => {
                   <div className="flex items-center gap-2 mt-1">
                     <div className="w-24 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all ${t.isCertified ? 'bg-emerald-500' : 'bg-blue-500'}`}
+                        className={`h-full rounded-full transition-all ${t.isCertified ? 'bg-emerald-500' : 'bg-green-500'}`}
                         style={{ width: `${t.progressPct}%` }}
                       />
                     </div>
@@ -527,7 +527,7 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
             {isAdmin && (
               <button
                 onClick={() => setShowAdminPanel(!showAdminPanel)}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${showAdminPanel ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-700 hover:bg-blue-100'}`}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all ${showAdminPanel ? 'bg-green-600 text-white' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}
               >
                 <BarChart2 size={16} /> Xem tiến độ
               </button>
@@ -552,7 +552,7 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
           ].map(t => (
             <button key={t.key} onClick={() => setMainTab(t.key)}
               className={`flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-[13px] font-bold tracking-wide transition-all ${mainTab === t.key
-                  ? 'bg-blue-600 text-white shadow-md'
+                  ? 'bg-green-600 text-white shadow-md'
                   : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
                 }`}>
               <t.icon size={16} /> {t.label}
@@ -580,7 +580,7 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {courses.map((course, idx) => {
                 const gradients = [
-                  "from-blue-600 via-indigo-600 to-purple-600",
+                  "from-green-600 via-indigo-600 to-purple-600",
                   "from-emerald-500 via-teal-500 to-emerald-700",
                   "from-rose-500 via-red-500 to-rose-700",
                   "from-cyan-500 via-blue-500 to-indigo-600"
@@ -614,7 +614,7 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
 
                     {/* KHU VỰC THÔNG TIN */}
                     <div className="pt-10 pb-5 px-6 flex-1 flex flex-col">
-                      <h3 className="font-extrabold text-slate-800 text-lg group-hover:text-blue-600 transition-colors line-clamp-2 leading-snug mb-2">
+                      <h3 className="font-extrabold text-slate-800 text-lg group-hover:text-green-600 transition-colors line-clamp-2 leading-snug mb-2">
                         {course.title}
                       </h3>
                       <p className="text-xs text-slate-500 font-medium line-clamp-2 mb-4 flex-1">
@@ -624,15 +624,15 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
                       {/* Footer Thông tin số lượng & Nút Học tiếp */}
                       <div className="flex items-center justify-between pt-4 border-t border-dashed border-slate-100">
                         <div className="flex items-center gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
-                          <div className="w-6 h-6 rounded-md bg-blue-50 flex items-center justify-center">
-                            <Video size={12} className="text-blue-500" />
+                          <div className="w-6 h-6 rounded-md bg-green-50 flex items-center justify-center">
+                            <Video size={12} className="text-green-500" />
                           </div>
                           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                             {course.chapters ? course.chapters.reduce((acc, ch) => acc + (ch.lessons ? ch.lessons.length : 0), 0) : ((course.lessons || course.videos || [1]).length)} BÀI HỌC
                           </span>
                         </div>
 
-                        <div className="flex items-center text-[18px] font-black tracking-wider text-blue-500 group-hover:text-blue-600 transition-colors">
+                        <div className="flex items-center text-[18px] font-black tracking-wider text-green-500 group-hover:text-green-600 transition-colors">
                           <ChevronRight size={16} />
                         </div>
                       </div>
@@ -648,22 +648,22 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
         {mainTab === 'files' && (
           <div className="bg-white rounded-[24px] p-6 shadow-sm border border-gray-100 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-3">
-              <Download className="text-blue-600" /> Tài liệu Khóa học
+              <Download className="text-green-600" /> Tài liệu Khóa học
             </h2>
             <div className="space-y-3">
               {trainingData?.files?.map((file, idx) => (
-                <div key={idx} className="p-4 rounded-xl border border-slate-100 hover:bg-blue-50/50 hover:border-blue-200 transition-all flex flex-col md:flex-row justify-between md:items-center gap-4 group cursor-pointer">
+                <div key={idx} className="p-4 rounded-xl border border-slate-100 hover:bg-green-50/50 hover:border-green-200 transition-all flex flex-col md:flex-row justify-between md:items-center gap-4 group cursor-pointer">
                   <div className="flex items-center gap-4">
                     <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xs font-black text-white shrink-0 shadow-sm ${file.fileType === 'PDF' ? 'bg-rose-500' : 'bg-green-500'}`}>
                       {file.fileType || 'FILE'}
                     </div>
                     <div>
-                      <h3 className="font-bold text-slate-800 text-base leading-tight group-hover:text-blue-700 transition-colors">{file.title}</h3>
+                      <h3 className="font-bold text-slate-800 text-base leading-tight group-hover:text-green-700 transition-colors">{file.title}</h3>
                       <p className="text-[12px] text-slate-500 mt-1 mb-1 line-clamp-1">{file.desc || 'Tài liệu đính kèm từ Admin'}</p>
                       <p className="text-[10px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 w-fit rounded">{file.fileSize || 'N/A'}</p>
                     </div>
                   </div>
-                  <button className="w-full md:w-auto px-5 py-2.5 bg-blue-50 text-blue-700 border border-transparent rounded-[10px] text-sm font-bold group-hover:bg-blue-600 group-hover:text-white group-hover:shadow-md transition-all shrink-0 flex items-center justify-center gap-2">
+                  <button className="w-full md:w-auto px-5 py-2.5 bg-green-50 text-green-700 border border-transparent rounded-[10px] text-sm font-bold group-hover:bg-green-600 group-hover:text-white group-hover:shadow-md transition-all shrink-0 flex items-center justify-center gap-2">
                     <Download size={16} /> Tải về
                   </button>
                 </div>
@@ -682,14 +682,14 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
         {mainTab === 'assignments' && (
           <div className="bg-white rounded-[24px] p-6 shadow-sm border border-gray-100 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-3">
-              <BookOpen className="text-blue-600" /> Bài tập từ Giảng viên
+              <BookOpen className="text-green-600" /> Bài tập từ Giảng viên
             </h2>
             <div className="space-y-4">
               {trainingData?.assignments?.map((a, idx) => {
                 const isLate = a.deadline && new Date() > new Date(a.deadline);
                 return (
                   <div key={idx} className="p-5 rounded-2xl border border-slate-100 hover:shadow-md transition-all flex flex-col md:flex-row gap-5 items-start bg-slate-50/50">
-                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-blue-600 shrink-0 border border-blue-200 shadow-inner">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-green-100 to-indigo-100 flex items-center justify-center text-green-600 shrink-0 border border-green-200 shadow-inner">
                       <FileUp size={24} />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -708,7 +708,7 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
                         <a href={a.fileUrl || '#'} target="_blank" className="flex items-center justify-center gap-2 px-5 py-2.5 bg-white border-2 border-slate-200 text-slate-700 rounded-xl hover:border-slate-300 hover:bg-slate-50 font-bold text-sm transition-all shadow-sm">
                           <LinkIcon size={16} /> Tải đề bài
                         </a>
-                        <label className="flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-sm transition-all shadow-[0_4px_14px_0_rgba(37,99,235,0.39)] cursor-pointer">
+                        <label className="flex items-center justify-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold text-sm transition-all shadow-[0_4px_14px_0_rgba(37,99,235,0.39)] cursor-pointer">
                           <UploadCloud size={18} />
                           Nộp bài tập
                           <input type="file" className="hidden" accept=".zip,.rar,.pdf" />
@@ -746,7 +746,7 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
             <div className="bg-white rounded-[24px] p-6 shadow-sm border border-gray-100 animate-in fade-in slide-in-from-bottom-4 duration-500 min-h-[400px]">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-slate-800 flex items-center gap-3">
-                  <Award className="text-blue-600" /> Bảng Điểm Tổng Hợp
+                  <Award className="text-green-600" /> Bảng Điểm Tổng Hợp
                 </h2>
               </div>
 
@@ -766,7 +766,7 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
                       const trScore = sub.tracNghiem ? `${sub.tracNghiem.score}/${sub.tracNghiem.total}` : '-';
 
                       let thText = <span className="text-gray-400 font-medium">Chưa làm</span>;
-                      if (sub.thucHanh === 'da_nop') thText = <span className="text-blue-600 font-bold bg-blue-50 px-2.5 py-1 rounded-md">Chờ chấm</span>;
+                      if (sub.thucHanh === 'da_nop') thText = <span className="text-green-600 font-bold bg-green-50 px-2.5 py-1 rounded-md">Chờ chấm</span>;
                       else if (sub.thucHanh === 'cham_diem' || sub.datThucHanh !== undefined) {
                         if (sub.datThucHanh === true) thText = <span className="text-emerald-700 font-bold bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-md">Đạt</span>;
                         else if (sub.datThucHanh === false) thText = <span className="text-red-700 font-bold bg-red-50 border border-red-100 px-2.5 py-1 rounded-md">Chưa đạt</span>;
@@ -810,7 +810,7 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
         {/* Progress rail */}
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-white/5">
           <div
-            className={`h-full transition-all duration-700 ${overallProgress === 100 ? 'bg-emerald-400' : 'bg-blue-500'}`}
+            className={`h-full transition-all duration-700 ${overallProgress === 100 ? 'bg-emerald-400' : 'bg-green-500'}`}
             style={{ width: `${overallProgress}%` }}
           />
         </div>
@@ -826,7 +826,7 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
             </button>
             <div className="w-px h-5 bg-white/10 flex-shrink-0" />
             <div className="min-w-0 flex items-center gap-2">
-              <span className="hidden md:inline-flex items-center gap-1 bg-blue-500/15 text-blue-400 text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest border border-blue-500/20">
+              <span className="hidden md:inline-flex items-center gap-1 bg-green-500/15 text-green-400 text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest border border-green-500/20">
                 KHÓA HỌC
               </span>
               <h2 className="font-bold text-[13px] text-slate-100 truncate leading-none">{selectedCourse.title}</h2>
@@ -890,7 +890,7 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
                   key={t.key}
                   onClick={() => setCourseTab(t.key)}
                   className={`px-5 py-3.5 text-[11px] font-bold tracking-wide border-b-2 transition-all ${courseTab === t.key
-                      ? 'text-white border-blue-500'
+                      ? 'text-white border-green-500'
                       : 'text-slate-500 border-transparent hover:text-slate-300'
                     }`}
                 >
@@ -907,7 +907,7 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
                   {/* Chapter label + Title */}
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <span className="inline-block text-[9px] font-black text-blue-400/80 uppercase tracking-[0.15em] mb-2">
+                      <span className="inline-block text-[9px] font-black text-green-400/80 uppercase tracking-[0.15em] mb-2">
                         {currentLesson.chapterTitle || 'Mục lục'}
                       </span>
                       <h1 className="text-xl font-bold text-white leading-snug">
@@ -939,14 +939,14 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
                   ) : selectedCourse.files.map((file, idx) => (
                     <div key={idx} className="flex items-center justify-between p-4 rounded-xl border border-white/[0.06] bg-white/[0.03] hover:bg-white/[0.06] transition-colors cursor-pointer group">
                       <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-[9px] font-black text-white ${file.type === 'PDF' ? 'bg-rose-500/80' : file.type === 'DOCX' ? 'bg-blue-600/80' : 'bg-emerald-600/80'
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-[9px] font-black text-white ${file.type === 'PDF' ? 'bg-rose-500/80' : file.type === 'DOCX' ? 'bg-green-600/80' : 'bg-emerald-600/80'
                           }`}>{file.type}</div>
                         <div>
                           <h4 className="font-semibold text-slate-200 text-sm">{file.title}</h4>
                           <p className="text-[10px] text-slate-600 mt-0.5">{file.size}</p>
                         </div>
                       </div>
-                      <button className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-slate-500 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                      <button className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-slate-500 group-hover:bg-green-600 group-hover:text-white transition-all">
                         <Download size={13} />
                       </button>
                     </div>
@@ -980,7 +980,7 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
               <span
                 className={`text-[10px] font-black px-2 py-0.5 rounded-md border ${overallProgress === 100
                     ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20'
-                    : 'bg-blue-500/15 text-blue-400 border-blue-500/20'
+                    : 'bg-green-500/15 text-green-400 border-green-500/20'
                   }`}
               >
                 {lessons.filter(l => l.isCompleted).length}/{lessons.length} BÀI
@@ -989,7 +989,7 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
             {/* Mini progress bar */}
             <div className="h-1 bg-white/5 rounded-full mt-3 overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all duration-700 ${overallProgress === 100 ? 'bg-emerald-500' : 'bg-blue-500'
+                className={`h-full rounded-full transition-all duration-700 ${overallProgress === 100 ? 'bg-emerald-500' : 'bg-green-500'
                   }`}
                 style={{ width: `${overallProgress}%` }}
               />
@@ -1038,7 +1038,7 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
                         }}
                         className={`flex items-start gap-3 px-4 py-3.5 cursor-pointer transition-all relative ${!lesson.isUnlocked ? 'opacity-40 pointer-events-none' : ''
                           } ${isCurrent
-                            ? 'bg-blue-600/10 border-l-2 border-blue-500'
+                            ? 'bg-green-600/10 border-l-2 border-green-500'
                             : 'border-l-2 border-transparent hover:bg-white/[0.04]'
                           }`}
                         style={{ borderBottom: '1px solid rgba(255,255,255,0.03)' }}
@@ -1046,14 +1046,14 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
                         {/* Status icon */}
                         <div className="mt-0.5 flex-shrink-0">
                           {lesson.isCompleted ? (
-                            <div className="w-[18px] h-[18px] rounded-full bg-blue-500/20 flex items-center justify-center">
-                              <CheckCircle size={12} className="text-blue-400" />
+                            <div className="w-[18px] h-[18px] rounded-full bg-green-500/20 flex items-center justify-center">
+                              <CheckCircle size={12} className="text-green-400" />
                             </div>
                           ) : !lesson.isUnlocked ? (
                             <Lock size={14} className="text-slate-600" />
                           ) : isCurrent ? (
-                            <div className="w-[18px] h-[18px] rounded-full border-2 border-blue-500 flex items-center justify-center">
-                              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                            <div className="w-[18px] h-[18px] rounded-full border-2 border-green-500 flex items-center justify-center">
+                              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                             </div>
                           ) : (
                             <PlayCircle size={16} className="text-slate-600" />
@@ -1062,7 +1062,7 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
 
                         <div className="flex-1 min-w-0">
                           <p className="text-[9px] font-black text-slate-600 uppercase tracking-wider mb-0.5">Bài {globalIdx + 1}</p>
-                          <h4 className={`text-[12px] leading-snug truncate ${isCurrent ? 'text-blue-400 font-bold' : lesson.isCompleted ? 'text-slate-500 font-semibold' : 'text-slate-300 font-semibold'
+                          <h4 className={`text-[12px] leading-snug truncate ${isCurrent ? 'text-green-400 font-bold' : lesson.isCompleted ? 'text-slate-500 font-semibold' : 'text-slate-300 font-semibold'
                             }`}>
                             {lesson.title}
                           </h4>
