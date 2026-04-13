@@ -3188,7 +3188,7 @@ const AdminDashboard = ({ onNavigate }) => {
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                  <BookOpen size={20} className="text-purple-600" /> Quản lý Đào tạo Học viên
+                  <BookOpen size={20} className="text-green-600" /> Quản lý Đào tạo Học viên
                 </h2>
               </div>
 
@@ -3204,7 +3204,7 @@ const AdminDashboard = ({ onNavigate }) => {
                   <button key={t.key} onClick={() => { setSTrainingTab(t.key); setSTrainingForm(null); }}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
                       sTrainingTab === t.key
-                        ? t.key === 'exam-results' ? 'bg-amber-600 text-white shadow-md' : 'bg-purple-600 text-white shadow-md'
+                        ? t.key === 'exam-results' ? 'bg-amber-600 text-white shadow-md' : 'bg-green-600 text-white shadow-md'
                         : 'text-gray-500 hover:bg-gray-100'
                     }`}>
                     <t.icon size={15} /> {t.label} <span className="text-[10px] opacity-70">({t.count})</span>
@@ -3215,13 +3215,13 @@ const AdminDashboard = ({ onNavigate }) => {
               {/* Add button */}
               {sTrainingTab !== 'questions' && sTrainingTab !== 'exam-results' && (
                 <button onClick={() => setSTrainingForm({})}
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-md transition flex items-center gap-2">
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-md transition flex items-center gap-2">
                   <Plus size={15} /> {sTrainingTab === 'videos' ? 'Thêm Khóa học' : sTrainingTab === 'guides' ? 'Thêm quy trình' : 'Thêm tài liệu'}
                 </button>
               )}
               {sTrainingTab === 'questions' && (
                 <button onClick={() => setSqForm({ ...BLANK_Q })}
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-md transition flex items-center gap-2">
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-md transition flex items-center gap-2">
                   <Plus size={15} /> Thêm câu hỏi
                 </button>
               )}
@@ -3234,9 +3234,9 @@ const AdminDashboard = ({ onNavigate }) => {
 
               {/* Add/Edit Form */}
               {sTrainingForm && (
-                <div className="bg-white rounded-2xl shadow-sm border border-purple-200 p-6 space-y-4">
+                <div className="bg-white rounded-2xl shadow-sm border border-green-200 p-6 space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-purple-700 flex items-center gap-2">
+                    <h3 className="font-bold text-green-700 flex items-center gap-2">
                       <Edit3 size={16} /> {sTrainingForm.id ? 'Chỉnh sửa' : 'Thêm mới'}
                     </h3>
                     <button onClick={() => setSTrainingForm(null)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
@@ -3245,20 +3245,20 @@ const AdminDashboard = ({ onNavigate }) => {
                     <div>
                       <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Tiêu đề</label>
                       <input value={sTrainingForm.title || ''} onChange={e => setSTrainingForm({ ...sTrainingForm, title: e.target.value })}
-                        className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-purple-400 outline-none" placeholder="Nhập tiêu đề..." />
+                        className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-green-400 outline-none" placeholder="Nhập tiêu đề..." />
                     </div>
                     {sTrainingTab === 'videos' && (
                       <div className="sm:col-span-2">
                         <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Mô tả Khóa học (Tóm tắt)</label>
                         <input value={sTrainingForm.desc || ''} onChange={e => setSTrainingForm({ ...sTrainingForm, desc: e.target.value })}
-                          className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-purple-400 outline-none" placeholder="Nhập mô tả tóm tắt..." />
+                          className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-green-400 outline-none" placeholder="Nhập mô tả tóm tắt..." />
                       </div>
                     )}
                     {sTrainingTab === 'guides' && (
                       <div>
                         <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Icon (emoji)</label>
                         <input value={sTrainingForm.icon || ''} onChange={e => setSTrainingForm({ ...sTrainingForm, icon: e.target.value })}
-                          className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-purple-400 outline-none" placeholder="📝" />
+                          className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-green-400 outline-none" placeholder="📝" />
                       </div>
                     )}
                     {sTrainingTab === 'files' && (
@@ -3266,14 +3266,14 @@ const AdminDashboard = ({ onNavigate }) => {
                         <div>
                           <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Loại file</label>
                           <select value={sTrainingForm.fileType || 'PDF'} onChange={e => setSTrainingForm({ ...sTrainingForm, fileType: e.target.value })}
-                            className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-purple-400 outline-none">
+                            className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-green-400 outline-none">
                             {['PDF', 'PPTX', 'XLSX', 'DOCX', 'ZIP'].map(t => <option key={t} value={t}>{t}</option>)}
                           </select>
                         </div>
                         <div>
                           <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Dung lượng</label>
                           <input value={sTrainingForm.fileSize || ''} onChange={e => setSTrainingForm({ ...sTrainingForm, fileSize: e.target.value })}
-                            className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-purple-400 outline-none" placeholder="2.4MB" />
+                            className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-green-400 outline-none" placeholder="2.4MB" />
                         </div>
                       </>
                     )}
@@ -3298,7 +3298,7 @@ const AdminDashboard = ({ onNavigate }) => {
                       addStudentTrainingItem(sTrainingTab, { ...sTrainingForm, createdAt: new Date().toISOString().split('T')[0] });
                     }
                     setSTrainingForm(null);
-                  }} className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-md transition flex items-center gap-2">
+                  }} className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-md transition flex items-center gap-2">
                     <Save size={15} /> {sTrainingForm.id ? 'Cập nhật' : 'Thêm mới'}
                   </button>
                 </div>
@@ -3468,20 +3468,20 @@ const AdminDashboard = ({ onNavigate }) => {
                       return (
                         <div className="p-4 space-y-4">
                           <div className="flex flex-wrap gap-2 mb-4">
-                            <select value={sqSection} onChange={e => setSqSection(e.target.value)} className="border-2 border-gray-100 rounded-xl px-3 py-1.5 text-xs font-bold focus:border-purple-500 outline-none">
+                            <select value={sqSection} onChange={e => setSqSection(e.target.value)} className="border-2 border-gray-100 rounded-xl px-3 py-1.5 text-xs font-bold focus:border-green-500 outline-none">
                               <option value="all">Tất cả phần</option>
                               {SECTION_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                             </select>
                             <div className="relative flex-1 min-w-[200px]">
                               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
-                              <input type="text" value={sqSearch} onChange={e => setSqSearch(e.target.value)} placeholder="Tìm câu hỏi học viên..." className="w-full pl-9 pr-4 py-1.5 border-2 border-gray-100 rounded-xl text-xs focus:border-purple-500 outline-none" />
+                              <input type="text" value={sqSearch} onChange={e => setSqSearch(e.target.value)} placeholder="Tìm câu hỏi học viên..." className="w-full pl-9 pr-4 py-1.5 border-2 border-gray-100 rounded-xl text-xs focus:border-green-500 outline-none" />
                             </div>
                           </div>
 
                           <div className="divide-y divide-gray-50 border border-gray-100 rounded-xl overflow-hidden">
                             {filtered.length === 0 ? <p className="p-8 text-center text-gray-400 text-sm">Trống</p> : filtered.map((q, idx) => {
                               const sOpt = SECTION_OPTS.find(s => s.value === q.section);
-                              const colors = { excel: 'bg-green-100 text-purple-700', word: 'bg-blue-100 text-blue-700', powerpoint: 'bg-orange-100 text-orange-700', computer: 'bg-indigo-100 text-indigo-700', situation: 'bg-purple-100 text-purple-700', other: 'bg-gray-100 text-gray-700' };
+                              const colors = { excel: 'bg-green-100 text-green-700', word: 'bg-blue-100 text-blue-700', powerpoint: 'bg-orange-100 text-orange-700', computer: 'bg-indigo-100 text-indigo-700', situation: 'bg-purple-100 text-green-700', other: 'bg-gray-100 text-gray-700' };
                               return (
                                 <div key={q.id} className="p-4 hover:bg-gray-50 transition-colors flex items-start gap-4">
                                   <div className="w-7 h-7 bg-gray-100 rounded-lg flex items-center justify-center text-xs font-black text-gray-400 flex-shrink-0 mt-0.5">{idx + 1}</div>
@@ -3520,12 +3520,12 @@ const AdminDashboard = ({ onNavigate }) => {
                       <div key={item.id} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50/50 transition">
                         <div className="flex items-center gap-4 min-w-0 flex-1">
                           {sTrainingTab === 'videos' && (
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center flex-shrink-0 cursor-pointer hover:scale-105 transition" onClick={() => setSCourseBuilderMode(item)}>
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center flex-shrink-0 cursor-pointer hover:scale-105 transition" onClick={() => setSCourseBuilderMode(item)}>
                               <BookOpen size={20} className="text-white" />
                             </div>
                           )}
                           {sTrainingTab === 'guides' && (
-                            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center text-2xl flex-shrink-0">
+                            <div className="w-12 h-12 rounded-xl bg-green-50 flex items-center justify-center text-2xl flex-shrink-0">
                               {item.icon || '📄'}
                             </div>
                           )}
@@ -3538,13 +3538,13 @@ const AdminDashboard = ({ onNavigate }) => {
                           <div className="min-w-0">
                             <p className="font-bold text-sm text-gray-800 truncate">{item.title}</p>
                             <p className="text-xs text-gray-400 truncate">{(item.desc?.replace(/<[^>]*>/g, '') || '').slice(0, 80)}</p>
-                            {item.duration && <p className="text-[10px] text-purple-500 mt-0.5">⏱ {item.duration}</p>}
+                            {item.duration && <p className="text-[10px] text-green-500 mt-0.5">⏱ {item.duration}</p>}
                             {item.fileSize && <p className="text-[10px] text-gray-400 mt-0.5">{item.fileSize}</p>}
                           </div>
                         </div>
                         <div className="flex gap-2 ml-3 flex-shrink-0 items-center">
                           {sTrainingTab === 'videos' && (
-                             <button onClick={() => setSCourseBuilderMode(item)} className="px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-100 hover:bg-indigo-100 text-indigo-600 text-xs font-bold transition whitespace-nowrap flex items-center gap-1.5">
+                             <button onClick={() => setSCourseBuilderMode(item)} className="px-3 py-1.5 rounded-lg bg-green-50 border border-green-100 hover:bg-green-100 text-green-600 text-xs font-bold transition whitespace-nowrap flex items-center gap-1.5">
                                <Layers size={13} /> Giáo trình
                              </button>
                           )}
@@ -3578,7 +3578,7 @@ const AdminDashboard = ({ onNavigate }) => {
               {sqForm && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                   <div className="bg-white rounded-[32px] w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in duration-300">
-                    <div className="bg-gradient-to-r from-purple-600 to-purple-500 px-8 py-5 flex items-center justify-between text-white">
+                    <div className="bg-gradient-to-r from-green-600 to-green-500 px-8 py-5 flex items-center justify-between text-white">
                       <h3 className="font-bold text-lg flex items-center gap-3">
                         <HelpCircle size={24} /> {sqForm.id ? 'Sửa câu hỏi học viên' : 'Thêm câu hỏi học viên mới'}
                       </h3>
@@ -3587,15 +3587,15 @@ const AdminDashboard = ({ onNavigate }) => {
                     <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar text-left text-gray-800">
                       <div className="flex gap-2 p-1 bg-gray-100 rounded-xl">
                         <button onClick={() => setSqForm({ ...sqForm, type: 'multiple' })}
-                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${sqForm.type === 'multiple' ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-500'}`}>Trắc nghiệm</button>
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${sqForm.type === 'multiple' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-500'}`}>Trắc nghiệm</button>
                         <button onClick={() => setSqForm({ ...sqForm, type: 'essay' })}
-                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${sqForm.type === 'essay' ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-500'}`}>Tự luận</button>
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition ${sqForm.type === 'essay' ? 'bg-white text-green-600 shadow-sm' : 'text-gray-500'}`}>Tự luận</button>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Phần thi</label>
                           <select value={sqForm.section} onChange={e => setSqForm({ ...sqForm, section: e.target.value })}
-                            className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-purple-500 outline-none text-sm font-bold">
+                            className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 outline-none text-sm font-bold">
                             <option value="excel">Microsoft Excel</option>
                             <option value="word">Microsoft Word</option>
                             <option value="powerpoint">Microsoft PowerPoint</option>
@@ -3607,7 +3607,7 @@ const AdminDashboard = ({ onNavigate }) => {
                         <div>
                           <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Độ khó</label>
                           <select value={sqForm.difficulty} onChange={e => setSqForm({ ...sqForm, difficulty: e.target.value })}
-                            className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-purple-500 outline-none text-sm font-bold">
+                            className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 outline-none text-sm font-bold">
                             <option value="easy">Cơ bản</option>
                             <option value="medium">Trung bình</option>
                             <option value="hard">Nâng cao</option>
@@ -3617,7 +3617,7 @@ const AdminDashboard = ({ onNavigate }) => {
                       <div>
                         <label className="text-xs font-bold text-gray-500 uppercase mb-1 block">Câu hỏi</label>
                         <textarea value={sqForm.q} onChange={e => setSqForm({ ...sqForm, q: e.target.value })}
-                          rows={3} className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-purple-500 outline-none text-sm resize-none" placeholder="Nhập nội dung câu hỏi..." />
+                          rows={3} className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-green-500 outline-none text-sm resize-none" placeholder="Nhập nội dung câu hỏi..." />
                       </div>
                       {sqForm.type === 'multiple' ? (
                         <div>
@@ -3635,7 +3635,7 @@ const AdminDashboard = ({ onNavigate }) => {
                         <div className="space-y-4">
                           <div>
                             <label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Gợi ý đáp án / Nội dung mẫu</label>
-                            <textarea value={sqForm.sampleAnswer || ''} onChange={e => setSqForm({ ...sqForm, sampleAnswer: e.target.value })} rows={3} className="w-full border-2 border-gray-100 rounded-xl p-3 focus:border-purple-500 outline-none text-sm resize-none" placeholder="Nhập nội dung gợi ý..." />
+                            <textarea value={sqForm.sampleAnswer || ''} onChange={e => setSqForm({ ...sqForm, sampleAnswer: e.target.value })} rows={3} className="w-full border-2 border-gray-100 rounded-xl p-3 focus:border-green-500 outline-none text-sm resize-none" placeholder="Nhập nội dung gợi ý..." />
                           </div>
                           <div>
                             <label className="text-xs font-bold text-gray-400 uppercase mb-2 block">Đính kèm tài liệu (Nếu có)</label>
@@ -3744,14 +3744,14 @@ const AdminDashboard = ({ onNavigate }) => {
 
                   {/* Tự luận */}
                   <div className="bg-purple-50 rounded-2xl p-4 space-y-3 border border-purple-100">
-                    <p className="text-xs font-black text-purple-700 uppercase tracking-widest">✍️ Phần Tự luận (Admin tự chấm)</p>
+                    <p className="text-xs font-black text-green-700 uppercase tracking-widest">✍️ Phần Tự luận (Admin tự chấm)</p>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Điểm tự luận (0–10)</label>
                         <input type="number" min="0" max="10" step="0.5"
                           value={erForm.essayScore !== undefined ? erForm.essayScore : ''}
                           onChange={e => setErForm({ ...erForm, essayScore: e.target.value })}
-                          className="w-full border-2 border-purple-200 rounded-xl p-3 focus:border-purple-500 outline-none text-sm font-bold text-purple-800"
+                          className="w-full border-2 border-purple-200 rounded-xl p-3 focus:border-green-500 outline-none text-sm font-bold text-purple-800"
                           placeholder="7.5" />
                       </div>
                       <div>
@@ -3765,7 +3765,7 @@ const AdminDashboard = ({ onNavigate }) => {
                     <div>
                       <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nhận xét tự luận</label>
                       <textarea value={erForm.essayNote || ''} onChange={e => setErForm({ ...erForm, essayNote: e.target.value })}
-                        rows={2} className="w-full border-2 border-purple-100 rounded-xl p-3 focus:border-purple-500 outline-none text-sm resize-none"
+                        rows={2} className="w-full border-2 border-purple-100 rounded-xl p-3 focus:border-green-500 outline-none text-sm resize-none"
                         placeholder="Nhận xét bài tự luận, ghi chú..." />
                     </div>
                   </div>
