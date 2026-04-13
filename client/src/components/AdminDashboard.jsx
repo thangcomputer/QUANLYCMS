@@ -3253,6 +3253,10 @@ const AdminDashboard = ({ onNavigate }) => {
                           <input value={sTrainingForm.duration || ''} onChange={e => setSTrainingForm({ ...sTrainingForm, duration: e.target.value })}
                             className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-green-400 outline-none" placeholder="15:30" />
                         </div>
+                        <div className="flex items-center gap-2 md:col-span-2 bg-red-50/50 p-3 rounded-xl border border-red-100">
+                          <input type="checkbox" id="svideoLock" checked={!!sTrainingForm.isLocked} onChange={e => setSTrainingForm({ ...sTrainingForm, isLocked: e.target.checked })} className="w-4 h-4 cursor-pointer accent-red-600 rounded" />
+                          <label htmlFor="svideoLock" className="text-sm font-bold text-slate-700 cursor-pointer flex items-center gap-1.5"><Lock size={16} className="text-red-600" /> Khóa video này (Học viên không thể bấm xem)</label>
+                        </div>
                       </>
                     )}
                     {sTrainingTab === 'guides' && (

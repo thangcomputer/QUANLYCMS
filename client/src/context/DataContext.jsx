@@ -274,6 +274,9 @@ export const DataProvider = ({ children, user, onLogout }) => {
       // Fetch training data for all (Admin & Teacher)
       promises.push(api.settings.getTrainingData().catch(() => ({ success: false })));
 
+      // Fetch student training data for all (Admin & Student)
+      promises.push(api.settings.getStudentTrainingData().catch(() => ({ success: false })));
+
       const results = await Promise.all(promises);
       let idx = 0;
 
@@ -329,10 +332,16 @@ export const DataProvider = ({ children, user, onLogout }) => {
       const groupsRes = results[idx++];
       if (groupsRes?.success) setGroups(groupsRes.data.map(g => ({ ...g, id: g._id })));
 
-      // Training Data is the last promise
+      // Training Data is the second to last promise
       const trainingDataRes = results[idx++];
       if (trainingDataRes?.success) {
         setTrainingData(trainingDataRes.data);
+      }
+
+      // Student Training Data is the last promise
+      const studentTrainingRes = results[idx++];
+      if (studentTrainingRes?.success) {
+        setStudentTrainingData(studentTrainingRes.data);
       }
     } catch (e) {
       if (e.status === 401 && onLogout) {
@@ -1685,22 +1694,34 @@ export const DataProvider = ({ children, user, onLogout }) => {
     trainingData,
     studentTrainingData,
     addStudentTrainingItem: useCallback((category, item) => {
-      setStudentTrainingData(prev => ({
-        ...prev,
-        [category]: [...(prev[category] || []), { ...item, id: Date.now() }]
-      }));
+      setStudentTrainingData(prev => {
+        const newData = {
+          ...prev,
+          [category]: [...(prev[category] || []), { ...item, id: Date.now() }]
+        };
+        api.settings?.updateStudentTrainingData(newData).catch(console.error);
+        return newData;
+      });
     }, []),
     updateStudentTrainingItem: useCallback((category, id, updates) => {
-      setStudentTrainingData(prev => ({
-        ...prev,
-        [category]: (prev[category] || []).map(item => item.id === id ? { ...item, ...updates } : item)
-      }));
+      setStudentTrainingData(prev => {
+        const newData = {
+          ...prev,
+          [category]: (prev[category] || []).map(item => item.id === id ? { ...item, ...updates } : item)
+        };
+        api.settings?.updateStudentTrainingData(newData).catch(console.error);
+        return newData;
+      });
     }, []),
     removeStudentTrainingItem: useCallback((category, id) => {
-      setStudentTrainingData(prev => ({
-        ...prev,
-        [category]: (prev[category] || []).filter(item => item.id !== id)
-      }));
+      setStudentTrainingData(prev => {
+        const newData = {
+          ...prev,
+          [category]: (prev[category] || []).filter(item => item.id !== id)
+        };
+        api.settings?.updateStudentTrainingData(newData).catch(console.error);
+        return newData;
+      });
     }, []),
     addTrainingItem: useCallback((category, item) => {
       setTrainingData(prev => {

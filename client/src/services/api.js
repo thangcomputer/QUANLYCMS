@@ -574,6 +574,17 @@ export const settingsAPI = {
     });
     return res.json();
   },
+  getStudentTrainingData: async () => {
+    const res = await apiFetch('/settings/student-training-data');
+    return res.json();
+  },
+  updateStudentTrainingData: async (studentTrainingData) => {
+    const res = await apiFetch('/settings/student-training-data', {
+      method: 'PUT',
+      body: JSON.stringify({ studentTrainingData }),
+    });
+    return res.json();
+  },
 };
 
 

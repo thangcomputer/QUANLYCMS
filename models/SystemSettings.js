@@ -41,6 +41,12 @@ const systemSettingsSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed, 
     default: { videos: [], guides: [], files: [] } 
   },
+
+  // ── Student Training Data Raw (Dữ liệu Admin tạo cho học viên) ─────────
+  studentTrainingRawData: { 
+    type: mongoose.Schema.Types.Mixed, 
+    default: { videos: [], guides: [], files: [] } 
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.model('SystemSettings', systemSettingsSchema);
