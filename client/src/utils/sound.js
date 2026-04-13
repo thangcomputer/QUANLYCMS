@@ -28,7 +28,6 @@ const playTone = (frequency = 440, type = 'sine', duration = 0.1, volume = 0.5) 
     oscillator.start();
     oscillator.stop(audioCtx.currentTime + duration);
   } catch(e) {
-    console.error('Lỗi phát âm thanh:', e);
   }
 };
 

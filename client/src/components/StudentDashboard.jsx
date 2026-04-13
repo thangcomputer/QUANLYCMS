@@ -3,7 +3,7 @@ import {
   PlayCircle, Clock, CheckCircle, MessageSquare, Download, HelpCircle, Lock,
   FileUp, BookOpen, Star, TrendingUp, Phone,
   Zap, Calendar, Video, FileText, ClipboardList,
-  ChevronRight, AlertCircle, XCircle, ExternalLink, User, Settings
+  ChevronRight, AlertCircle, XCircle, ExternalLink, User, Settings, Search
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ClassReminder from './ClassReminder';
@@ -11,6 +11,7 @@ import { useData } from '../context/DataContext';
 import PopupBanner from './PopupBanner';
 import TuitionPaymentModal from './TuitionPaymentModal';
 import StudentProfileUpdateModal from './StudentProfileUpdateModal';
+import StudentTrainingLMS from './StudentTrainingLMS';
 import api from '../services/api';
 import { useModal } from '../utils/Modal.jsx';
 
@@ -309,21 +310,32 @@ const MaterialsView = ({ trainingData, courseName, studentQuestions, onSelectAss
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row gap-4">
+      {/* Tiêu đề & Tổng số */}
+      <div className="flex items-center justify-between px-2">
+        <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+          <BookOpen className="text-purple-600" size={24} /> Tài liệu khóa học
+        </h2>
+        <span className="text-sm font-medium text-slate-400">
+          {filtered.length} tài liệu
+        </span>
+      </div>
+
+      <div className="flex flex-col md:flex-row gap-4 items-center">
         {/* Tab bar */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-2 flex-1 relative z-10">
-          <div className="flex gap-1">
+        <div className="bg-white rounded-[20px] p-2 shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-100 flex-1 w-full relative z-10 flex overflow-x-auto scrollbar-hide">
+          <div className="flex gap-2 min-w-max w-full">
             {tabs.map(tab => {
               const Icon = tab.icon;
+              const isActive = activeTab === tab.key;
               return (
                 <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all ${
-                    activeTab === tab.key ? `${tab.bgActive} shadow-sm` : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                  className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-2xl text-[13px] font-bold transition-all border-2 ${
+                    isActive ? `border-black bg-purple-50 ${tab.color} shadow-sm` : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50'
                   }`}>
-                  <Icon size={16} />
+                  <Icon size={16} className={isActive ? tab.color : 'text-slate-400'} />
                   {tab.label}
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                    activeTab === tab.key ? 'bg-white/60' : 'bg-slate-100'
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
+                    isActive ? 'bg-white ' + tab.color : 'bg-slate-100 text-slate-400'
                   }`}>{trainingData?.[tab.key]?.length || 0}</span>
                 </button>
               );
@@ -332,102 +344,64 @@ const MaterialsView = ({ trainingData, courseName, studentQuestions, onSelectAss
         </div>
         
         {/* Search */}
-        <div className="md:w-64 relative z-10">
+        <div className="md:w-72 w-full relative z-10">
+           <div className="absolute left-4 top-1/2 -translate-y-1/2 text-blue-500">
+             <Search size={18} />
+           </div>
            <input 
              type="text" 
              value={searchQuery}
              onChange={e => setSearchQuery(e.target.value)}
              placeholder={`Tìm ${tabs.find(t => t.key === activeTab)?.label.toLowerCase()}...`}
-             className="w-full h-full min-h-[48px] pl-10 pr-4 bg-white border border-slate-100 rounded-2xl shadow-sm outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 font-medium text-sm transition-all"
+             className="w-full h-full min-h-[60px] pl-12 pr-4 bg-white border border-slate-100 rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-100 font-medium text-[13px] transition-all"
             />
-            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
         </div>
       </div>
       {/* Content */}
       {/* Content */}
       {activeTab === 'videos' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map((m, idx) => {
-             const gradients = [
-                "from-blue-600 via-indigo-600 to-purple-600",
-                "from-emerald-500 via-teal-500 to-emerald-700",
-                "from-rose-500 via-red-500 to-rose-700",
-                "from-cyan-500 via-blue-500 to-indigo-600"
-             ];
-             const bgClass = gradients[idx % gradients.length];
-             const isLocked = !!m.isLocked;
-
-             return (
-             <div key={m.id} onClick={() => { 
-                if (isLocked) alert('Video này hiện đang bị khóa bởi Quản trị viên!'); 
-                else window.open(m.url, '_blank'); 
-             }} className={`bg-white rounded-[24px] border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] transition-all duration-300 flex flex-col relative overflow-hidden ${isLocked ? 'opacity-80 cursor-not-allowed' : 'hover:shadow-[0_20px_40px_rgb(0,0,0,0.08)] hover:-translate-y-1.5 cursor-pointer group'}`}>
-                
-                {/* KHU VỰC THUMBNAIL (BANNER) */}
-                <div className={`h-36 ${isLocked ? 'bg-slate-300' : 'bg-gradient-to-tr ' + bgClass} relative overflow-hidden flex items-center justify-center`}>
-                   {/* Hiệu ứng ánh sáng nền */}
-                   {!isLocked && (
-                     <>
-                       <div className="absolute -top-12 -right-12 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-colors pointer-events-none" />
-                       <div className="absolute -bottom-10 -left-10 w-24 h-24 bg-black/10 rounded-full blur-xl pointer-events-none" />
-                     </>
-                   )}
-                   
-                   {/* Dấu thời lượng */}
-                   <div className="absolute top-4 right-4">
-                      <span className="bg-black/40 backdrop-blur-md text-white border border-white/20 shadow-sm text-[10px] font-mono px-2 py-0.5 rounded-lg tracking-wider">
-                         {m.duration || '00:00'}
-                      </span>
-                   </div>
+        <div className="bg-white rounded-[20px] shadow-[0_2px_10px_-3px_rgba(6,81,237,0.1)] border border-slate-100 overflow-hidden">
+          <div className="divide-y divide-gray-100/50">
+            {filtered.map(m => {
+              const isLocked = !!m.isLocked;
+              return (
+              <div key={m.id} className={`px-4 md:px-6 py-5 flex flex-col md:flex-row md:items-center justify-between group transition-colors gap-4 ${isLocked ? 'bg-slate-50 opacity-70' : 'hover:bg-purple-50/30 cursor-pointer'}`} onClick={() => {
+                if (isLocked) alert('Video này hiện đang bị khóa bởi Quản trị viên!');
+                else window.open(m.url, '_blank');
+              }}>
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 transition-transform ${isLocked ? 'bg-slate-200 text-slate-500' : 'bg-purple-100 text-purple-600 group-hover:scale-110'}`}>
+                    {isLocked ? <Lock size={20} /> : <PlayCircle size={24} />}
+                  </div>
+                  <div className="min-w-0">
+                     <h4 className="font-extrabold text-[15px] text-slate-800 truncate flex items-center gap-2 mb-1">
+                       {m.title}
+                       {isLocked && <span className="bg-slate-200 text-slate-600 px-2 py-0.5 text-[9px] uppercase font-bold tracking-wider rounded border border-slate-300">Khóa</span>}
+                     </h4>
+                     <p className="text-xs text-slate-500 line-clamp-1">{(m.desc?.replace(/<[^>]*>/g, '') || '')}</p>
+                     <p className="text-[11px] font-medium text-slate-400 mt-2 flex items-center gap-4">
+                       <span className="flex items-center gap-1.5"><Calendar size={12} /> {m.createdAt}</span>
+                       <span className="flex items-center gap-1.5"><Clock size={12} /> {m.duration || '00:00'}</span>
+                     </p>
+                  </div>
                 </div>
-
-                {/* Nút Play hoặc Ổ khóa nổi */}
-                <div className="absolute top-[116px] left-6 z-10 bg-white p-1 rounded-full shadow-md border-2 border-slate-200 transition-transform duration-300 group-hover:scale-110 pointer-events-none">
-                   {isLocked ? (
-                      <div className="w-14 h-14 bg-slate-50 rounded-full flex items-center justify-center border border-slate-100">
-                         <Lock size={22} className="text-slate-400" />
-                      </div>
-                   ) : (
-                      <div className="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center border border-blue-100">
-                         <PlayCircle size={28} className="text-blue-600 ml-0.5" />
-                      </div>
-                   )}
+                <div className="flex-shrink-0 pt-2 md:pt-0">
+                  <button className={`w-full md:w-auto px-5 py-2.5 rounded-[12px] text-xs font-bold transition flex items-center justify-center gap-2 ${isLocked ? 'bg-slate-100 text-slate-500' : 'bg-purple-100 text-purple-700 group-hover:bg-purple-600 group-hover:text-white'}`}>
+                    {isLocked ? <Lock size={14} /> : <PlayCircle size={15} />}
+                    {isLocked ? 'Đã khóa' : 'Học ngay'}
+                  </button>
                 </div>
-
-                {/* KHU VỰC THÔNG TIN */}
-                <div className="pt-10 pb-5 px-6 flex-1 flex flex-col">
-                   <h3 className={`font-extrabold text-lg leading-snug mb-2 line-clamp-2 ${isLocked ? 'text-slate-500' : 'text-slate-800 group-hover:text-blue-600 transition-colors'}`}>
-                      {m.title}
-                   </h3>
-                   <p className="text-xs text-slate-500 font-medium line-clamp-2 mb-4 flex-1">
-                      {(m.desc?.replace(/<[^>]*>/g, '') || '') || 'Video tài liệu hệ thống chia sẻ độc quyền dành cho học viên.'}
-                   </p>
-                   
-                   {/* Footer Thông tin & Nút Hành động */}
-                   <div className="flex items-center justify-between pt-4 border-t border-dashed border-slate-100">
-                      <div className={`flex items-center gap-1.5 ${isLocked ? 'opacity-60' : 'opacity-80 group-hover:opacity-100 transition-opacity'}`}>
-                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
-                            📅 {m.createdAt}
-                         </span>
-                      </div>
-                      
-                      <div className={`flex items-center gap-1 text-[11px] font-black uppercase tracking-wider ${isLocked ? 'text-slate-400' : 'text-blue-600 group-hover:text-indigo-600'}`}>
-                         <span className={isLocked ? '' : 'opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300'}>
-                            {isLocked ? 'ĐÃ KHÓA' : 'XEM VIDEO'}
-                         </span>
-                         {!isLocked && <ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />}
-                      </div>
-                   </div>
+              </div>
+            )})}
+            {filtered.length === 0 && (
+              <div className="text-center py-16 text-slate-400">
+                <div className="w-16 h-16 rounded-full bg-slate-50 flex items-center justify-center mx-auto mb-3">
+                   <Video size={28} className="text-slate-300" />
                 </div>
-             </div>
-             );
-          })}
-          {filtered.length === 0 && (
-            <div className="md:col-span-2 lg:col-span-3 text-center py-12 text-gray-400">
-              <Video size={32} className="mx-auto mb-2 opacity-30" />
-              <p className="text-sm">Chưa có video nào.</p>
-            </div>
-          )}
+                <p className="text-sm font-medium">Chưa có video bài giảng nào.</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -1025,7 +999,7 @@ const StudentDashboard = ({ onNavigate }) => {
         const avg = count > 0 ? (Math.round((validRatings.reduce((s, r) => s + r.criteria.stars, 0) / count) * 10) / 10) : 0;
         setTeacherRatingData({ avg, count, ratings: res.data });
       }
-    }).catch(err => console.error(err));
+    }).catch(err => void 0);
   }, [studentData?.teacherId]);
 
   const isNew = studentData?.completedSessions === 0;
@@ -1204,34 +1178,16 @@ const StudentDashboard = ({ onNavigate }) => {
           </div>
 
         ) : currentHash === 'materials' ? (
-          /* ═══ TÀI LIỆU KHÓA HỌC ═══ */
-          <div className="max-w-5xl mx-auto px-4 md:px-8 py-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-black text-gray-800 flex items-center gap-2">
-                <BookOpen size={20} className="text-purple-500" /> Tài liệu khóa học
-              </h2>
-              <span className="text-xs text-gray-400">{(studentTrainingData?.videos?.length || 0) + (studentTrainingData?.files?.length || 0) + ((studentTrainingData?.guides?.length || 0) + (myAssignments?.length || 0))} tài liệu</span>
-            </div>
-            <MaterialsView 
-              trainingData={{
-                 ...studentTrainingData,
-                 guides: [
-                   ...(studentTrainingData?.guides || []),
-                   ...(myAssignments || []).map(a => ({
-                     id: a._id,
-                     title: a.title,
-                     desc: a.description || 'Bài tập được giao trực tiếp từ Giảng viên',
-                     createdAt: new Date(a.createdAt).toLocaleDateString('vi-VN'),
-                     url: a.fileUrl || '',
-                     fileType: 'ASSIGNMENT',
-                     isDynamicAssignment: true,
-                     rawAssignment: a
-                   }))
-                 ]
-              }} 
-              courseName={studentData.course} 
-              studentQuestions={studentQuestions}
-              onSelectAssignment={(assign) => setActiveAssignment(assign)}
+          /* ═══ ĐÀO TẠO HỌC VIÊN (Student LMS) ═══ */
+          <div className="w-full bg-slate-50 min-h-full">
+            <StudentTrainingLMS 
+              trainingDataProp={{
+                 videos: studentTrainingData?.videos || [],
+                 files: studentTrainingData?.files || [],
+                 assignments: myAssignments || [],
+                 exams: studentData?.exams || studentTrainingData?.exams || []
+              }}
+              onBack={undefined}
             />
           </div>
 

@@ -59,7 +59,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
       try {
         setCurrentUser(JSON.parse(savedUser));
       } catch (e) {
-        console.error('[DataContext] Error parsing saved user:', e);
       }
     }
   }, []);
@@ -100,7 +99,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
   useEffect(() => {
     if (!socket) return;
     const handleAttendanceLocked = (data) => {
-      console.log('[SOCKET] attendance:locked received:', data);
       setStudents(prev => prev.map(s => {
         const sid = String(s._id || s.id);
         if (sid === String(data.studentId)) {
@@ -227,7 +225,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
       }
       return res;
     } catch (err) {
-      console.error('[DataContext] fetchStudentsPaginated error:', err);
     }
   }, []);
 
@@ -347,7 +344,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
       if (e.status === 401 && onLogout) {
         onLogout();
       }
-      console.error('[SYNC] DataContext auto-sync err:', e);
     } finally {
       setTimeout(() => setIsRefetching(false), 500);
     }
@@ -440,11 +436,9 @@ export const DataProvider = ({ children, user, onLogout }) => {
         setStudents(prev => [...prev, saved]);
         return saved;
       } else {
-        console.error('[addStudent] API failed:', res?.message);
         throw new Error(res?.message || 'Lỗi từ máy chủ khi thêm học viên');
       }
     } catch (err) {
-      console.error('[addStudent] Error:', err);
       throw err;
     }
   }, []);
@@ -467,11 +461,9 @@ export const DataProvider = ({ children, user, onLogout }) => {
         setTeachers(prev => [...prev, saved]);
         return saved;
       } else {
-        console.error('[addTeacher] API failed:', res?.message);
         throw new Error(res?.message || 'Lỗi từ máy chủ khi thêm giảng viên');
       }
     } catch (err) {
-      console.error('[addTeacher] Error:', err);
       throw err;
     }
   }, []);
@@ -497,9 +489,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
     // Sync to MongoDB
     try {
       await api.teachers.update(teacherId, resetData);
-      console.log('[grantPending] Synced to DB for teacher:', teacherId);
     } catch (err) {
-      console.error('[grantPending] API error:', err);
     }
   }, []);
 
@@ -511,11 +501,9 @@ export const DataProvider = ({ children, user, onLogout }) => {
         setStudents(prev => prev.map(s => String(typeof s.teacherId === 'object' && s.teacherId !== null ? s.teacherId._id || s.teacherId.id : s.teacherId) === String(teacherId) ? { ...s, teacherId: null, teacherName: null } : s));
         return true;
       } else {
-        console.error('[removeTeacher] API failed:', res?.message);
         throw new Error(res?.message || 'Xoá thất bại');
       }
     } catch (err) {
-      console.error('[removeTeacher] Error:', err);
       throw err;
     }
   }, []);
@@ -528,7 +516,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
       triggerBackgroundSync();
       return res;
     } catch(err) {
-      console.error(err);
       throw err;
     }
   }, [triggerBackgroundSync]);
@@ -541,7 +528,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
       triggerBackgroundSync();
       return res;
     } catch(err) {
-      console.error(err);
       throw err;
     }
   }, [triggerBackgroundSync]);
@@ -617,7 +603,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
         triggerBackgroundSync();
       }
     } catch (e) {
-      console.error('[payTeacher] API error:', e);
     }
   }, [teachers, triggerBackgroundSync]);
 
@@ -632,11 +617,9 @@ export const DataProvider = ({ children, user, onLogout }) => {
         })));
         return true;
       } else {
-        console.error('[removeStudent] API failed:', res?.message);
         throw new Error(res?.message || 'Xoá thất bại');
       }
     } catch (err) {
-      console.error('[removeStudent] Error:', err);
       throw err;
     }
   }, []);
@@ -654,7 +637,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
         await api.students?.pay(studentId, paymentMethod);
         triggerBackgroundSync();
       } catch (e) {
-        console.error('[markStudentPaid] API error:', e);
       }
     }
   }, [triggerBackgroundSync]);
@@ -758,7 +740,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
         status: newRemaining <= 0 ? 'Hoàn thành' : 'Đang học',
       })
       .then(() => triggerBackgroundSync())
-      .catch(err => console.error('[markAttendance] API Update Error:', err));
+      .catch(err => void 0);
 
       return {
         ...s,
@@ -773,7 +755,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
         remaining_cooldown_hours: 12,
       };
     }));
-    console.log(`[markAttendance] Success for student: ${studentId}, grade: ${grade}`);
     addNotification(studentId, 'student', `Giảng viên đã điểm danh buổi học. Điểm: ${grade || 0}/10`);
 
     // Cập nhật schedule — CHỈ MỘT trong hai đường: UPDATE hoặc CREATE
@@ -788,7 +769,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
       if (existSch && existSch.status !== 'completed') {
         api.schedules?.update(existSch._id || existSch.id, { status: 'completed' })
           .then(() => setTimeout(() => triggerBackgroundSync(), 500))
-          .catch(e => console.log('[markAttendance] update err:', e));
+          .catch(e => void 0);
         setSchedules(prev => prev.map(s =>
           (s._id || s.id) === (existSch._id || existSch.id) ? { ...s, status: 'completed' } : s
         ));
@@ -857,15 +838,12 @@ export const DataProvider = ({ children, user, onLogout }) => {
             err.cooldown = true;
             throw err;
           } else {
-            console.error('[markAttendance] Create failed:', res?.message);
             setSchedules(prev => prev.filter(s => s.id !== tempId));
           }
         }).catch(err => {
-          console.error('[markAttendance] Create error:', err);
           setSchedules(prev => prev.filter(s => s.id !== tempId));
         });
       } else {
-        console.error('[markAttendance] No teacherId found, cannot create schedule');
       }
     }
   }, [students, schedules, triggerBackgroundSync, addNotification]);
@@ -922,7 +900,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
     try {
       await api.students?.update(studentId, { studentExamUnlocked: true, examApproved: true });
     } catch (e) {
-      console.error('[approveStudentExam] API error:', e);
     }
   }, [students]);
 
@@ -936,7 +913,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
     try {
       await api.students?.update(studentId, { studentExamUnlocked: false, examApproved: false });
     } catch (e) {
-      console.error('[revokeStudentExam] API error:', e);
     }
   }, []);
 
@@ -961,7 +937,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
         setExamResults(prev => prev.map(r => r.id === tempId ? { ...saved, id: saved._id } : r));
       }
     } catch (e) {
-      console.error('[addExamResult] API error, giữ local:', e);
     }
   }, []);
 
@@ -973,7 +948,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
       const mongoId = id.startsWith?.('temp_') ? null : id;
       if (mongoId) await api.examResults.update(mongoId, updates);
     } catch (e) {
-      console.error('[updateExamResult] API error, giữ local:', e);
     }
   }, []);
 
@@ -984,7 +958,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
       const mongoId = id.startsWith?.('temp_') ? null : id;
       if (mongoId) await api.examResults.remove(mongoId);
     } catch (e) {
-      console.error('[removeExamResult] API error, giữ local:', e);
     }
   }, []);
 
@@ -1049,7 +1022,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
         return { ...newMsg, id: res.data._id };
       }
     } catch (err) {
-      console.error('[MSG] Lỗi gửi tin nhắn lên server:', err);
     }
     return newMsg;
   }, []);
@@ -1098,7 +1070,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
         });
       }
     } catch (err) {
-      console.error('[MSG] Lỗi đồng bộ tin nhắn:', err);
     }
   }, []);
 
@@ -1111,7 +1082,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
         ));
       }
     } catch (err) {
-      console.error('[MSG] Lỗi cập nhật reaction:', err);
     }
   }, []);
 
@@ -1124,7 +1094,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
         ));
       }
     } catch (err) {
-      console.error('[MSG] Lỗi thu hồi tin nhắn:', err);
     }
   }, []);
 
@@ -1136,7 +1105,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
         setMessages(prev => prev.filter(m => String(m.id) !== String(messageId)));
       }
     } catch (err) {
-      console.error('[MSG] Lỗi xóa tin nhắn:', err);
     }
   }, []);
 
@@ -1149,7 +1117,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
         return json.data;
       }
     } catch (err) {
-      console.error('[MSG] Lỗi tạo nhóm:', err);
     }
     return null;
   }, [triggerBackgroundSync]);
@@ -1164,7 +1131,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
         return true;
       }
     } catch (err) {
-      console.error('[MSG] Lỗi xóa nhóm:', err);
     }
     return false;
   }, [triggerBackgroundSync]);
@@ -1185,7 +1151,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
       try {
         await api.messages.markRead(convId, readerId);
       } catch (err) {
-        console.error('[MSG] Lỗi đánh dấu đã đọc:', err);
       }
     }
   }, []);
@@ -1377,12 +1342,10 @@ export const DataProvider = ({ children, user, onLogout }) => {
         triggerBackgroundSync();
       } else {
         // Rollback nếu fail
-        console.error('[addSchedule] Server error:', res?.message);
         alert(`Không thể xếp lịch: ${res?.message || 'Lỗi không xác định'}`);
         setSchedules(prev => prev.filter(s => s.id !== tempId));
       }
     }).catch(err => {
-      console.error('[addSchedule] Network error:', err);
       alert('Lỗi mạng kết nối, không thể xếp lịch.');
       setSchedules(prev => prev.filter(s => s.id !== tempId));
     });
@@ -1555,7 +1518,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
         content: comment
       });
     } catch (err) {
-      console.error('Failed to save public rating to backend', err);
     }
 
     setTeachers(prev => prev.map(t => {
@@ -1623,7 +1585,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
       return [...prev, optimisticData];
     });
 
-    api.evaluations?.submit(evalData).then(() => triggerBackgroundSync()).catch(e => console.error(e));
+    api.evaluations?.submit(evalData).then(() => triggerBackgroundSync()).catch(e => void 0);
 
     // Notify admin
     addNotification(null, 'admin',

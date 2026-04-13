@@ -189,7 +189,7 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
       if (res.success) {
         setCourseAssignments(res.data);
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { void 0 }
     setLoadingAssign(false);
   };
 
@@ -206,7 +206,7 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
         setNewAssign({ title: '', deadline: '', fileUrl: '', description: '' });
         fetchStudentAssignments();
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { void 0 }
   };
 
   const handleEditAssign = (assign) => {
@@ -227,7 +227,7 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
         setEditingAssignmentId(null);
         fetchStudentAssignments();
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { void 0 }
   };
 
   const handleDeleteAssign = async (id) => {
@@ -237,7 +237,7 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
       if (res.success) {
         fetchStudentAssignments();
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { void 0 }
   };
 
   const handleAssignmentUpload = async (e, type = 'new') => {
@@ -287,7 +287,6 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
             showModal({ title: 'Lỗi', content: res.message || 'Lỗi khi hủy điểm danh', type: 'error' });
           }
         } catch (e) {
-          console.error(e);
           showModal({ title: 'Lỗi', content: 'Lỗi kết nối server', type: 'error' });
         }
       }
@@ -1126,7 +1125,6 @@ const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSch
         alert(data.message || 'Lỗi khi hủy lịch');
       }
     } catch (e) {
-      console.error(e);
     }
     setCancelling(false);
     setCancelTarget(null);
@@ -2164,7 +2162,6 @@ const TeacherDashboard = ({ onNavigate }) => {
       // Update schedule to completed
       updateSchedule(s.id || s._id, { status: 'completed' });
     } catch (e) {
-      console.error(e);
       toast.error('Lỗi điểm danh!');
     }
     setPendingAttendanceSchedule(null);
@@ -2183,7 +2180,6 @@ const TeacherDashboard = ({ onNavigate }) => {
       });
       cancelSchedule(s._id || s.id, noShowReason);
     } catch (e) {
-      console.error(e);
     }
     setPendingAttendanceSchedule(null);
     setNoShowReason('');
@@ -2246,7 +2242,6 @@ const TeacherDashboard = ({ onNavigate }) => {
         toast.error(err.message || 'Học viên này đã được điểm danh. Vui lòng thử lại sau 12 tiếng.');
       } else {
         toast.error('Lỗi khi điểm danh. Vui lòng thử lại.');
-        console.error('[TeacherDashboard] markAttendance error:', err);
       }
     }
   };
@@ -2277,7 +2272,7 @@ const TeacherDashboard = ({ onNavigate }) => {
         const avg = count > 0 ? (Math.round((validRatings.reduce((s, r) => s + r.criteria.stars, 0) / count) * 10) / 10) : 0;
         setTeacherRating({ avg, count, ratings: res.data });
       }
-    }).catch(err => console.error('Failed to fetch teacher rating:', err));
+    }).catch(err => void 0);
   }, [TEACHER_ID]);
   const myTransactions = useMemo(() => getTransactionsByTeacher(TEACHER_ID), [getTransactionsByTeacher, TEACHER_ID]);
 

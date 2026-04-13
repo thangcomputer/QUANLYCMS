@@ -50,7 +50,7 @@ const SecurityGuard = () => {
       debugger;
       const after = new Date().getTime();
       if (after - before > 100) {
-        // console.log("DevTools detected!");
+        // void 0
       }
     }, 1000);
 

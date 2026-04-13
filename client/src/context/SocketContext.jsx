@@ -64,7 +64,6 @@ export const SocketProvider = ({ userId, role, name, children }) => {
     });
 
     newSocket.on('connect', () => {
-      console.log('🔌 Socket connected:', newSocket.id);
       setIsConnected(true);
 
       // Đăng ký user
@@ -82,11 +81,10 @@ export const SocketProvider = ({ userId, role, name, children }) => {
              setNotifications(data.data.map(n => ({ ...n, id: n._id, read: false })));
            }
         })
-        .catch(err => console.error('Fetch unread notifications err:', err));
+        .catch(err => void 0);
     }
 
     newSocket.on('disconnect', () => {
-      console.log('❌ Socket disconnected');
       setIsConnected(false);
     });
 
@@ -102,7 +100,6 @@ export const SocketProvider = ({ userId, role, name, children }) => {
 
     // Nhận tin nhắn real-time từ người khác
     newSocket.on('message:receive', (data) => {
-      console.log('📩 Nhận tin nhắn real-time:', data);
       playMessageSound();
       messageCallbacksRef.current.forEach(cb => cb(data));
     });
@@ -114,13 +111,11 @@ export const SocketProvider = ({ userId, role, name, children }) => {
 
     // Nhận sự kiện thu hồi tin nhắn
     newSocket.on('message:recall', (data) => {
-      console.log('🔄 Tin nhắn bị thu hồi:', data);
       recallCallbacksRef.current.forEach(cb => cb(data));
     });
 
     // Nhận sự kiện nhóm mới
     newSocket.on('group:new', (data) => {
-      console.log('👥 Nhóm mới được tạo:', data);
       if (groupNewCallbackRef.current) {
         groupNewCallbackRef.current(data);
       }
@@ -128,7 +123,6 @@ export const SocketProvider = ({ userId, role, name, children }) => {
 
     // Gọi refresh data khi có thay đổi từ server (phổ biến)
     newSocket.on('data:refresh', (data) => {
-      console.log('🔄 Server requested data refresh:', data);
       if (dataRefreshCallbackRef.current) {
         dataRefreshCallbackRef.current(data);
       }
@@ -164,7 +158,6 @@ export const SocketProvider = ({ userId, role, name, children }) => {
 
     // 📡 Danh bạ cần reload (sau khi xếp lớp real-time)
     newSocket.on('CONTACT_LIST_UPDATED', (data) => {
-      console.log('📒 CONTACT_LIST_UPDATED:', data);
       if (contactListUpdatedCallbackRef.current) {
         contactListUpdatedCallbackRef.current(data);
       }

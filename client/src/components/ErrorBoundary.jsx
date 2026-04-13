@@ -16,7 +16,6 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     this.setState({ errorInfo });
-    console.error('[ErrorBoundary] Component crash:', error, errorInfo);
   }
 
   handleReset = () => {

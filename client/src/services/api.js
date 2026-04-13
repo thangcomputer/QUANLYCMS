@@ -129,7 +129,6 @@ export const apiFetch = async (endpoint, options = {}) => {
 
     return res;
   } catch (err) {
-    console.error('FETCH_EXCEPTION:', err);
     throw err;
   }
 };

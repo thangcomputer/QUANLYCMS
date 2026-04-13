@@ -186,7 +186,7 @@ const TeacherFinanceAndTraining = () => {
         const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
         pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
         pdf.save(`BaoCao_ThuNhap_${teacherName.replace(/\s+/g,'_')}.pdf`);
-    } catch(e) { console.error('Lỗi in PDF', e); }
+    } catch(e) { void 0 }
     finally { el.className = oldClass; }
   };
 

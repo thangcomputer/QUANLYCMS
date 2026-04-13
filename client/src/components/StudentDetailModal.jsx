@@ -31,7 +31,7 @@ export default function StudentDetailModal({ studentId, onClose }) {
           }
         }
       })
-      .catch(err => console.error(err))
+      .catch(err => void 0)
       .finally(() => setLoading(false));
   }, [studentId]);
 
@@ -45,7 +45,7 @@ export default function StudentDetailModal({ studentId, onClose }) {
     try {
       const res = await api.assignments.getForStudent(studentId, course);
       if (res.success) setAssignments(res.data);
-    } catch (err) { console.error(err); }
+    } catch (err) { void 0 }
     finally { setLoadingAssign(false); }
   };
 
@@ -62,7 +62,7 @@ export default function StudentDetailModal({ studentId, onClose }) {
         setNewAssign({ title: '', deadline: '', fileUrl: '', description: '' });
         fetchAssignments(data.student.course);
       }
-    } catch (err) { console.error(err); }
+    } catch (err) { void 0 }
   };
 
   if (!studentId) return null;

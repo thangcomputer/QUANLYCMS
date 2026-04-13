@@ -129,7 +129,6 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
   useEffect(() => {
     if (!onContactListUpdated) return;
     const unsub = onContactListUpdated((payload) => {
-      console.log('[Inbox] Danh bạ cần cập nhật:', payload);
       refreshContacts();
     });
     return unsub;
@@ -272,7 +271,6 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
 
         // Cập nhật unread count cho conversations khác (không phải conversation đang mở)
         if (!matchesConv && incomingConvId) {
-          console.log('[Inbox] Nhận tin nhắn mới ở conv khác:', incomingConvId);
         }
       });
     }
@@ -318,7 +316,6 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
     try {
       await ctxRecallMessage(msgId);
     } catch (err) {
-      console.error('[Inbox] Recall error:', err);
       // Rollback nếu API thất bại
       setMessages(prev => prev.map(m =>
         String(m.id) === String(msgId) ? { ...m, isRecalled: false } : m
@@ -339,7 +336,6 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
       await ctxDeleteMessage(msgId);
       // DataContext setMessages will naturally pop it from UI
     } catch (err) {
-      console.error('[Inbox] Soft delete error:', err);
       toast?.error('Không thể xóa lịch sử lúc này.');
     }
   }, [ctxDeleteMessage, toast]);
@@ -361,7 +357,6 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
     try {
       await ctxToggleReaction(messageId, type);
     } catch (err) {
-      console.error('[Inbox] Reaction error:', err);
     }
   }, [currentUserId, currentUserName, ctxToggleReaction]);
 

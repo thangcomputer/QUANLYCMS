@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate, useNavigate, useParams } from 'react-router-dom';
-import { useState, useEffect, useCallback }  from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense }  from 'react';
 import { SocketProvider }                    from './context/SocketContext';
 import { DataProvider, useData }             from './context/DataContext';
 import { ToastProvider }                     from './utils/toast.jsx';
@@ -7,14 +7,14 @@ import ErrorBoundary                         from './components/ErrorBoundary';
 import LoginPage                             from './components/LoginPage';
 import AdminLoginPage                        from './components/AdminLoginPage';
 import RegistrationForm                      from './components/RegistrationForm';
-import AdminDashboard                        from './components/AdminDashboard';
-import TeacherDashboard                      from './components/TeacherDashboard';
-import StudentDashboard                      from './components/StudentDashboard';
-import StudentExamRoom                       from './components/StudentExamRoom';
-import StudentTest                           from './components/StudentTest';
-import TeacherTest                           from './components/TeacherTest';
-import TeacherFinanceAndTraining             from './components/TeacherFinanceAndTraining';
-import Inbox                                 from './components/Inbox';
+const AdminDashboard = lazy(() => import('./components/AdminDashboard'));
+const TeacherDashboard = lazy(() => import('./components/TeacherDashboard'));
+const StudentDashboard = lazy(() => import('./components/StudentDashboard'));
+const StudentExamRoom = lazy(() => import('./components/StudentExamRoom'));
+const StudentTest = lazy(() => import('./components/StudentTest'));
+const TeacherTest = lazy(() => import('./components/TeacherTest'));
+const TeacherFinanceAndTraining = lazy(() => import('./components/TeacherFinanceAndTraining'));
+const Inbox = lazy(() => import('./components/Inbox'));
 import DashboardLayout                       from './components/DashboardLayout';
 import api, { clearTokens, getRolePrefix } from './services/api';
 import { BranchProvider }                    from './context/BranchContext';
@@ -171,7 +171,7 @@ function AppRoutes({ session, onSessionChange, isAuthLoading, onLogin, onLogout 
   }
 
   return (
-    <Routes>
+    <Suspense fallback={<LoadingScreen />}><Routes>
       {/* ═══ Public ═══ */}
       <Route path="/login"       element={<LoginPage onLogin={onLogin} />} />
       <Route path="/admin/login" element={<AdminLoginPage onLogin={onLogin} />} />
@@ -235,7 +235,7 @@ function AppRoutes({ session, onSessionChange, isAuthLoading, onLogin, onLogout 
 
       {/* ═══ Fallback ═══ */}
       <Route path="*" element={<Navigate to="/login" replace />} />
-    </Routes>
+    </Routes></Suspense>
   );
 }
 
@@ -249,35 +249,28 @@ function App() {
   useEffect(() => {
     const restoreSession = async () => {
       const savedUser = loadSession();
-      console.log('[Auth] Initializing session restoration...', { hasSavedUser: !!savedUser });
 
       if (!savedUser) {
-        console.log('[Auth] No saved session found.');
         setIsAuthLoading(false);
         return;
       }
 
       try {
-        console.log('[Auth] Verifying session with server...', { role: savedUser.role });
         const res = await api.auth.me();
         
         if (res.success && res.data) {
-          console.log('[Auth] Session verified successfully.');
           const freshUser = { ...savedUser, ...res.data };
           setSession(freshUser);
           saveSession(freshUser);
         } else {
-          console.warn('[Auth] Server rejected session:', res.message);
           clearTokens(savedUser.role);
           setSession(null);
         }
       } catch (err) {
-        console.error('[Auth] Restoration error:', err);
         if (err.status === 401) {
           clearTokens(savedUser.role);
           setSession(null);
         } else {
-          console.log('[Auth] Network error, falling back to cached session.');
           setSession(savedUser);
         }
       } finally {

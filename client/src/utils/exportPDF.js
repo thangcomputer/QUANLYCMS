@@ -13,7 +13,6 @@ const exportPDF = async (data = {}) => {
   const element = document.getElementById('invoice-template');
 
   if (!element) {
-    console.error('[PDF] Không tìm thấy element #invoice-template');
     toast.error('Không tìm thấy mẫu hóa đơn. Vui lòng thử lại.');
     return false;
   }
@@ -107,11 +106,9 @@ const exportPDF = async (data = {}) => {
 
     pdf.save(fileName);
 
-    console.log(`[PDF] Xuất thành công: ${fileName}`);
     return true;
 
   } catch (error) {
-    console.error('[PDF] Lỗi xuất hóa đơn:', error);
     toast.error('Có lỗi khi xuất PDF. Vui lòng thử lại.');
     return false;
   }
