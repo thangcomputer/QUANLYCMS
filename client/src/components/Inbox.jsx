@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import {
   MessageCircle, Send, X, Search, ChevronLeft,
   User, Circle, Image, Paperclip, Smile, Download,
-  CheckCheck, Clock as ClockIcon, CheckCircle2, Users, Plus, Trash2, RotateCcw, MoreHorizontal, EyeOff
+  CheckCheck, Clock as ClockIcon, CheckCircle2, Users, Plus, Trash2, RotateCcw, MoreHorizontal, EyeOff, AlertCircle
 } from 'lucide-react';
 import { useSocket } from '../context/SocketContext';
 import { useData } from '../context/DataContext';
@@ -85,7 +85,7 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
   const location = useLocation();
   const toast = useToast();
   const socketCtx = useSocket();
-  const { sendMessage: socketSend, onlineUsers, joinGroupChat, onMessageReceive, onReactionReceive, onRecallReceive } = socketCtx;
+  const { sendMessage: socketSend, onlineUsers, joinGroupChat, onMessageReceive, onReactionReceive, onRecallReceive, onContactListUpdated } = socketCtx;
   const {
     getConversations, getMessages: ctxGetMessages, sendMessage: ctxSendMessage,
     markMessagesRead, syncMessages, recallMessage: ctxRecallMessage, createChatGroup, deleteChatGroup, groups,
@@ -118,6 +118,27 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
     } catch (err) {}
   }, []);
 
+  // 📡 Re-fetch danh bạ khi server thông báo CONTACT_LIST_UPDATED (sau xếp lớp)
+  const refreshContacts = useCallback(async () => {
+    try {
+      const res = await messagesAPI.getContacts();
+      if (res?.success) setContacts(res.data);
+    } catch (err) {}
+  }, []);
+
+  useEffect(() => {
+    if (!onContactListUpdated) return;
+    const unsub = onContactListUpdated((payload) => {
+      console.log('[Inbox] Danh bạ cần cập nhật:', payload);
+      refreshContacts();
+    });
+    return unsub;
+  }, [onContactListUpdated, refreshContacts]);
+
+  const [activeConv, setActiveConv] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [newMsg, setNewMsg] = useState('');
+
   const conversations = useMemo(() => {
     const list = [];
     contacts.forEach(c => {
@@ -129,7 +150,7 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
         id: convId,
         isGroup: false,
         isHidden: hiddenList.includes(convId),
-        user: { id: c.id, name: c.name, role: c.role, avatar: c.avatar, phone: c.phone || '', online: onlineUsers ? onlineUsers.includes(c.id) : false },
+        user: { id: c.id, name: c.name, role: c.role, avatar: c.avatar, phone: c.phone || '', online: onlineUsers ? onlineUsers.some(u => u.userId === c.id) : false },
         lastMessage: existingConv?.lastMessage || 'Bắt đầu cuộc trò chuyện',
         lastTime: existingConv?.lastTime || new Date('2000-01-01'),
         unread: existingConv?.unread || 0,
@@ -142,16 +163,16 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
     list.push(...groupConvs);
 
     return list.sort((a, b) => {
-      // Sắp xếp thuần túy bằng thời gian tin nhắn gần nhất
+      // 1. Nếu đang chọn (Tin nhắn đang active), Ưu tiên đẩy lên đầu để dễ nhìn
+      if (activeConv && a.id === activeConv.id) return -1;
+      if (activeConv && b.id === activeConv.id) return 1;
+
+      // 2. Sắp xếp thuần túy bằng thời gian tin nhắn gần nhất
       const timeA = new Date(a.lastTime).getTime();
       const timeB = new Date(b.lastTime).getTime();
       return timeB - timeA;
     });
-  }, [contacts, dataContextConvs, hiddenList, currentUserRole, currentUserId, onlineUsers]);
-
-  const [activeConv, setActiveConv] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [newMsg, setNewMsg] = useState('');
+  }, [contacts, dataContextConvs, hiddenList, currentUserRole, currentUserId, onlineUsers, activeConv]);
   const [search, setSearch] = useState('');
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -218,11 +239,17 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
 
     if (onMessageReceive) {
       unsubMsg = onMessageReceive((data) => {
+        // Tính convId theo cùng thuật toán server + DataContext
+        const incomingConvId = data.conversationId // Server đã tính sẵn
+          || (data.isGroup && data.groupId
+            ? `group_${data.groupId}`
+            : [`${data.senderRole}_${data.senderId}`, `${data.receiverRole}_${data.receiverId}`].sort().join('__'));
+
         const matchesConv = activeConv && (
-          activeConv.id === data.conversationId ||
-          (data.isGroup && data.groupId && activeConv.id === `group_${data.groupId}`) ||
-          (!data.isGroup && activeConv.id.includes(String(data.senderId)))
+          activeConv.id === incomingConvId ||
+          (data.isGroup && data.groupId && activeConv.id === `group_${data.groupId}`)
         );
+
         if (matchesConv) {
           setMessages(prev => {
             if (prev.find(m => String(m.id) === String(data._id))) return prev;
@@ -242,8 +269,14 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
             }];
           });
         }
+
+        // Cập nhật unread count cho conversations khác (không phải conversation đang mở)
+        if (!matchesConv && incomingConvId) {
+          console.log('[Inbox] Nhận tin nhắn mới ở conv khác:', incomingConvId);
+        }
       });
     }
+
 
     if (onRecallReceive) {
       unsubRecall = onRecallReceive((data) => {
@@ -353,17 +386,16 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
     await ctxSendMessage(msgData);
     setNewMsg('');
     setShowEmojis(false);
-    socketSend(msgData);
     setTimeout(() => inputRef.current?.focus(), 50);
   };
 
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file || !activeConv) return;
 
     const isImage = file.type.startsWith('image/');
-    const maxSize = isImage ? 5 * 1024 * 1024 : 10 * 1024 * 1024;
-    const maxLabel = isImage ? '5MB' : '10MB';
+    const maxSize = isImage ? 50 * 1024 * 1024 : 50 * 1024 * 1024;
+    const maxLabel = '50MB';
 
     if (file.size > maxSize) {
       setUploadError(`File quá lớn. Giới hạn ${maxLabel}.`);
@@ -375,40 +407,33 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
     setIsUploading(true);
     setUploadError('');
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      try {
-        const msgData = {
-          senderId: currentUserId,
-          senderName: currentUserName,
-          senderRole: currentUserRole,
-          receiverId: activeConv.user.id,
-          receiverName: activeConv.user.name,
-          receiverRole: activeConv.user.role,
-          content: isImage ? '' : `Đã gửi tệp: ${file.name}`,
-          messageType: isImage ? 'image' : 'file',
-          fileUrl: event.target.result,
-          fileName: file.name,
-          isGroup: activeConv.isGroup || false,
-          groupId: activeConv.isGroup ? activeConv.user.id : null
-        };
-        await ctxSendMessage(msgData);
-        socketSend(msgData);
-      } catch (err) {
-        setUploadError('Gửi file thất bại. Vui lòng thử lại.');
-        console.error('[Inbox] Upload error:', err);
-        setTimeout(() => setUploadError(''), 4000);
-      } finally {
-        setIsUploading(false);
-      }
-    };
-    reader.onerror = () => {
-      setIsUploading(false);
-      setUploadError('Không đọc được file. Vui lòng chọn file khác.');
+    try {
+      const uploadRes = await api.messages.uploadMessageFile(file);
+      if (!uploadRes.success) throw new Error(uploadRes.message || 'Lỗi hệ thống lưu trữ');
+
+      const msgData = {
+        senderId: currentUserId,
+        senderName: currentUserName,
+        senderRole: currentUserRole,
+        receiverId: activeConv.user.id,
+        receiverName: activeConv.user.name,
+        receiverRole: activeConv.user.role,
+        content: isImage ? '' : `Đã gửi tệp: ${file.name}`,
+        messageType: isImage ? 'image' : 'file',
+        fileUrl: uploadRes.url,
+        fileName: file.name,
+        isGroup: activeConv.isGroup || false,
+        groupId: activeConv.isGroup ? activeConv.user.id : null
+      };
+
+      await ctxSendMessage(msgData);
+    } catch (err) {
+      setUploadError('Tải tệp thất bại: ' + (err.message || ''));
       setTimeout(() => setUploadError(''), 4000);
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
   };
 
   const addEmoji = (emoji) => {
@@ -827,7 +852,11 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
                         {/* Time & read status */}
                         <div className={`flex items-center gap-1.5 mt-1.5 ${isMine ? 'justify-end' : ''}`}>
                           <span className="text-[9px] text-gray-400 font-black uppercase tracking-widest">{formatTime(msg.time)}</span>
-                          {isMine && !msg.isRecalled && (
+                          {isMine && !msg.isRecalled && String(msg.id).startsWith('temp_') ? (
+                            <span title="Chưa gửi được (Kết nối yếu)">
+                              <AlertCircle size={10} className="text-red-500 animate-pulse" />
+                            </span>
+                          ) : isMine && !msg.isRecalled && (
                             <span title={msg.isRead ? "Đã xem" : "Đã nhận"}>
                               {msg.isRead ? (
                                 <CheckCheck size={12} className="text-blue-500" />

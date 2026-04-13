@@ -18,7 +18,7 @@ const groupSchema = new mongoose.Schema({
   participants: [{
     userId: { type: String, required: true },
     name:   { type: String, required: true },
-    role:   { type: String, enum: ['admin', 'teacher', 'student'], required: true },
+    role:   { type: String, enum: ['admin', 'teacher', 'student', 'staff'], required: true },
     joinedAt: { type: Date, default: Date.now }
   }],
   // Người tạo nhóm

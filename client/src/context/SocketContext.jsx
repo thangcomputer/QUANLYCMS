@@ -12,6 +12,7 @@ export const SocketProvider = ({ userId, role, name, children }) => {
   const [socket, setSocket]             = useState(null);
   const [isConnected, setIsConnected]   = useState(false);
   const [onlineUsers, setOnlineUsers]   = useState([]);
+  const [lastSeenUsers, setLastSeenUsers] = useState({}); // { userId: ISOString }
   const [notifications, setNotifications] = useState([]);
   const socketRef = useRef(null);
   const messageCallbacksRef = useRef(new Set());
@@ -19,6 +20,7 @@ export const SocketProvider = ({ userId, role, name, children }) => {
   const recallCallbacksRef = useRef(new Set());
   const groupNewCallbackRef = useRef(null);
   const dataRefreshCallbackRef = useRef(null);
+  const contactListUpdatedCallbackRef = useRef(null); // CONTACT_LIST_UPDATED
 
   // Đăng ký callback nhận tin nhắn real-time
   const onMessageReceive = useCallback((callback) => {
@@ -46,6 +48,12 @@ export const SocketProvider = ({ userId, role, name, children }) => {
   // Đăng ký callback khi cần refresh data (ví dụ assign teacher)
   const onDataRefresh = useCallback((callback) => {
     dataRefreshCallbackRef.current = callback;
+  }, []);
+
+  // Đăng ký callback khi danh bạ cần cập nhật (CONTACT_LIST_UPDATED)
+  const onContactListUpdated = useCallback((callback) => {
+    contactListUpdatedCallbackRef.current = callback;
+    return () => { contactListUpdatedCallbackRef.current = null; };
   }, []);
 
   useEffect(() => {
@@ -85,6 +93,11 @@ export const SocketProvider = ({ userId, role, name, children }) => {
     // Danh sách online
     newSocket.on('users:online', (users) => {
       setOnlineUsers(users);
+    });
+
+    // Lịch sử lastSeen
+    newSocket.on('users:lastSeen', (map) => {
+      setLastSeenUsers(prev => ({ ...prev, ...map }));
     });
 
     // Nhận tin nhắn real-time từ người khác
@@ -149,6 +162,14 @@ export const SocketProvider = ({ userId, role, name, children }) => {
       window.location.href = '/login?msg=system_cleared';
     });
 
+    // 📡 Danh bạ cần reload (sau khi xếp lớp real-time)
+    newSocket.on('CONTACT_LIST_UPDATED', (data) => {
+      console.log('📒 CONTACT_LIST_UPDATED:', data);
+      if (contactListUpdatedCallbackRef.current) {
+        contactListUpdatedCallbackRef.current(data);
+      }
+    });
+
     // Thông báo chuyển tiền
     newSocket.on('payment:confirmed', (data) => {
       playNotifySound();
@@ -196,6 +217,7 @@ export const SocketProvider = ({ userId, role, name, children }) => {
     socket,
     isConnected,
     onlineUsers,
+    lastSeenUsers,
     notifications,
     sendMessage,
     markRead,
@@ -206,6 +228,7 @@ export const SocketProvider = ({ userId, role, name, children }) => {
     onRecallReceive,
     onGroupNew,
     onDataRefresh,
+    onContactListUpdated,
     joinGroupChat,
   };
 

@@ -257,8 +257,8 @@ router.post('/login', async (req, res) => {
 
     // ── Hardcoded admin ────────────────────────────────────────────
     if (rawId === 'admin' && password === 'admin123') {
-      const { accessToken, refreshToken } = generateTokens({ id: 'admin', role: 'admin', name: 'Admin Thắng Tin Học' });
-      return res.json({ success: true, data: { id: 'admin', _id: 'admin', name: 'Admin Thắng Tin Học', phone: 'admin', role: 'admin', accessToken, refreshToken } });
+      const { accessToken, refreshToken } = generateTokens({ id: 'admin', role: 'admin', name: 'Admin Thắng Tin Học', adminRole: 'SUPER_ADMIN' });
+      return res.json({ success: true, data: { id: 'admin', _id: 'admin', name: 'Admin Thắng Tin Học', phone: 'admin', role: 'admin', adminRole: 'SUPER_ADMIN', accessToken, refreshToken } });
     }
 
     // ── Tìm user theo identifier ───────────────────────────────────

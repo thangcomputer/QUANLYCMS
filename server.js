@@ -34,8 +34,8 @@ app.use(cors({
   origin: allowedOrigins.length > 0 ? allowedOrigins : '*',
   credentials: true
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(require('passport').initialize()); // Social OAuth
 app.use('/uploads', express.static('uploads')); // Serve uploaded files
 
@@ -54,7 +54,8 @@ connectDB();
 // ==========================================
 // SOCKET.IO - REAL-TIME
 // ==========================================
-const onlineUsers = new Map(); // { uniqueKey: socketId }
+const onlineUsers = new Map();  // { key: { socketId, userId, role, name, branchId, connectedAt } }
+const lastSeenMap = new Map();  // { userId: ISO timestamp } — lưu khi disconnect
 
 io.on('connection', (socket) => {
   console.log(`🔌 Socket connected: ${socket.id}`);
@@ -62,7 +63,7 @@ io.on('connection', (socket) => {
   // Đăng ký user online
   socket.on('register', ({ userId, role, name, branchId }) => {
     const key = `${role}_${userId}`;
-    onlineUsers.set(key, { socketId: socket.id, userId, role, name, branchId });
+    onlineUsers.set(key, { socketId: socket.id, userId, role, name, branchId, connectedAt: new Date().toISOString() });
     console.log(`👤 Online: ${name} (${role}) - ${key}`);
 
     // Join rooms for Centralized Notification Service
@@ -78,7 +79,7 @@ io.on('connection', (socket) => {
 
     // Broadcast danh sách online
     io.emit('users:online', Array.from(onlineUsers.values()).map(u => ({
-      userId: u.userId, role: u.role, name: u.name, branchId: u.branchId
+      userId: u.userId, role: u.role, name: u.name, branchId: u.branchId, connectedAt: u.connectedAt
     })));
   });
 
@@ -88,9 +89,15 @@ io.on('connection', (socket) => {
     const receiverKey = `${data.receiverRole}_${data.receiverId}`;
     const receiver = onlineUsers.get(receiverKey);
 
+    // Tính conversationId theo cùng logic sort như client DataContext
+    const convId = data.isGroup && data.groupId
+      ? `group_${data.groupId}`
+      : [`${data.senderRole}_${data.senderId}`, `${data.receiverRole}_${data.receiverId}`].sort().join('__');
+
     const msgPayload = {
       ...data,
       _id: `msg_${Date.now()}`,
+      conversationId: convId,    // ⭑ Quan trọng: để Inbox match đúng conversation
       createdAt: new Date().toISOString(),
       isRead: false,
     };
@@ -181,13 +188,17 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     for (const [key, val] of onlineUsers.entries()) {
       if (val.socketId === socket.id) {
+        // Lưu thời điểm offline để frontend tính "X phút trước"
+        lastSeenMap.set(String(val.userId), new Date().toISOString());
         onlineUsers.delete(key);
         break;
       }
     }
     io.emit('users:online', Array.from(onlineUsers.values()).map(u => ({
-      userId: u.userId, role: u.role, name: u.name,
+      userId: u.userId, role: u.role, name: u.name, connectedAt: u.connectedAt
     })));
+    // Broadcast lastSeen map để frontend cập nhật
+    io.emit('users:lastSeen', Object.fromEntries(lastSeenMap));
     console.log(`❌ Socket disconnected: ${socket.id}`);
   });
 });

@@ -168,6 +168,14 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
   const canCheckIn = student.can_check_in !== undefined ? student.can_check_in : !hasAttendedToday;
   const cooldownHours = student.remaining_cooldown_hours || 0;
 
+  // ⏰ GIỚI HẠN HỦY ĐIỂM DANH 1 TIẾNG
+  const lastAttendanceAt = student.last_attendance_at ? new Date(student.last_attendance_at) : null;
+  const minsElapsedSinceAttend = lastAttendanceAt ? Math.floor((Date.now() - lastAttendanceAt.getTime()) / 60000) : null;
+  const canCancelAttendance = hasAttendedToday && (minsElapsedSinceAttend === null || minsElapsedSinceAttend < 60);
+  const cancelTimeLeft = (minsElapsedSinceAttend !== null && minsElapsedSinceAttend < 60)
+    ? (60 - minsElapsedSinceAttend)
+    : 0;
+
   useEffect(() => {
     if (activePanel === 'assignments') {
       fetchStudentAssignments();
@@ -256,9 +264,16 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
 
   const handleUndoAttendance = async () => {
     const sid = student._id || student.id;
+
+    // FE guard: kiểm tra trước khi call API
+    if (minsElapsedSinceAttend !== null && minsElapsedSinceAttend >= 60) {
+      showModal({ title: 'Không thể hủy', content: `Đã quá 1 tiếng kể từ lúc điểm danh (${minsElapsedSinceAttend} phút). Không thể hủy nữa.`, type: 'error' });
+      return;
+    }
+
     showModal({
       title: 'Hủy điểm danh hôm nay',
-      content: `Xác nhận hủy điểm danh hôm nay của "${student.name || sid}"? Số buổi đã học sẽ giảm 1.`,
+      content: `Xác nhận hủy điểm danh hôm nay của "${student.name || sid}"? Số buổi đã học sẽ giảm 1.${cancelTimeLeft > 0 ? `\n⏰ Còn ${cancelTimeLeft} phút để hủy.` : ''}`,
       type: 'warning',
       confirmText: 'XÁC NHẬN HỦY',
       onConfirm: async () => {
@@ -266,6 +281,8 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
           const res = await api.students.resetTodayAttendance(sid);
           if (res.success) {
             window.location.reload();
+          } else if (res.code === 'CANCEL_TIMEOUT') {
+            showModal({ title: '⏰ Hết thời gian hủy', content: res.message, type: 'error' });
           } else {
             showModal({ title: 'Lỗi', content: res.message || 'Lỗi khi hủy điểm danh', type: 'error' });
           }
@@ -431,19 +448,27 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
                      </span>
                    </button>
 
-                   {/* CỘT PHẢI: Nút HỦY ĐIỂM DANH */}
+                   {/* CỘT PHẢI: Nút HỦY ĐIỂM DANH — giới hạn 1 tiếng */}
                    <button
-                     onClick={() => { if (hasAttendedToday) handleUndoAttendance(); }}
-                     disabled={!hasAttendedToday || isCompleted}
-                     title={hasAttendedToday ? 'Hủy điểm danh hôm nay (sửa lỗi)' : 'Chưa điểm danh hôm nay'}
+                     onClick={() => { if (canCancelAttendance) handleUndoAttendance(); }}
+                     disabled={!canCancelAttendance || isCompleted}
+                     title={
+                       !hasAttendedToday ? 'Chưa điểm danh hôm nay'
+                       : !canCancelAttendance ? `Đã quá 1 tiếng, không thể hủy (${minsElapsedSinceAttend} phút trước)`
+                       : `Còn ${cancelTimeLeft} phút để hủy. Nhấn để hủy điểm danh hôm nay`
+                     }
                      className={`py-5 rounded-3xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all border-2 ${
-                       hasAttendedToday && !isCompleted
+                       canCancelAttendance && !isCompleted
                          ? 'bg-red-50 border-red-200 text-red-500 hover:bg-red-100 active:scale-[0.97] shadow-sm cursor-pointer'
                          : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed opacity-40 pointer-events-none select-none'
                      }`}
                    >
                      <X size={20} />
-                     <span className="text-xs leading-tight text-center">HỦY<br/>ĐIỂM DANH</span>
+                     <span className="text-xs leading-tight text-center">
+                       {canCancelAttendance && cancelTimeLeft > 0
+                         ? <>{`HỦY`}<br/>{`(${cancelTimeLeft}p)`}</>
+                         : <>HỦY<br/>ĐIỂM DANH</>}
+                     </span>
                    </button>
                  </div>
 
@@ -2049,7 +2074,17 @@ const TeacherDashboard = ({ onNavigate }) => {
     revokeStudentExam, updateStudent, updateTeacher
   } = useData();
 
-  const { socket, onlineUsers } = useSocket();
+  const { socket, onlineUsers, lastSeenUsers } = useSocket();
+
+  // Helper: tính "X phút trước" từ ISO string
+  const timeAgo = (isoStr) => {
+    if (!isoStr) return 'Chưa có dữ liệu';
+    const diff = Math.floor((Date.now() - new Date(isoStr).getTime()) / 1000);
+    if (diff < 60)       return `${diff}s trước`;
+    if (diff < 3600)     return `${Math.floor(diff / 60)}p trước`;
+    if (diff < 86400)    return `${Math.floor(diff / 3600)}h trước`;
+    return `${Math.floor(diff / 86400)} ngày trước`;
+  };
 
   // Khoá bài thi sinh viên qua socket
   const lockStudentExam = (student) => {
@@ -2449,9 +2484,13 @@ const TeacherDashboard = ({ onNavigate }) => {
                             <p className={`text-sm font-bold truncate ${isSelected ? 'text-white' : 'text-gray-900'}`}>{s.name}</p>
                             <div className="flex items-center gap-1.5 mt-0.5">
                               {isOnline ? (
-                                <span className={`text-[10px] font-bold uppercase tracking-tighter ${isSelected ? 'text-blue-10' : 'text-green-500'}`}>Đang hoạt động</span>
+                                <span className={`text-[10px] font-bold uppercase tracking-tighter ${isSelected ? 'text-blue-200' : 'text-green-500'}`}>Đang online</span>
                               ) : (
-                                <span className={`text-[10px] font-medium ${isSelected ? 'text-blue-200' : 'text-gray-400'}`}>Hoạt động {Math.floor(Math.random() * 20) + 1}p trước</span>
+                                <span className={`text-[10px] font-medium ${isSelected ? 'text-blue-200' : 'text-gray-400'}`}>
+                                  {lastSeenUsers[String(sId)]
+                                    ? `${timeAgo(lastSeenUsers[String(sId)])}`
+                                    : 'Chưa online'}
+                                </span>
                               )}
                             </div>
                           </div>

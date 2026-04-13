@@ -805,10 +805,20 @@ const EvaluationView = ({
                       </div>
 
                       <button 
-                        onClick={() => {
-                          rateTeacher(studentData.teacherId, STUDENT_ID, ratingCriteria, ratingComment);
+                        onClick={async () => {
+                          await rateTeacher(studentData.teacherId, STUDENT_ID, ratingCriteria, ratingComment);
                           setRatingSubmitted(true);
                           setIsEditingRating(false);
+                          
+                          // Refetch to update UI instantly!
+                          api.evaluations.getByTeacher(studentData.teacherId).then(res => {
+                            if (res.success && res.data) {
+                              const validRatings = res.data.filter(r => r.criteria && r.criteria.stars);
+                              const count = validRatings.length;
+                              const avg = count > 0 ? (Math.round((validRatings.reduce((s, r) => s + r.criteria.stars, 0) / count) * 10) / 10) : 0;
+                              setTeacherRatingData({ avg, count, ratings: res.data });
+                            }
+                          });
                         }}
                         className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 py-5 rounded-[28px] text-white font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-yellow-200 transition-all active:scale-[0.98]"
                       >
@@ -1188,6 +1198,7 @@ const StudentDashboard = ({ onNavigate }) => {
             rateTeacher={rateTeacher}
             privateEvaluations={privateEvaluations}
             teacherRatingData={teacherRatingData}
+            setTeacherRatingData={setTeacherRatingData}
           />
 
         ) : currentHash === 'profile' ? (

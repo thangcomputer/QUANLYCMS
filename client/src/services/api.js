@@ -304,6 +304,18 @@ export const transactionsAPI = {
 
 // ─── MESSAGE API ────────────────────────────────────────────────────────────
 export const messagesAPI = {
+  getContacts: async () => {
+    const res = await apiFetch('/messages/contacts');
+    return res.json();
+  },
+  getHiddenConversations: async () => {
+    const res = await apiFetch('/messages/hidden');
+    return res.json();
+  },
+  hideConversation: async (conversationId) => {
+    const res = await apiFetch(`/messages/hide/${conversationId}`, { method: 'POST' });
+    return res.json();
+  },
   getGroups: async (userId) => {
     // Nếu có userId thì gọi route đúng, nếu không thì fallback về /groups
     const url = userId ? `/messages/groups/user/${userId}` : '/messages/groups';
@@ -318,6 +330,18 @@ export const messagesAPI = {
     const res = await apiFetch('/messages', {
       method: 'POST',
       body: JSON.stringify(data)
+    });
+    return res.json();
+  },
+  uploadMessageFile: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const token = localStorage.getItem('access_token');
+    // Using native fetch because apiFetch by default sets Content-Type to application/json
+    const res = await fetch('/api/messages/upload', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: formData
     });
     return res.json();
   },

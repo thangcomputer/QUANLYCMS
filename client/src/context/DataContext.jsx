@@ -140,6 +140,15 @@ export const DataProvider = ({ children, user, onLogout }) => {
       });
     }
 
+    let unsubReaction;
+    if (onReactionReceive) {
+      unsubReaction = onReactionReceive((data) => {
+        setMessages(prev => prev.map(m =>
+          String(m.id) === String(data.messageId) ? { ...m, reactions: data.reactions } : m
+        ));
+      });
+    }
+
     if (onMessageReceive) {
       unsubMsg = onMessageReceive((data) => {
         setMessages(prev => {
@@ -169,9 +178,10 @@ export const DataProvider = ({ children, user, onLogout }) => {
     return () => {
       if (unsubGroup) unsubGroup();
       if (unsubRecall) unsubRecall();
+      if (unsubReaction) unsubReaction();
       if (unsubMsg) unsubMsg();
     };
-  }, [onGroupNew, onRecallReceive, onMessageReceive]);
+  }, [onGroupNew, onRecallReceive, onMessageReceive, onReactionReceive]);
 
   // ── SYSTEM LOGS ─────────────────────────────────────────────────────────────
   const [systemLogs, setSystemLogs] = useState(() => loadState('thvp_systemLogs', []));
@@ -1041,7 +1051,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
       const json = await api.messages.syncByUser(userId);
       if (json.success) {
         const syncedMsgs = json.data.map(m => {
-          // Xác định convId đúng: nhóm hay cá nhân
           const convId = m.isGroup && m.groupId
             ? `group_${m.groupId}`
             : m.conversationId;
@@ -1066,7 +1075,18 @@ export const DataProvider = ({ children, user, onLogout }) => {
             reactions: m.reactions || [],
           };
         });
-        setMessages(syncedMsgs);
+
+        // ⚠️ MERGE: Không ghi đè — giữ tin real-time, thêm tin từ server nếu chưa có
+        setMessages(prev => {
+          const existingIds = new Set(prev.map(m => String(m.id)));
+          const newFromServer = syncedMsgs.filter(m => !existingIds.has(String(m.id)));
+          if (newFromServer.length === 0) return prev; // Không có gì mới
+          // Merge: server msgs làm nền tảng, real-time msgs bọm lầy
+          const serverIds = new Set(syncedMsgs.map(m => String(m.id)));
+          // Giữ lại: temp msgs (chưa có id từ server) và real-time msgs
+          const realtimeOnly = prev.filter(m => !serverIds.has(String(m.id)));
+          return [...syncedMsgs, ...realtimeOnly].sort((a, b) => new Date(a.time) - new Date(b.time));
+        });
       }
     } catch (err) {
       console.error('[MSG] Lỗi đồng bộ tin nhắn:', err);
@@ -1564,6 +1584,8 @@ export const DataProvider = ({ children, user, onLogout }) => {
       ...data,
       studentName: student?.name || 'Học viên',
       teacherName: teacher?.name || 'Giảng viên',
+      branchId: student?.branchId || null,      // ⭐ Để filter theo cơ sở
+      branchCode: student?.branchCode || '',
       type: 'admin_feedback',
       targetTeacherId: data.teacherId,
       content: data.comment || '',

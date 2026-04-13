@@ -606,13 +606,12 @@ router.put('/:id/assign-teacher', authMiddleware, isAdmin, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Không tìm thấy học viên' });
     }
 
-    // Thông báo cho giảng viên
     const Notification = require('../models/Notification');
     const io = req.app.get('io');
-    
+
     try {
       const newNotif = await Notification.create({
-        type: 'COURSE', // Map to matching internal types (COURSE or SYSTEM)
+        type: 'COURSE',
         title: '📚 Học viên mới được giao',
         content: `Học viên ${student.name} (${student.course}) đã được giao cho bạn.`,
         receivers: [teacherId.toString()],
@@ -620,17 +619,31 @@ router.put('/:id/assign-teacher', authMiddleware, isAdmin, async (req, res) => {
       });
 
       if (io) {
-        // Emit for real-time notification bell
+        // 🔔 Thông báo bell cho giảng viên
         io.to(teacherId.toString()).emit('RECEIVE_NOTIFICATION', {
           _id: newNotif._id,
-          type: 'student', // Frontend use 'student' for icons/colors
+          type: 'student',
           title: newNotif.title,
-          message: newNotif.content, // Frontend expects 'message' or 'content'
+          message: newNotif.content,
           time: new Date(),
           userId: teacherId.toString()
         });
-        
-        // Old event for backward compatibility if needed
+
+        // 📡 REAL-TIME CONTACT SYNC: Cập nhật danh bạ tức thì cho cả 2 bên
+        // Giảng viên: danh bạ của GV cần thêm học viên mới
+        req.app.notifyUser('teacher', teacherId.toString(), 'CONTACT_LIST_UPDATED', {
+          reason: 'student_assigned',
+          studentId: student._id.toString(),
+          studentName: student.name,
+        });
+        // Học viên: danh bạ của HV cần thêm giảng viên mới
+        req.app.notifyUser('student', student._id.toString(), 'CONTACT_LIST_UPDATED', {
+          reason: 'teacher_assigned',
+          teacherId: teacherId.toString(),
+          teacherName: student.teacherId?.name,
+        });
+
+        // Backward compatible broadcast
         io.emit('student:assigned', {
           teacherId: teacherId.toString(),
           studentId: student._id.toString(),
@@ -649,6 +662,7 @@ router.put('/:id/assign-teacher', authMiddleware, isAdmin, async (req, res) => {
   }
 });
 
+
 // ─── DELETE /api/students/:id ──────────────────────────────────────────────────
 router.delete('/:id', authMiddleware, isAdmin, async (req, res) => {
   try {
@@ -663,7 +677,7 @@ router.delete('/:id', authMiddleware, isAdmin, async (req, res) => {
 });
 
 // ─── POST /api/students/:id/reset-today-attendance ─────────────────────────────
-// Xóa điểm danh HÔM NAY của học viên (Teacher hoặc Admin dùng khi nhập nhầm)
+// Xóa điểm danh HÔM NAY của học viên — CHỈ CHO PHÉP TRONG VÒNG 1 TIẾNG
 router.post('/:id/reset-today-attendance', authMiddleware, async (req, res) => {
   try {
     const student = await Student.findById(req.params.id);
@@ -675,6 +689,26 @@ router.post('/:id/reset-today-attendance', authMiddleware, async (req, res) => {
 
     if (!hadTodayRecord) {
       return res.json({ success: true, message: 'Học viên chưa được điểm danh hôm nay.' });
+    }
+
+    // ⏰ Kiểm tra thời gian 1 tiếng: Lấy schedule gần nhất hôm nay
+    const todayISO = new Date().toISOString().split('T')[0];
+    const latestSchedule = await Schedule.findOne({
+      studentId: req.params.id,
+      date: { $gte: new Date(todayISO), $lt: new Date(new Date(todayISO).getTime() + 86400000) },
+      status: 'completed',
+    }).sort({ createdAt: -1 }).lean();
+
+    if (latestSchedule) {
+      const diffMs = Date.now() - new Date(latestSchedule.createdAt).getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      if (diffMins >= 60) {
+        return res.status(403).json({
+          success: false,
+          message: `⏰ Đã quá 1 tiếng kể từ lúc điểm danh (${diffMins} phút). Không thể hủy nữa.`,
+          code: 'CANCEL_TIMEOUT'
+        });
+      }
     }
 
     // Xóa record hôm nay khỏi grades
@@ -692,7 +726,6 @@ router.post('/:id/reset-today-attendance', authMiddleware, async (req, res) => {
     });
 
     // Xóa schedule hôm nay nếu có
-    const todayISO = new Date().toISOString().split('T')[0];
     await Schedule.deleteMany({
       studentId: req.params.id,
       date: { $gte: new Date(todayISO), $lt: new Date(new Date(todayISO).getTime() + 86400000) },

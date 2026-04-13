@@ -334,7 +334,7 @@ function App() {
     <ErrorBoundary>
         <LoadingScreen />
         <SocketProvider
-          userId={session ? `${session.role}_${session.id || session._id}` : ''}
+          userId={session ? (session.id || session._id) : ''}
           role={session?.role || ''}
           name={session?.name || ''}
         >

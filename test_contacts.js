@@ -1,34 +1,18 @@
-const mongoose = require('mongoose');
-
-mongoose.connect('mongodb://localhost:27017/thangtinhoc')
-  .then(async () => {
-    const AdminUser = require('./models/AdminUser');
-    const admin = await AdminUser.findOne({ adminRole: 'SUPER_ADMIN' });
-    const jwt = require('jsonwebtoken');
-    require('dotenv').config();
-    const token = jwt.sign(
-      { id: admin._id, name: admin.name, role: 'admin', adminRole: admin.adminRole, branchId: admin.branchId },
-      process.env.JWT_SECRET || 'thangtinhoc_secret_kay_2023_safe',
-      { expiresIn: '7d' }
-    );
-    console.log('Fetching with token...');
-    const http = require('http');
-    const options = {
-      hostname: 'localhost',
-      port: 5000,
-      path: '/api/messages/contacts',
-      method: 'GET',
-      headers: { 'Authorization': 'Bearer ' + token }
-    };
-    const req = http.request(options, res => {
-      let data = '';
-      res.on('data', d => data += d);
-      res.on('end', () => {
-         console.log('Status:', res.statusCode);
-         console.log('Body snippet:', data.substring(0, 1500));
-         mongoose.disconnect();
-      });
-    });
-    req.on('error', e => console.error(e));
-    req.end();
-  });
+﻿const mongoose = require('mongoose');
+mongoose.connect('mongodb://127.0.0.1:27017/quanlycms').then(async () => {
+    const Student = mongoose.connection.collection('students');
+    const Teacher = mongoose.connection.collection('teachers');
+    const students = await Student.find({}).toArray();
+    console.log('Students count:', students.length);
+    if(students.length > 0) {
+        const student = students[0];
+        console.log('Test Student ID:', student._id, 'Branch:', student.branchId, 'Teacher:', student.teacherId);
+        
+        const staffDocs = student.branchId ? await Teacher.find({ adminRole: 'STAFF', branchId: student.branchId }).toArray() : [];
+        console.log('Staff found:', staffDocs.length);
+        
+        const teacherDocs = student.teacherId ? await Teacher.find({ _id: student.teacherId, role: 'teacher' }).toArray() : [];
+        console.log('Teachers found:', teacherDocs.length);
+    }
+    process.exit(0);
+});

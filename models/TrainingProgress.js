@@ -1,11 +1,12 @@
 const mongoose = require('mongoose');
 
 const trainingProgressSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, required: true }, // Can be Teacher ID
+  userId: { type: String, required: true }, // Can be Teacher ID or 'admin'
   userRole: { type: String, enum: ['teacher', 'admin', 'staff'], default: 'teacher' },
-  lessonId: { type: mongoose.Schema.Types.ObjectId, ref: 'TrainingLesson', required: true },
-  courseId: { type: mongoose.Schema.Types.ObjectId, ref: 'TrainingCourse', required: true },
+  lessonId: { type: String, required: true },
+  courseId: { type: String, required: true },
   status: { type: String, enum: ['locked', 'unlocked', 'completed'], default: 'locked' },
+  watchedSeconds: { type: Number, default: 0 },  // ⭐ Giây xem thực tế (không tính tua)
   completedAt: { type: Date },
   lastWatchedAt: { type: Date, default: Date.now }
 }, { timestamps: true });
