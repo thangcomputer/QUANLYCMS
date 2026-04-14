@@ -44,11 +44,37 @@ router.post('/', async (req, res) => {
     await newEval.save();
 
     const io = req.app.get('io');
+    const Notification = require('../models/Notification');
+    const Student = require('../models/Student');
+    const studentInfo = await Student.findById(studentId);
+
     if (io) {
       if (type === 'admin_feedback') {
         io.to('admin_room').emit('evaluation:admin_feedback', newEval);
       } else {
         io.to(`teacher_${targetTeacherId}`).emit('evaluation:teacher_rating', newEval);
+        
+        // Notify Teacher
+        if (targetTeacherId && targetTeacherId !== 'current') {
+           const newNotif = await Notification.create({
+             type: 'EVALUATION',
+             title: '⭐ Đánh giá mới từ học viên',
+             content: `Học viên ${studentInfo?.name || 'Vô danh'} vừa gửi một đánh giá chất lượng.`,
+             receivers: [targetTeacherId.toString()],
+             payload: { studentId, evaluationId: newEval._id, type: 'evaluation' }
+           });
+           
+           io.to(targetTeacherId.toString()).emit('RECEIVE_NOTIFICATION', {
+             _id: newNotif._id,
+             type: 'evaluation',
+             title: newNotif.title,
+             message: newNotif.content,
+             time: new Date(),
+             userId: targetTeacherId.toString(),
+             read: false,
+             link: '/teacher#reviews'
+           });
+        }
       }
     }
     return res.json({ success: true, data: newEval });

@@ -136,9 +136,9 @@ const DashboardLayout = ({ role, session, onLogout }) => {
   }, [showNotif]);
 
   const myNotifications = allNotifications.filter(n => 
-    (String(n.userId) === String(session?.id) || n.userId === null) && 
-    (n.role === role || n.role === null)
-  ).sort((a, b) => new Date(b.time) - new Date(a.time));
+    (String(n.userId) === String(session?.id) || !n.userId) && 
+    (n.role === role || !n.role)
+  ).sort((a, b) => new Date(b.time || Date.now()) - new Date(a.time || Date.now()));
 
   const unreadCount = myNotifications.filter(n => !n.read).length;
 
@@ -265,9 +265,10 @@ const DashboardLayout = ({ role, session, onLogout }) => {
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center justify-between mb-1">
                                     <span className={`text-[9px] font-black uppercase tracking-widest ${style.color}`}>{style.label}</span>
-                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{formatTime(n.time)}</span>
+                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{formatTime(n.time || n.createdAt || n.timestamp)}</span>
                                   </div>
-                                  <p className={`text-sm leading-relaxed ${!n.read ? 'text-gray-900 font-bold' : 'text-gray-500 font-medium'}`}>{n.text}</p>
+                                  {n.title && <h4 className={`text-sm font-bold mb-0.5 ${!n.read ? 'text-gray-900' : 'text-gray-600'}`}>{n.title}</h4>}
+                                  <p className={`text-[13px] leading-relaxed ${!n.read && !n.title ? 'text-gray-900 font-bold' : !n.read ? 'text-gray-700 font-semibold' : 'text-gray-500 font-medium'}`}>{n.text || n.message || n.content}</p>
                                 </div>
                               </div>
                             );
@@ -276,7 +277,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
                       )}
                     </div>
                     <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-                      <button onClick={() => myNotifications.filter(n => !n.read).forEach(n => markNotificationRead(n.id))} className="text-[11px] font-black text-gray-500 hover:text-red-600 transition-colors uppercase tracking-tight">Vừa đọc tất cả</button>
+                      <button onClick={() => markNotificationRead()} className="text-[11px] font-black text-gray-500 hover:text-red-600 transition-colors uppercase tracking-tight">Vừa đọc tất cả</button>
                       <button onClick={() => setShowNotif(false)} className="text-[11px] font-black text-red-600 hover:underline uppercase tracking-tight">Đóng lại</button>
                     </div>
                   </div>

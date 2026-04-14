@@ -19,6 +19,37 @@ import { BankSelect } from './BankSelect';
 import PopupBanner from './PopupBanner';
 import TeacherTrainingLMS from './TeacherTrainingLMS';
 
+export const showGlossyAlert = (message) => {
+  window.dispatchEvent(new CustomEvent('show-glossy-alert', { detail: message }));
+};
+
+export const GlossyAlertProvider = () => {
+  const [glossyAlert, setGlossyAlert] = React.useState({ isOpen: false, message: '' });
+  
+  React.useEffect(() => {
+    const handler = (e) => setGlossyAlert({ isOpen: true, message: e.detail });
+    window.addEventListener('show-glossy-alert', handler);
+    return () => window.removeEventListener('show-glossy-alert', handler);
+  }, []);
+  
+  if (!glossyAlert.isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white/80 backdrop-blur-xl border border-white/50 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1),0_0_0_1px_rgba(255,255,255,0.8)] rounded-3xl p-8 max-w-sm w-full text-center animate-in zoom-in-95 duration-300">
+        <h3 className="text-xl font-black text-slate-800 mb-3 tracking-tight">Thông báo</h3>
+        <p className="text-sm text-slate-600 font-medium mb-8 leading-relaxed">{glossyAlert.message}</p>
+        <button 
+          onClick={() => setGlossyAlert({ isOpen: false, message: '' })}
+          className="w-full py-3.5 px-6 bg-gradient-to-br from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-white font-bold rounded-2xl shadow-lg hover:shadow-xl transition-all active:scale-[0.98]"
+        >
+          Đã hiểu
+        </button>
+      </div>
+    </div>
+  );
+};
+
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 /**
  * Lấy tên hiển thị cho học viên/giảng viên.
@@ -156,6 +187,26 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
   const [newAssign, setNewAssign] = useState({ title: '', deadline: '', fileUrl: '', description: '' });
   const [editingAssignmentId, setEditingAssignmentId] = useState(null);
   const [editingAssign, setEditingAssign] = useState({ title: '', deadline: '', fileUrl: '', description: '' });
+  const [gradingInputs, setGradingInputs] = useState({});
+
+  const handleGradeSubmit = async (submissionId) => {
+    const gradeValue = gradingInputs[submissionId];
+    if (gradeValue === undefined || gradeValue === '' || isNaN(gradeValue) || gradeValue < 0 || gradeValue > 10) {
+      showGlossyAlert('Vui lòng nhập điểm hợp lệ (0-10)');
+      return;
+    }
+    try {
+      const res = await api.assignments.grade(submissionId, { grade: Number(gradeValue), teacherFeedback: 'Đã chấm điểm trực tiếp' });
+      if (res.success) {
+        if (typeof fetchStudentAssignments === 'function') fetchStudentAssignments();
+        showGlossyAlert('Chấm điểm thành công!');
+      } else {
+        showGlossyAlert(res.message || 'Lỗi chấm bài');
+      }
+    } catch(e) {
+      showGlossyAlert('Lỗi mạng khi lưu điểm');
+    }
+  };
 
   const done = student.completedSessions != null ? student.completedSessions : (student.totalSessions - student.remainingSessions);
   const progressPct = Math.round((done / student.totalSessions) * 100);
@@ -244,7 +295,7 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
     const file = e.target.files[0];
     if (!file) return;
     if (file.size > 3 * 1024 * 1024) {
-      alert("File đính kèm quá lớn. Xin vui lòng giới hạn dưới 3MB!");
+      showGlossyAlert("File đính kèm quá lớn. Xin vui lòng giới hạn dưới 3MB!");
       e.target.value = '';
       return;
     }
@@ -254,10 +305,10 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
         if (type === 'new') setNewAssign(prev => ({...prev, fileUrl: res.fileUrl}));
         else setEditingAssign(prev => ({...prev, fileUrl: res.fileUrl}));
       } else {
-        alert(res.message || "Lỗi khi tải file lên");
+        showGlossyAlert(res.message || "Lỗi khi tải file lên");
       }
     } catch(err) {
-      alert("Lỗi mạng khi tải file");
+      showGlossyAlert("Lỗi mạng khi tải file");
     }
     e.target.value = '';
   };
@@ -636,11 +687,38 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
                                   {isGraded ? <Check size={12}/> : <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />}
                                   {isGraded ? `KHÁ: ${submission.grade}/10` : 'ĐÃ NỘP BÀI'}
                                 </div>
-                              ) : (
+                                                            ) : (
                                 <span className="px-4 py-1.5 rounded-2xl text-[10px] uppercase tracking-widest bg-gray-50 text-slate-300">CHƯA NỘP</span>
                               )}
+                              
+                              {isSubmitted && submission.submittedFileUrl && (
+                                <a 
+                                  href={submission.submittedFileUrl.startsWith('http') ? submission.submittedFileUrl : `https://${submission.submittedFileUrl}`} 
+                                  target="_blank" rel="noreferrer" 
+                                  className="text-[10px] bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white px-3 py-1.5 rounded-xl font-bold uppercase tracking-widest flex items-center gap-1.5 transition-all shadow-sm"
+                                  title="Tải bài làm của học viên"
+                                >
+                                  <Download size={14} /> TẢI BÀI
+                                </a>
+                              )}
+                              
                               {isSubmitted && !isGraded && (
-                                <button onClick={() => navigate('/teacher/assignments')} className="text-[10px] text-indigo-600 hover:text-indigo-800 underline decoration-2 underline-offset-4">CHẤM BÀI NGAY &rarr;</button>
+                                <div className="flex items-center gap-2 mt-2">
+                                  <input 
+                                    type="number" 
+                                    min="0" max="10" 
+                                    placeholder="Điểm (0-10)"
+                                    value={gradingInputs[submission._id] || ''}
+                                    onChange={(e) => setGradingInputs({...gradingInputs, [submission._id]: e.target.value})}
+                                    className="w-24 bg-white border-2 border-indigo-100 rounded-xl p-2 text-xs font-bold text-indigo-900 focus:outline-none focus:border-indigo-500 text-center shadow-sm"
+                                  />
+                                  <button 
+                                    onClick={() => handleGradeSubmit(submission._id)} 
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white p-2 px-4 rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all active:scale-95 whitespace-nowrap"
+                                  >
+                                    LƯU
+                                  </button>
+                                </div>
                               )}
                               {isGraded && submission.teacherFeedback && (
                                 <p className="text-[9px] text-slate-400 italic max-w-[150px] text-right line-clamp-1">"{submission.teacherFeedback}"</p>
@@ -1122,7 +1200,7 @@ const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSch
       if (data.success) {
         if (onCancelSchedule) onCancelSchedule(cancelTarget._id || cancelTarget.id, cancelReason);
       } else {
-        alert(data.message || 'Lỗi khi hủy lịch');
+        showGlossyAlert(data.message || 'Lỗi khi hủy lịch');
       }
     } catch (e) {
     }

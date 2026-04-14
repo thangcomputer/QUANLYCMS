@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { QUESTION_BANK } from '../data/questionBank';
 import { playNotifySound } from '../utils/sound';
-import api, { API_BASE } from '../services/api';
+import api, { API_BASE, apiFetch } from '../services/api';
 import { useSocket } from './SocketContext';
 
 
@@ -151,7 +151,8 @@ export const DataProvider = ({ children, user, onLogout }) => {
       unsubMsg = onMessageReceive((data) => {
         setMessages(prev => {
           if (prev.some(m => String(m.id) === String(data._id))) return prev;
-          return [...prev, {
+          
+          const mappedMsg = {
             id: data._id,
             convId: data.conversationId,
             senderId: data.senderId,
@@ -167,8 +168,16 @@ export const DataProvider = ({ children, user, onLogout }) => {
             messageType: data.messageType || 'text',
             fileName: data.fileName,
             fileUrl: data.fileUrl,
-            reactions: data.reactions || []
-          }];
+            reactions: data.reactions || [],
+          };
+          
+          const tempIdx = prev.findIndex(m => String(m.id).startsWith('temp_') && m.senderId === data.senderId && m.content === data.content);
+          if (tempIdx !== -1) {
+             const updated = [...prev];
+             updated[tempIdx] = mappedMsg;
+             return updated;
+          }
+          return [...prev, mappedMsg];
         });
       });
     }
@@ -400,12 +409,27 @@ export const DataProvider = ({ children, user, onLogout }) => {
   }, [setSocketNotifications]);
 
   const markNotificationRead = useCallback((notifId) => {
-    setSocketNotifications(prev => prev.map(n => (n.id === notifId || n._id === notifId) ? { ...n, read: true } : n));
+    setSocketNotifications(prev => prev.map(n => (!notifId || n.id === notifId || n._id === notifId) ? { ...n, read: true } : n));
+    
+    // Persist to server
+    if(notifId) {
+      apiFetch('/notifications/mark-read', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notificationId: notifId })
+      }).catch(e => void 0);
+    } else {
+      apiFetch('/notifications/mark-read', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markAll: true })
+      }).catch(e => void 0);
+    }
   }, [setSocketNotifications]);
 
   const getNotifications = useCallback((userId, role) => {
     return (socketNotifications || []).filter(n =>
-      (n.userId === userId || n.userId === null) && (n.role === role || n.role === null)
+      (String(n.userId) === String(userId) || !n.userId) && (n.role === role || !n.role)
     );
   }, [socketNotifications]);
 

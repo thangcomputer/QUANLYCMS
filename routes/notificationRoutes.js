@@ -4,10 +4,10 @@ const mongoose = require('mongoose');
 const Notification = require('../models/Notification');
 const { authMiddleware } = require('../middleware/auth');
 
-// Lấy danh sách notifications chưa đọc
+// Láº¥y danh sÃ¡ch notifications chÆ°a Ä‘á»c
 router.get('/unread', authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id || req.user._id;
+    const userId = String(req.user.id || req.user._id);
     const role = req.user.role; // 'admin', 'teacher', 'student'
     const branchId = req.user.branchId; 
 
@@ -28,10 +28,10 @@ router.get('/unread', authMiddleware, async (req, res) => {
       if (branchId) matchConditions.push({ receivers: `ALL_STUDENT_${branchId}` });
     }
 
-    // Unread: not in read_by array
-    const unreadNotifications = await Notification.find({
-      $or: matchConditions,
-      read_by: { $ne: userId }
+    // Get ALL recent notifications for the user
+    // (We keep the endpoint name '/unread' but it returns recent notifications)
+    const recentNotifications = await Notification.find({
+      $or: matchConditions
     }).sort({ createdAt: -1 }).limit(50);
 
     const count = await Notification.countDocuments({
@@ -41,23 +41,46 @@ router.get('/unread', authMiddleware, async (req, res) => {
 
     res.json({
       success: true,
-      data: unreadNotifications,
+      data: recentNotifications,
       count
     });
   } catch (error) {
     console.error('[NOTIFICATIONS] Get unread error:', error);
-    res.status(500).json({ success: false, message: 'Lỗi server' });
+    res.status(500).json({ success: false, message: 'Lá»—i server' });
   }
 });
 
 // Mark all as read
 router.put('/mark-read', authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id || req.user._id;
-    // ... we can implement updating read_by array via updateMany
-    res.json({ success: true, message: 'Marked as read (mock)' });
+    const userId = String(req.user.id || req.user._id);
+    const { notificationId, markAll } = req.body;
+
+    if (markAll) {
+      // Find all notifications matching receiver logic and add userId to read_by
+      const role = req.user.role;
+      const branchId = req.user.branchId; 
+      const matchConditions = [{ receivers: userId }, { receivers: 'GLOBAL' }];
+      if (role === 'admin') {
+        matchConditions.push({ receivers: 'ALL_ADMIN' });
+        if (branchId) matchConditions.push({ receivers: `ALL_ADMIN_${branchId}` });
+      } else if (role === 'teacher') {
+        matchConditions.push({ receivers: 'ALL_TEACHER' });
+      } else if (role === 'student') {
+        matchConditions.push({ receivers: 'ALL_STUDENT' });
+      }
+      
+      await Notification.updateMany(
+        { $or: matchConditions, read_by: { $ne: userId } },
+        { $addToSet: { read_by: userId } }
+      );
+    } else if (notificationId) {
+      await Notification.findByIdAndUpdate(notificationId, { $addToSet: { read_by: userId } });
+    }
+    
+    res.json({ success: true, message: 'ÄÃ£ Ä‘Ã¡nh dáº¥u Ä‘á»c' });
   } catch(error) {
-    res.status(500).json({ success: false, message: 'Lỗi server' });
+    res.status(500).json({ success: false, message: 'Lá»—i server' });
   }
 });
 

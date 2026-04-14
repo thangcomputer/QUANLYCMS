@@ -8,7 +8,7 @@ import { useSocket } from '../context/SocketContext';
 import { useData } from '../context/DataContext';
 import { useLocation } from 'react-router-dom';
 import { useToast } from '../utils/toast';
-import { messagesAPI } from '../services/api';
+import { messagesAPI, SOCKET_BASE } from '../services/api';
 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -234,46 +234,7 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
 
   // ─── Socket real-time listeners ──────────────────────────────────────────────
   useEffect(() => {
-    let unsubMsg, unsubRecall, unsubReaction;
-
-    if (onMessageReceive) {
-      unsubMsg = onMessageReceive((data) => {
-        // Tính convId theo cùng thuật toán server + DataContext
-        const incomingConvId = data.conversationId // Server đã tính sẵn
-          || (data.isGroup && data.groupId
-            ? `group_${data.groupId}`
-            : [`${data.senderRole}_${data.senderId}`, `${data.receiverRole}_${data.receiverId}`].sort().join('__'));
-
-        const matchesConv = activeConv && (
-          activeConv.id === incomingConvId ||
-          (data.isGroup && data.groupId && activeConv.id === `group_${data.groupId}`)
-        );
-
-        if (matchesConv) {
-          setMessages(prev => {
-            if (prev.find(m => String(m.id) === String(data._id))) return prev;
-            return [...prev, {
-              id: data._id || `msg_${Date.now()}`,
-              senderId: data.senderId,
-              senderName: data.senderName,
-              senderRole: data.senderRole,
-              content: data.content,
-              time: new Date(data.createdAt || Date.now()),
-              isRead: false,
-              isRecalled: data.isRecalled || false,
-              messageType: data.messageType || 'text',
-              fileName: data.fileName,
-              fileUrl: data.fileUrl,
-              reactions: data.reactions || [],
-            }];
-          });
-        }
-
-        // Cập nhật unread count cho conversations khác (không phải conversation đang mở)
-        if (!matchesConv && incomingConvId) {
-        }
-      });
-    }
+    let unsubRecall, unsubReaction;
 
 
     if (onRecallReceive) {
@@ -295,7 +256,7 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
     }
 
     return () => {
-      if (unsubMsg) unsubMsg();
+      
       if (unsubRecall) unsubRecall();
       if (unsubReaction) unsubReaction();
     };
@@ -389,8 +350,8 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
     if (!file || !activeConv) return;
 
     const isImage = file.type.startsWith('image/');
-    const maxSize = isImage ? 50 * 1024 * 1024 : 50 * 1024 * 1024;
-    const maxLabel = '50MB';
+    const maxSize = 5 * 1024 * 1024;
+    const maxLabel = '5MB';
 
     if (file.size > maxSize) {
       setUploadError(`File quá lớn. Giới hạn ${maxLabel}.`);
@@ -403,7 +364,7 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
     setUploadError('');
 
     try {
-      const uploadRes = await api.messages.uploadMessageFile(file);
+      const uploadRes = await messagesAPI.uploadMessageFile(file);
       if (!uploadRes.success) throw new Error(uploadRes.message || 'Lỗi hệ thống lưu trữ');
 
       const msgData = {
@@ -413,7 +374,7 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
         receiverId: activeConv.user.id,
         receiverName: activeConv.user.name,
         receiverRole: activeConv.user.role,
-        content: isImage ? '' : `Đã gửi tệp: ${file.name}`,
+        content: isImage ? '[Hình ảnh]' : `Đã gửi tệp: ${file.name}`,
         messageType: isImage ? 'image' : 'file',
         fileUrl: uploadRes.url,
         fileName: file.name,
@@ -809,9 +770,9 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
                             ) : (
                               <>
                                 {msg.messageType === 'image' && msg.fileUrl ? (
-                                  <img src={msg.fileUrl} alt={msg.fileName || 'Image'} className="max-w-full h-auto rounded-xl max-h-64 object-cover mb-1 border border-black/5" />
+                                  <img src={msg.fileUrl.startsWith('http') ? msg.fileUrl : `${SOCKET_BASE}${msg.fileUrl}`} alt={msg.fileName || 'Image'} className="max-w-full h-auto rounded-xl max-h-64 object-cover mb-1 border border-black/5" />
                                 ) : msg.messageType === 'file' ? (
-                                  <a href={msg.fileUrl} download={msg.fileName} className={`flex items-center gap-3 py-2 px-3 rounded-xl transition hover:opacity-80 ${isMine ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-700'}`}>
+                                  <a href={msg.fileUrl.startsWith('http') ? msg.fileUrl : `${SOCKET_BASE}${msg.fileUrl}`} download={msg.fileName} className={`flex items-center gap-3 py-2 px-3 rounded-xl transition hover:opacity-80 ${isMine ? 'bg-white/10 text-white' : 'bg-gray-100 text-gray-700'}`}>
                                     <div className={`p-2 rounded-lg ${isMine ? 'bg-white/20' : 'bg-blue-500 text-white'}`}>
                                       <Paperclip size={18} />
                                     </div>

@@ -257,7 +257,13 @@ router.post('/', async (req, res) => {
 
     // Thông báo real-time cho học viên
     const io = req.app.get('io');
+    const Notification = require('../models/Notification');
     if (io) {
+      if (studentId) {
+         const notifDate = new Date(date).toLocaleDateString('vi-VN');
+         const notif = await Notification.create({ type: 'SCHEDULE', title: '📅 Lịch học mới', content: `Lịch học mới vào ngày ${notifDate} lúc ${startTime} đã được thêm.`, receivers: [studentId.toString()] });
+         io.to(studentId.toString()).emit('RECEIVE_NOTIFICATION', { _id: notif._id, type: 'schedule', title: notif.title, message: notif.content, time: new Date(), userId: studentId.toString() });
+      }
       io.emit('schedule:new', {
         studentId: studentId.toString(),
         schedule,
@@ -321,6 +327,31 @@ router.put('/:scheduleId', async (req, res) => {
     if (startTime) updates.startTime = startTime;
     if (endTime)   updates.endTime   = endTime;
     if (date)      updates.date      = new Date(date);
+    if ('studentNote' in req.body) {
+      updates.studentNote = req.body.studentNote;
+      updates.hasUnreadStudentNote = true; // Bật cờ có tin nhắn mới cho Giảng viên
+    }
+    if ('hasUnreadStudentNote' in req.body) {
+      // Giảng viên click vào xem thì tắt cờ đi
+      updates.hasUnreadStudentNote = req.body.hasUnreadStudentNote;
+    }
+
+    const Notification = require('../models/Notification');
+    const io = req.app.get('io');
+    if (schedule.studentId && io) {
+      if (status === 'cancelled' && schedule.status !== 'cancelled') {
+         const notif = await Notification.create({ type: 'SCHEDULE', title: '❌ Lịch học bị hủy', content: `Lịch học ngày ${new Date(schedule.date).toLocaleDateString()} đã bị hủy.`, receivers: [schedule.studentId.toString()] });
+         io.to(schedule.studentId.toString()).emit('RECEIVE_NOTIFICATION', { _id: notif._id, type: 'schedule', title: notif.title, message: notif.content, time: new Date(), userId: schedule.studentId.toString() });
+      }
+      else if (status === 'completed' && schedule.status !== 'completed') {
+         const notif = await Notification.create({ type: 'SCHEDULE', title: '✅ Hệ thống đã điểm danh', content: `Giảng viên đã điểm danh buổi học ngày ${new Date(schedule.date).toLocaleDateString()}.`, receivers: [schedule.studentId.toString()] });
+         io.to(schedule.studentId.toString()).emit('RECEIVE_NOTIFICATION', { _id: notif._id, type: 'schedule', title: notif.title, message: notif.content, time: new Date(), userId: schedule.studentId.toString() });
+      }
+      else if ((startTime && startTime !== schedule.startTime) || (date && new Date(date).getTime() !== schedule.date.getTime())) {
+         const notif = await Notification.create({ type: 'SCHEDULE', title: '🔄 Lịch học đã thay đổi', content: `Lịch học của bạn đã được cập nhật thành: ${startTime || schedule.startTime} ngày ${date ? new Date(date).toLocaleDateString() : 'hôm nay'}.`, receivers: [schedule.studentId.toString()] });
+         io.to(schedule.studentId.toString()).emit('RECEIVE_NOTIFICATION', { _id: notif._id, type: 'schedule', title: notif.title, message: notif.content, time: new Date(), userId: schedule.studentId.toString() });
+      }
+    }
 
     const updated = await Schedule.findByIdAndUpdate(
       req.params.scheduleId,
@@ -331,7 +362,7 @@ router.put('/:scheduleId', async (req, res) => {
       { path: 'studentId', select: 'name course totalSessions studentExamUnlocked' },
     ]);
 
-    const io = req.app.get('io');
+    // (io was declared above)
 
     // BUSINESS LOGIC: Nếu đánh dấu hoàn thành → kiểm tra unlock thi
     if (status === 'completed' && schedule.studentId) {
@@ -361,6 +392,35 @@ router.put('/:scheduleId', async (req, res) => {
           course: schedule.course,
           date: schedule.date,
         });
+      }
+    }
+
+    // BUSINESS LOGIC: Gửi thông báo chuông cho Giảng viên nếu Học viên gửi Ghi chú (studentNote)
+    if ('studentNote' in req.body && schedule.teacherId && io) {
+      const Notification = require('../models/Notification');
+      try {
+         const newNotif = await Notification.create({
+           type: 'SYSTEM',
+           title: '📝 Ghi chú mới từ học viên',
+           content: `Học viên ${schedule.studentName} vừa để lại ghi chú trên lịch học ngày ${new Date(schedule.date).toLocaleDateString('vi-VN')}.`,
+           receivers: [schedule.teacherId.toString()],
+           payload: { scheduleId: schedule._id, studentId: schedule.studentId, type: 'schedule' }
+         });
+         
+         // Báo chuông
+         io.to(schedule.teacherId.toString()).emit('RECEIVE_NOTIFICATION', {
+           _id: newNotif._id,
+           type: 'schedule',
+           title: newNotif.title,
+           message: newNotif.content,
+           time: new Date(),
+           userId: schedule.teacherId.toString()
+         });
+
+         // Báo cập nhật calendar
+         io.emit('schedule:updated', schedule._id);
+      } catch (e) {
+         console.error('[SCHEDULE] Notify error:', e);
       }
     }
 

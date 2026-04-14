@@ -259,6 +259,11 @@ const ScheduleView = ({ schedules, student }) => {
                       <span className="font-bold block text-blue-200/90 mb-0.5">Ghi chú từ GV:</span> {s.note}
                     </p>
                   )}
+                  {s.studentNote && (
+                    <p className="text-red-200 text-[11px] mt-2 bg-red-500/10 p-2.5 rounded-xl border border-red-500/20 italic">
+                      <span className="font-bold block text-red-300 mb-0.5">Ghi chú của bạn:</span> {s.studentNote}
+                    </p>
+                  )}
                   
                   {s.status === 'scheduled' && (
                     <div className="flex gap-2 mt-4">
@@ -267,8 +272,10 @@ const ScheduleView = ({ schedules, student }) => {
                            VÀO LỚP
                          </a>
                        )}
-                       <button className="flex-1 bg-white/10 hover:bg-white/20 border border-white/20 text-white py-2.5 rounded-xl text-xs font-black text-center transition-all">
-                           XIN HỌC BÙ
+                       <button 
+                         onClick={() => setNoteModalSched(s)}
+                         className="flex-1 bg-white/10 hover:bg-white/20 border border-white/20 text-white py-2.5 rounded-xl text-xs font-black text-center transition-all">
+                           GHI CHÚ / ĐỔI LỊCH
                        </button>
                     </div>
                   )}
@@ -869,9 +876,40 @@ const EvaluationView = ({
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 
+// ─── Modal Ghi chú (Đổi lịch học) ───────────────────────────────────────────────
+const StudentNoteModal = ({ schedule, onClose, onSubmit }) => {
+  const [note, setNote] = useState(schedule?.studentNote || '');
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-300">
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-6 text-center text-white relative">
+           <h3 className="text-xl font-black uppercase tracking-tight">Ghi Chú & Phản Hồi</h3>
+           <p className="text-blue-100 text-xs mt-1 font-medium">Gửi trực tiếp cho Giảng viên trên lịch này</p>
+        </div>
+        <div className="p-6">
+           <textarea 
+             autoFocus
+             value={note}
+             onChange={e => setNote(e.target.value)}
+             className="w-full min-h-[120px] p-4 bg-slate-50 border-2 border-slate-100 rounded-2xl text-sm font-medium focus:outline-none focus:border-blue-500 transition-colors"
+             placeholder="Nhập nội dung ghi chú (VD: Em xin học bù vào thứ 7, Xin đến trễ 10p, ...)"
+           />
+           <div className="flex gap-3 mt-6">
+             <button onClick={onClose} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-50 rounded-xl transition-colors">Hủy</button>
+             <button onClick={() => onSubmit(note)} disabled={!note.trim()} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-black rounded-xl transition-colors shadow-lg shadow-blue-600/30">
+               Gửi Ghi Chú
+             </button>
+           </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const StudentDashboard = ({ onNavigate }) => {
   const [activeCourseName, setActiveCourseName] = useState('');
   const [evaluatingCourseId, setEvaluatingCourseId] = useState(null);
+  const [noteModalSched, setNoteModalSched] = useState(null);
   const { showModal } = useModal();
   const session = JSON.parse(localStorage.getItem('student_user') || '{}');
   const STUDENT_ID = session.id || 101;
@@ -1002,6 +1040,53 @@ const StudentDashboard = ({ onNavigate }) => {
     }).catch(err => void 0);
   }, [studentData?.teacherId]);
 
+  const studyLogs = useMemo(() => {
+    if (!studentData) return [];
+    const logs = [];
+    
+    // 1. Buổi học đã hoàn thành / Điểm danh
+    let sessionCount = (studentData.attendanceHistory || []).filter(item => !(item.note && item.note.toLowerCase().includes('bài nộp'))).length;
+
+    (studentData.attendanceHistory || []).forEach((item, idx) => {
+       let parsedDate = item.date;
+       if (parsedDate && parsedDate.includes('T')) {
+         parsedDate = new Date(parsedDate).toLocaleDateString('vi-VN');
+       }
+       // Lấy exact time từ mySchedules
+       const sched = mySchedules?.find(s => new Date(s.date).toLocaleDateString('vi-VN') === parsedDate && s.status === 'completed');
+       
+       const isHomework = item.note && item.note.toLowerCase().includes('bài nộp');
+
+       logs.push({
+          type: isHomework ? 'homework' : 'attendance',
+          date: parsedDate,
+          time: sched ? sched.startTime : '',
+          note: item.note || 'Đã điểm danh hoàn thành buổi học',
+          grade: item.grade,
+          index: isHomework ? null : sessionCount--, // Không đếm bài nộp vào
+          timestamp: sched ? new Date(sched.updatedAt || sched.createdAt).getTime() : 0
+       });
+    });
+
+    // 2. Lịch đã hủy
+    (mySchedules || []).forEach(s => {
+       if (s.status === 'cancelled') {
+         logs.push({
+            type: 'cancelled',
+            date: new Date(s.date).toLocaleDateString('vi-VN'),
+            time: s.startTime,
+            note: s.note || 'Lịch học đã bị hủy',
+            grade: null,
+            index: null,
+            timestamp: new Date(s.updatedAt || s.createdAt).getTime()
+         });
+       }
+    });
+
+    // Sắp xếp theo timestamp giảm dần nếu có, nếu không thì giữ nguyên (do attendanceHistory đã có thứ tự)
+    return logs.sort((a, b) => b.timestamp - a.timestamp);
+  }, [studentData, mySchedules]);
+
   const isNew = studentData?.completedSessions === 0;
 
   const [activeMilestone, setActiveMilestone] = useState(null);
@@ -1040,6 +1125,22 @@ const StudentDashboard = ({ onNavigate }) => {
       <PopupBanner role="student" />
 
       {/* Modal đóng học phí (tự động qua SePay) */}
+      {noteModalSched && (
+         <StudentNoteModal 
+           schedule={noteModalSched} 
+           onClose={() => setNoteModalSched(null)} 
+           onSubmit={async (noteText) => {
+             try {
+               await api.schedules.update(noteModalSched._id, { studentNote: noteText, hasUnreadStudentNote: true });
+               setSchedules(prev => prev.map(s => s._id === noteModalSched._id ? { ...s, studentNote: noteText } : s));
+               setNoteModalSched(null);
+             } catch(e) {
+               console.error(e);
+             }
+           }} 
+         />
+      )}
+
       {showTuitionModal && (
         <TuitionPaymentModal
           student={studentData}
@@ -1151,12 +1252,21 @@ const StudentDashboard = ({ onNavigate }) => {
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 {studentData.grades && studentData.grades.length > 0 ? (
                   <div className="divide-y divide-gray-100">
-                    {studentData.grades.map((g, idx) => (
+                    {studentData.grades.map((g, idx) => {
+                      let parsedDate = g.date;
+                      if (parsedDate && parsedDate.includes('T')) {
+                        parsedDate = new Date(parsedDate).toLocaleDateString('vi-VN');
+                      }
+                      return (
                       <div key={idx} className="p-4 hover:bg-gray-50 flex items-start justify-between transition-colors">
                         <div>
                           <p className="font-bold text-gray-800 flex items-center gap-2">
-                            {g.time ? `${g.time} - ${g.date}` : g.date}
-                            <span className="text-[10px] bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-full uppercase">Điểm danh</span>
+                            {g.time ? `${g.time} - ${parsedDate}` : parsedDate}
+                            {g.note && g.note.toLowerCase().includes('bài nộp') ? (
+                              <span className="text-[10px] bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full uppercase">Nộp bài</span>
+                            ) : (
+                              <span className="text-[10px] bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-full uppercase">Điểm danh</span>
+                            )}
                           </p>
                           <p className="text-sm text-gray-600 mt-1">{g.note}</p>
                         </div>
@@ -1166,7 +1276,7 @@ const StudentDashboard = ({ onNavigate }) => {
                           </span>
                         </div>
                       </div>
-                    ))}
+                    )})}
                   </div>
                 ) : (
                   <div className="p-8 text-center text-gray-400 text-sm">
@@ -1587,7 +1697,7 @@ const StudentDashboard = ({ onNavigate }) => {
                             </div>
                          </div>
 
-                         <div className="bg-purple-50/50 hover:bg-purple-50 border border-purple-100 p-4 rounded-2xl flex flex-col gap-3 transition-colors group/card" onClick={() => navigate('/inbox')}>
+                         <div className="bg-purple-50/50 hover:bg-purple-50 border border-purple-100 p-4 rounded-2xl flex flex-col gap-3 transition-colors group/card" onClick={() => navigate('/student/inbox')}>
                             <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-purple-600 shadow-sm border border-purple-100/50 group-hover/card:scale-110 transition-transform">
                               <MessageSquare size={20} />
                             </div>
@@ -1605,37 +1715,41 @@ const StudentDashboard = ({ onNavigate }) => {
                       <h3 className="font-bold text-slate-700 flex items-center gap-2 text-sm md:text-base">
                         <Clock size={16} className="text-blue-500" /> NHẬT KÝ HỌC TẬP
                       </h3>
-                      <span className="text-[10px] md:text-xs text-gray-400">{studentData.attendanceHistory.length} buổi</span>
+                      <span className="text-[10px] md:text-xs text-gray-400">{studyLogs.length} sự kiện</span>
                     </div>
                     <div className="divide-y divide-gray-50">
-                      {studentData.attendanceHistory.map((item, idx) => (
-                        <div key={idx} className="px-4 md:px-6 py-3 md:py-4 flex flex-col md:flex-row md:items-center justify-between hover:bg-gray-50 transition-colors gap-2 md:gap-4">
+                      {studyLogs.map((item, idx) => {
+                        const isCancelled = item.type === 'cancelled';
+                        return (
+                        <div key={idx} className={`px-4 md:px-6 py-3 md:py-4 flex flex-col md:flex-row md:items-center justify-between ${isCancelled ? 'bg-red-50/30' : 'hover:bg-gray-50'} transition-colors gap-2 md:gap-4`}>
                           <div className="flex items-start md:items-center gap-3">
-                            <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center bg-green-100 text-green-600 flex-shrink-0 mt-0.5 md:mt-0">
-                              <CheckCircle size={16} />
+                            <div className={`w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 md:mt-0 ${isCancelled ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                              {isCancelled ? <XCircle size={16} /> : <CheckCircle size={16} />}
                             </div>
                             <div className="min-w-0">
-                              <p className="font-bold text-sm text-slate-800 truncate">
-                                Buổi {studentData.attendanceHistory.length - idx} — {item.date}
+                              <p className={`font-bold text-sm truncate ${isCancelled ? 'text-red-700' : 'text-slate-800'}`}>
+                                {item.index ? `Buổi ${item.index} — ` : ''}{item.date} {item.time ? `(${item.time})` : ''}
                               </p>
                               <p className="text-[10px] md:text-xs text-slate-400 italic truncate">{item.note}</p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2 md:text-right flex-shrink-0 ml-12 md:ml-0">
-                            <span className={`text-lg font-black ${item.grade >= 8 ? 'text-green-600' : item.grade >= 6 ? 'text-orange-500' : 'text-red-500'}`}>
-                              {item.grade}
-                            </span>
-                            <span className="text-[10px] text-gray-400">/ 10</span>
-                            <span className={`text-[9px] md:text-[10px] font-bold px-2 py-0.5 rounded-full ml-1 ${
-                              item.grade >= 8 ? 'bg-green-100 text-green-700' : item.grade >= 6 ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'
-                            }`}>
-                              {item.grade >= 8 ? 'GIỎI' : item.grade >= 6 ? 'KHÁ' : 'TB'}
-                            </span>
-                          </div>
+                          {!isCancelled && item.grade != null && (
+                            <div className="flex items-center gap-2 md:text-right flex-shrink-0 ml-12 md:ml-0">
+                              <span className={`text-lg font-black ${item.grade >= 8 ? 'text-green-600' : item.grade >= 6 ? 'text-orange-500' : 'text-red-500'}`}>
+                                {item.grade}
+                              </span>
+                              <span className="text-[10px] text-gray-400">/ 10</span>
+                              <span className={`text-[9px] md:text-[10px] font-bold px-2 py-0.5 rounded-full ml-1 ${
+                                item.grade >= 8 ? 'bg-green-100 text-green-700' : item.grade >= 6 ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'
+                              }`}>
+                                {item.grade >= 8 ? 'GIỎI' : item.grade >= 6 ? 'KHÁ' : 'TB'}
+                              </span>
+                            </div>
+                          )}
                         </div>
-                      ))}
-                      {studentData.attendanceHistory.length === 0 && (
-                        <div className="px-6 py-12 text-center text-gray-400 text-sm">Chưa có buổi học nào được ghi nhận.</div>
+                      )})}
+                      {studyLogs.length === 0 && (
+                        <div className="px-6 py-12 text-center text-gray-400 text-sm">Chưa có sự kiện nào được ghi nhận.</div>
                       )}
                     </div>
                   </div>

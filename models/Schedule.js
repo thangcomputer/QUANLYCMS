@@ -45,6 +45,8 @@ const scheduleSchema = new mongoose.Schema({
   reminderSentAt: { type: Date },
 
   note: { type: String, default: '' },
+  studentNote: { type: String, default: '' },
+  hasUnreadStudentNote: { type: Boolean, default: false },
 
   // Chi nhánh
   branchId:   { type: mongoose.Schema.Types.ObjectId, ref: 'Branch', default: null },

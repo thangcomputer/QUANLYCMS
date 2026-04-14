@@ -335,11 +335,11 @@ export const messagesAPI = {
   uploadMessageFile: async (file) => {
     const formData = new FormData();
     formData.append('file', file);
-    const token = localStorage.getItem('access_token');
+    const token = getAccessToken();
     // Using native fetch because apiFetch by default sets Content-Type to application/json
-    const res = await fetch('/api/messages/upload', {
+    const res = await fetch(`${API_BASE}/messages/upload`, {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}` },
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       body: formData
     });
     return res.json();

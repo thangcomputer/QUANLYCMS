@@ -540,6 +540,9 @@ router.put('/:id/unlock-exam', authMiddleware, isAdmin, async (req, res) => {
     // Thông báo real-time cho học viên
     const io = req.app.get('io');
     if (io) {
+      const Notification = require('../models/Notification');
+      const notif = await Notification.create({ type: 'EXAM', title: '🔓 Phòng thi đã mở', content: 'Giảng viên/Admin đã cấp quyền cho bạn vào thi.', receivers: [student._id.toString()] });
+      io.to(student._id.toString()).emit('RECEIVE_NOTIFICATION', { _id: notif._id, type: 'exam', title: notif.title, message: notif.content, time: new Date(), userId: student._id.toString() });
       io.emit('exam:unlocked', {
         studentId: student._id.toString(),
         studentName: student.name,
@@ -605,6 +608,13 @@ router.put('/:id/assign-teacher', authMiddleware, isAdmin, async (req, res) => {
     if (!student) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy học viên' });
     }
+
+    // ⭐ ĐỒNG BỘ: Cập nhật Giảng viên lên các Lịch học 'scheduled' (chưa điểm danh)
+    // Để Lịch học bên Giảng viên mới (Schedule Tab) đồng bộ hiển thị đúng
+    await require('../models/Schedule').updateMany(
+      { studentId: student._id, status: 'scheduled' },
+      { $set: { teacherId: typeof student.teacherId === 'object' ? student.teacherId._id : student.teacherId, teacherName: student.teacherId?.name || 'Giảng viên' } }
+    );
 
     const Notification = require('../models/Notification');
     const io = req.app.get('io');

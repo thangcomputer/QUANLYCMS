@@ -78,7 +78,13 @@ export const SocketProvider = ({ userId, role, name, children }) => {
         .then(res => res.json())
         .then(data => {
            if (data.success && data.data) {
-             setNotifications(data.data.map(n => ({ ...n, id: n._id, read: false })));
+             setNotifications(data.data.map(n => ({ 
+               ...n, 
+               id: n._id, 
+               read: Array.isArray(n.read_by) && n.read_by.includes(String(userId)),
+               message: n.content || n.message,
+               time: n.createdAt || n.time 
+             })));
            }
         })
         .catch(err => void 0);
