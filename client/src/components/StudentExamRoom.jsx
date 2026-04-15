@@ -77,7 +77,18 @@ const SubjectCard = ({ subject, onStart, isGlobalApproved }) => {
   };
 
   const thucHanhDisplay = () => {
-    if (subject.thucHanh === 'da_nop') return <span className="text-sm text-green-600 font-semibold">Đã nộp</span>;
+    if (subject.thucHanh === 'da_nop') {
+      if (subject.essayScore !== null && subject.essayScore !== undefined) {
+        // Đã chấm điểm → hiện điểm
+        return (
+          <span className={`text-sm font-semibold ${subject.essayScore >= 5 ? 'text-green-600' : 'text-red-500'}`}>
+            {subject.essayScore}/10
+          </span>
+        );
+      }
+      // Đã nộp nhưng chưa chấm
+      return <span className="text-sm text-amber-600 font-semibold">Chờ chấm điểm</span>;
+    }
     if (subject.thucHanh === 'chua_nop') return <span className="text-sm text-gray-400">Chưa nộp</span>;
     return <span className="text-sm text-red-500">Chưa nộp bài</span>;
   };
@@ -151,7 +162,7 @@ const SubjectCard = ({ subject, onStart, isGlobalApproved }) => {
                 onClick={() => onStart(subject.id)}
                 className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm transition-all active:scale-95 flex items-center justify-center gap-2 shadow-md shadow-blue-100"
               >
-                Vào thi ngay
+                {(subject.attemptCount || 0) > 0 ? <><Play size={15} /> Thi lại</> : 'Vào thi ngay'}
               </button>
             )}
             {canRetry && (
@@ -188,7 +199,7 @@ const SubjectCard = ({ subject, onStart, isGlobalApproved }) => {
 // ─── Score Modal ──────────────────────────────────────────────────────────────
 const ScoreModal = ({ subjects, onClose }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
       <div className="bg-gradient-to-r from-red-600 to-red-500 px-6 py-5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Trophy size={22} className="text-white" />
@@ -196,24 +207,65 @@ const ScoreModal = ({ subjects, onClose }) => (
         </div>
         <button onClick={onClose} className="text-white/70 hover:text-white text-2xl font-bold leading-none">×</button>
       </div>
-      <div className="p-6 space-y-4">
+      <div className="p-5 space-y-3 max-h-[65vh] overflow-y-auto">
         {subjects.map(s => {
           const meta = SUBJECT_ICONS[s.id];
-          const pct = s.tracNghiem ? Math.round((s.tracNghiem.score / s.tracNghiem.total) * 100) : null;
+          const tn = s.tracNghiem;
+          const tnPct = tn ? Math.round((tn.score / tn.total) * 100) : null;
+          const hasEssay = s.thucHanh === 'da_nop';
+          const essayScore = s.essayScore;
+          const attempt = s.attemptCount || 0;
           return (
-            <div key={s.id} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border">
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 ${meta.bg} rounded-lg flex items-center justify-center`}>
-                  <span className="text-white font-black text-xs">{s.id === 'word' ? 'W' : s.id === 'excel' ? 'X' : s.id === 'powerpoint' ? 'P' : 'C'}</span>
+            <div key={s.id} className="rounded-2xl bg-gray-50 border border-gray-100 overflow-hidden">
+              {/* Subject header */}
+              <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <div className={`w-9 h-9 ${meta.bg} rounded-xl flex items-center justify-center`}>
+                    <span className="text-white font-black text-sm">{s.id === 'word' ? 'W' : s.id === 'excel' ? 'X' : s.id === 'powerpoint' ? 'P' : 'C'}</span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-gray-800 text-sm">{meta.label}</span>
+                    {attempt > 0 && <span className="ml-2 text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">Lần {attempt + 1}</span>}
+                  </div>
                 </div>
-                <span className="font-semibold text-gray-700 text-sm">{meta.label}</span>
+                {s.status === 'dat' && <span className="text-[10px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">ĐẠT</span>}
+                {s.status === 'khong_dat' && <span className="text-[10px] font-black text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">CHƯA ĐẠT</span>}
+                {(!s.status || s.status === 'chua_thi') && <span className="text-[10px] font-bold text-gray-400">Chưa thi</span>}
               </div>
-              <div className="text-right">
-                <p className={`font-black text-base ${pct === null ? 'text-gray-400' : pct >= 50 ? 'text-green-600' : 'text-red-500'}`}>
-                  {pct === null ? '--' : `${pct}%`}
-                </p>
-                <p className="text-[10px] text-gray-400">{s.tracNghiem ? `${s.tracNghiem.score}/${s.tracNghiem.total} câu` : 'Chưa thi'}</p>
-              </div>
+              {/* Scores row */}
+              {(tn || hasEssay) && (
+                <div className="flex border-t border-gray-100 divide-x divide-gray-100">
+                  {/* Trắc nghiệm */}
+                  <div className="flex-1 px-4 py-3 text-center">
+                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Trắc nghiệm</p>
+                    {tn ? (
+                      <>
+                        <p className={`text-xl font-black ${tnPct >= 50 ? 'text-green-600' : 'text-red-500'}`}>{tn.score}/{tn.total}</p>
+                        <p className="text-[10px] text-gray-400 font-semibold">{tnPct}%</p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-300 font-bold">--</p>
+                    )}
+                  </div>
+                  {/* Tự luận */}
+                  <div className="flex-1 px-4 py-3 text-center">
+                    <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-1">Thực hành</p>
+                    {essayScore !== null && essayScore !== undefined ? (
+                      <>
+                        <p className={`text-xl font-black ${essayScore >= 5 ? 'text-green-600' : 'text-red-500'}`}>{essayScore}/10</p>
+                        <p className="text-[10px] text-gray-400 font-semibold">Đã chấm</p>
+                      </>
+                    ) : hasEssay ? (
+                      <>
+                        <p className="text-sm font-bold text-amber-500">⏳</p>
+                        <p className="text-[10px] text-amber-500 font-semibold">Chờ chấm</p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-300 font-bold">--</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
@@ -233,19 +285,28 @@ const StudentExamRoom = ({ onNavigate, onStartExam }) => {
   const student = students.find(s => s.id === session.id);
 
   // Tiến độ thi per-student: load từ student.examProgress hoặc reset về mặc định
-  const [subjects, setSubjects] = useState(() => {
-    if (student?.examProgress && Array.isArray(student.examProgress)) {
-      // Merge để đảm bảo đủ 3 môn nếu DB thiếu
-      return DEFAULT_SUBJECTS.map(def => {
-        const saved = student.examProgress.find(s => s.id === def.id);
-        return saved ? { ...def, ...saved, lockUntil: saved.lockUntil ? new Date(saved.lockUntil).getTime() : null } : { ...def };
-      });
-    }
-    return DEFAULT_SUBJECTS.map(s => ({ ...s }));
+  const buildSubjects = (ep) => DEFAULT_SUBJECTS.map(def => {
+    const saved = (ep || []).find(s => s.id === def.id);
+    return saved ? { ...def, ...saved, lockUntil: saved.lockUntil ? new Date(saved.lockUntil).getTime() : null } : { ...def };
   });
 
-  // Lưu tiến độ thi vào DataContext mỗi khi subjects thay đổi
+  const [subjects, setSubjects] = useState(() => buildSubjects(student?.examProgress));
+  const skipSaveRef = React.useRef(false);
+
+  // Sync FROM DataContext → local state (khi admin reset, mở khóa, v.v.)
   React.useEffect(() => {
+    if (student?.examProgress && Array.isArray(student.examProgress)) {
+      skipSaveRef.current = true;
+      setSubjects(buildSubjects(student.examProgress));
+    }
+  }, [JSON.stringify(student?.examProgress)]);
+
+  // Lưu tiến độ thi vào DataContext mỗi khi subjects thay đổi (chỉ khi local change)
+  React.useEffect(() => {
+    if (skipSaveRef.current) {
+      skipSaveRef.current = false;
+      return;
+    }
     if (student?._id || student?.id) {
       updateStudent(student._id || student.id, { examProgress: subjects });
     }

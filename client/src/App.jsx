@@ -124,7 +124,7 @@ function StudentTestWrapper({ session }) {
     <ErrorBoundary>
       <StudentTest
         subjectId={subjectId || 'word'}
-        studentSbd={session?.sbd || '11111'}
+        studentSbd={session?.phone || session?.sbd || '---'}
         studentName={session?.name || 'Học viên'}
         onBack={() => nav('/student/exam')}
       />

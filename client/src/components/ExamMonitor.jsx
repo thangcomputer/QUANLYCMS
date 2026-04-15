@@ -2,24 +2,27 @@ import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef, us
 import { AlertTriangle, ShieldCheck, Camera } from 'lucide-react';
 
 const CONFIG = {
-  MAX_CAMERA_WARNINGS: 50,         // Rất thoáng — 50 lần mới cảnh báo nặng
-  CAMERA_CHECK_INTERVAL: 15000,    // Check mỗi 15 giây — không quá nhạy
-  SHOW_WARNING_EVERY: 10,          // Chỉ hiện popup cảnh báo mỗi 10 lần
+  MAX_CONSECUTIVE_NO_FACE: 5,      // 5 lần liên tiếp không thấy mặt → reset
+  CAMERA_CHECK_INTERVAL: 20000,    // Check mỗi 20 giây — thoáng hơn
+  MAX_RESETS: 1,                   // Cho phép reset 1 lần, lần sau hủy bài thi
 };
 
-const ExamMonitor = forwardRef(({ isActive, onViolate }, ref) => {
+const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam }, ref) => {
   const [cameraWarnings, setCameraWarnings] = useState(0);
   const [tabWarnings, setTabWarnings] = useState(0);
   const [cameraStatus, setCameraStatus] = useState('loading');
   const [lastFaceDetected, setLastFaceDetected] = useState(true);
   const [warningOverlay, setWarningOverlay] = useState(null);
   const [isTerminated, setIsTerminated] = useState(false);
+  const [resetCount, setResetCount] = useState(0);
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const intervalRef = useRef(null);
+  const consecutiveNoFaceRef = useRef(0);
   const cameraWarningsRef = useRef(0);
   const tabWarningsRef = useRef(0);
+  const resetCountRef = useRef(0);
   const lastViolationTimeRef = useRef(0);
 
   const terminateExam = useCallback((reason) => {
@@ -43,7 +46,7 @@ const ExamMonitor = forwardRef(({ isActive, onViolate }, ref) => {
 
 
   useImperativeHandle(ref, () => ({
-    getStats: () => ({ cameraWarnings: cameraWarningsRef.current, tabWarnings: tabWarningsRef.current, lastFaceDetected, cameraStatus }),
+    getStats: () => ({ cameraWarnings: cameraWarningsRef.current, tabWarnings: tabWarningsRef.current, lastFaceDetected, cameraStatus, consecutiveNoFace: consecutiveNoFaceRef.current, resetCount: resetCountRef.current }),
     videoRef: videoRef
   }), [lastFaceDetected, cameraStatus]);
 
@@ -91,30 +94,49 @@ const ExamMonitor = forwardRef(({ isActive, onViolate }, ref) => {
             
             setLastFaceDetected(hasFace);
             if (!hasFace) {
+              consecutiveNoFaceRef.current += 1;
               cameraWarningsRef.current += 1;
+              const consecutive = consecutiveNoFaceRef.current;
               const n = cameraWarningsRef.current;
               setCameraWarnings(n);
-              // Chỉ hiện cảnh báo mỗi SHOW_WARNING_EVERY lần để tránh spam
-              if (n % CONFIG.SHOW_WARNING_EVERY === 0) {
+
+              // Hiện cảnh báo nhẹ ở lần 3
+              if (consecutive === 3) {
                 playWarningBeep();
-                if (n >= CONFIG.MAX_CAMERA_WARNINGS) {
-                  setWarningOverlay({
-                    type: 'camera',
-                    message: '⚠️ CẢNH BÁO CAMERA!',
-                    sub: `Hệ thống không nhận diện được bạn. Giám khảo sẽ xem xét sau.`,
-                    count: n,
-                    max: CONFIG.MAX_CAMERA_WARNINGS
-                  });
+                setWarningOverlay({
+                  type: 'camera',
+                  message: '📸 KIỂM TRA CAMERA!',
+                  sub: `Hệ thống không nhận diện được khuôn mặt của bạn ${consecutive} lần liên tiếp. Vui lòng ngồi đúng vị trí trước camera.`,
+                  count: consecutive,
+                  max: CONFIG.MAX_CONSECUTIVE_NO_FACE
+                });
+              }
+
+              // Đạt 5 lần liên tiếp → xử lý
+              if (consecutive >= CONFIG.MAX_CONSECUTIVE_NO_FACE) {
+                playWarningBeep();
+                if (resetCountRef.current >= CONFIG.MAX_RESETS) {
+                  // Đã reset 1 lần rồi mà vẫn vi phạm → HỦY bài thi
+                  terminateExam('Không phát hiện khuôn mặt sau 2 lần kiểm tra liên tiếp. Bài thi bị hủy.');
                 } else {
+                  // Lần đầu → RESET bài thi, cho cơ hội lần 2
+                  resetCountRef.current += 1;
+                  setResetCount(resetCountRef.current);
+                  consecutiveNoFaceRef.current = 0;
                   setWarningOverlay({
-                    type: 'camera',
-                    message: '📸 KIỂM TRA CAMERA!',
-                    sub: `Vui lòng ngồi đúng vị trí trước camera. (${n}/${CONFIG.MAX_CAMERA_WARNINGS})`,
-                    count: n,
-                    max: CONFIG.MAX_CAMERA_WARNINGS
+                    type: 'reset',
+                    message: '🔄 RESET BÀI THI!',
+                    sub: 'Hệ thống không nhận diện được khuôn mặt của bạn 5 lần liên tiếp. Bài thi được reset lại từ đầu. Nếu tiếp tục vi phạm, bài thi sẽ bị HỦY.',
+                    persistent: false,
+                    isReset: true
                   });
+                  // Gọi callback reset exam nếu có
+                  if (onResetExam) onResetExam();
                 }
               }
+            } else {
+              // Phát hiện mặt → reset bộ đếm liên tiếp
+              consecutiveNoFaceRef.current = 0;
             }
           } catch (e) { }
         }, CONFIG.CAMERA_CHECK_INTERVAL);
@@ -193,24 +215,32 @@ export const CameraHeaderPanel = ({ monitorRef }) => {
   }, [monitorRef]);
 
   return (
-    <div className="flex items-center gap-3 p-1.5 bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-white/5 shadow-2xl">
-      <div className="relative w-14 h-10 bg-black/40 rounded-lg overflow-hidden hidden sm:block border border-white/10">
-        <video ref={previewVideoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1] opacity-40" />
-        <div className={`absolute inset-0 ${stats.lastFaceDetected ? 'bg-blue-500/10' : 'bg-red-500/20'}`} />
-        <div className="absolute top-0.5 left-1 flex items-center gap-1">
-          <div className="w-1 h-1 bg-red-500 rounded-full animate-pulse" />
-          <span className="text-[6px] text-white/50 font-black uppercase">Live</span>
+    <div className="flex items-center gap-4 p-2.5 bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-white/5 shadow-2xl">
+      <div className="relative w-24 h-16 bg-black/40 rounded-xl overflow-hidden hidden sm:block border border-white/10">
+        <video ref={previewVideoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1] opacity-50" />
+        <div className={`absolute inset-0 ${stats.lastFaceDetected ? 'bg-blue-500/10' : 'bg-red-500/20 animate-pulse'}`} />
+        <div className="absolute top-1 left-1.5 flex items-center gap-1">
+          <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
+          <span className="text-[8px] text-white/60 font-black uppercase">Live</span>
         </div>
+        {!stats.lastFaceDetected && (
+          <div className="absolute bottom-1 left-0 right-0 text-center">
+            <span className="text-[7px] text-red-400 font-bold bg-black/60 px-1.5 py-0.5 rounded">Không thấy mặt</span>
+          </div>
+        )}
       </div>
-      <div className="flex flex-col pr-2">
+      <div className="flex flex-col pr-3">
         <div className="flex items-center gap-2">
-           <ShieldCheck size={10} className="text-blue-400" />
-           <span className="text-[9px] text-white/40 uppercase font-black tracking-widest">Giám sát bài thi</span>
+           <ShieldCheck size={14} className="text-blue-400" />
+           <span className="text-xs text-white/50 uppercase font-black tracking-wider">Giám sát bài thi</span>
         </div>
-        <div className="flex items-center gap-4 mt-1 font-mono">
-           <span className="text-[10px] font-bold text-white">Cam: <span className={stats.cameraWarnings > 0 ? 'text-red-400' : 'text-green-400'}>{stats.cameraWarnings}/5</span></span>
-           <span className="text-[10px] font-bold text-white">Tab: <span className={stats.tabWarnings > 0 ? 'text-orange-400' : 'text-green-400'}>{stats.tabWarnings}/2</span></span>
+        <div className="flex items-center gap-5 mt-1.5 font-mono">
+           <span className="text-sm font-bold text-white">Cam: <span className={(stats.consecutiveNoFace || 0) > 0 ? 'text-red-400' : 'text-green-400'}>{stats.consecutiveNoFace || 0}/{5}</span></span>
+           <span className="text-sm font-bold text-white">Tab: <span className={stats.tabWarnings > 0 ? 'text-orange-400' : 'text-green-400'}>{stats.tabWarnings}/2</span></span>
         </div>
+        {(stats.resetCount || 0) > 0 && (
+          <span className="text-[9px] text-yellow-400 font-bold mt-1">⚠️ Đã reset {stats.resetCount} lần</span>
+        )}
       </div>
     </div>
   );

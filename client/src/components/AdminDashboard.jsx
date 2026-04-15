@@ -935,7 +935,7 @@ const AdminDashboard = ({ onNavigate }) => {
     markStudentPaid,
     transactions,
     getAdminStats, getTeacherRating, getPrivateEvaluationsForAdmin, markEvaluationRead,
-    notifications, markNotificationRead, getNotifications,
+    notifications, markNotificationRead, getNotifications, addNotification,
     systemLogs, addSystemLog,
     trainingData, addTrainingItem, updateTrainingItem, removeTrainingItem,
     studentTrainingData, addStudentTrainingItem, updateStudentTrainingItem, removeStudentTrainingItem,
@@ -3329,21 +3329,32 @@ const AdminDashboard = ({ onNavigate }) => {
                   const idx = progress.findIndex(ep => ep.id === subjectId);
                   if (idx === -1) return;
                   progress[idx].essayScore = newScore;
+                  const subjectLabel = SUBJECT_LABELS[subjectId] || subjectId;
                   // Nếu trắc nghiệm đạt >= 50% VÀ tự luận >= 5 => đạt, nếu < 5 => rớt + khóa 7 ngày
                   const tn = progress[idx].tracNghiem;
                   const tnPct = tn ? Math.round((tn.score / tn.total) * 100) : 0;
+                  let finalResult = null;
                   if (tnPct >= 50 && progress[idx].thucHanh === 'da_nop') {
                     if (newScore >= 5) {
                       progress[idx].status = 'dat';
                       progress[idx].lockUntil = null;
+                      finalResult = 'dat';
                     } else {
                       progress[idx].status = 'khong_dat';
                       progress[idx].lockUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
+                      finalResult = 'khong_dat';
                     }
                   }
                   try {
                     await ctxUpdateStudent(studentId, { examProgress: progress });
                     toast.success(`Đã chấm ${newScore}/10 điểm tự luận cho ${student.name}!`);
+                    // 🔔 Thông báo cho học viên
+                    addNotification(studentId, 'student', `📝 Bài thực hành môn ${subjectLabel} đã được chấm: ${newScore}/10 điểm.`);
+                    if (finalResult === 'dat') {
+                      addNotification(studentId, 'student', `🎉 Chúc mừng! Bạn đã ĐẠT môn ${subjectLabel}!`);
+                    } else if (finalResult === 'khong_dat') {
+                      addNotification(studentId, 'student', `❌ Bạn CHƯA ĐẠT môn ${subjectLabel}. Môn thi sẽ bị khóa 7 ngày trước khi thi lại.`);
+                    }
                   } catch (err) {
                     toast.error('Lỗi khi lưu điểm!');
                   }
@@ -3513,9 +3524,87 @@ const AdminDashboard = ({ onNavigate }) => {
                                 </td>
                                 <td className="px-4 py-3 text-center">
                                   {isLocked ? (
-                                    <span className="text-[10px] font-bold text-red-500">
-                                      🔒 {new Date(r.lockUntil).toLocaleDateString('vi-VN')}
-                                    </span>
+                                    <div className="group relative inline-flex flex-col items-center cursor-pointer">
+                                      <span className="text-[10px] font-bold text-red-500 group-hover:opacity-30 transition-opacity">
+                                        🔒 {new Date(r.lockUntil).toLocaleDateString('vi-VN')}
+                                      </span>
+                                      <button
+                                        onClick={() => {
+                                          showGlobalModal({
+                                            title: 'Mở khóa cho học viên thi lại?',
+                                            content: `Bạn có chắc muốn mở khóa môn "${r.subjectLabel}" cho học viên ${r.studentName}? Học viên sẽ được phép thi lại ngay lập tức.`,
+                                            type: 'question',
+                                            confirmText: 'Mở khóa',
+                                            cancelText: 'Huỷ',
+                                            onConfirm: async () => {
+                                              const student = (students || []).find(s => (s._id || s.id) === r.studentId);
+                                              if (!student) return;
+                                              const progress = (student.examProgress || []).map(ep => ({...ep}));
+                                              const epIdx = progress.findIndex(ep => ep.id === r.subjectId);
+                                              if (epIdx === -1) return;
+                                              // Xóa khóa + reset trạng thái để thi lại
+                                              progress[epIdx].attemptCount = (progress[epIdx].attemptCount || 0) + 1;
+                                              progress[epIdx].lockUntil = null;
+                                              progress[epIdx].status = 'chua_thi';
+                                              progress[epIdx].tracNghiem = null;
+                                              progress[epIdx].thucHanh = 'chua_nop';
+                                              progress[epIdx].essayScore = null;
+                                              progress[epIdx].essayFile = null;
+                                              try {
+                                                await ctxUpdateStudent(r.studentId, { examProgress: progress });
+                                                toast.success(`Đã mở khóa "${r.subjectLabel}" cho ${r.studentName}. Học viên có thể thi lại!`);
+                                                // 🔔 Thông báo cho học viên
+                                                addNotification(r.studentId, 'student', `🔓 Môn ${r.subjectLabel} đã được mở khóa! Bạn có thể thi lại ngay bây giờ.`);
+                                              } catch (err) {
+                                                toast.error('Lỗi khi mở khóa!');
+                                              }
+                                            }
+                                          });
+                                        }}
+                                        className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-200"
+                                      >
+                                        <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-[10px] font-black shadow-lg hover:bg-blue-700 transition whitespace-nowrap">
+                                          🔓 Mở khóa thi lại
+                                        </span>
+                                      </button>
+                                    </div>
+                                  ) : r.status === 'khong_dat' ? (
+                                    <button
+                                      onClick={() => {
+                                        showGlobalModal({
+                                          title: 'Cho học viên thi lại?',
+                                          content: `Bạn có chắc muốn reset môn "${r.subjectLabel}" cho học viên ${r.studentName}? Học viên sẽ được phép thi lại.`,
+                                          type: 'question',
+                                          confirmText: 'Cho thi lại',
+                                          cancelText: 'Huỷ',
+                                          onConfirm: async () => {
+                                            const student = (students || []).find(s => (s._id || s.id) === r.studentId);
+                                            if (!student) return;
+                                            const progress = (student.examProgress || []).map(ep => ({...ep}));
+                                            const epIdx = progress.findIndex(ep => ep.id === r.subjectId);
+                                            if (epIdx === -1) return;
+                                            progress[epIdx].attemptCount = (progress[epIdx].attemptCount || 0) + 1;
+                                            progress[epIdx].lockUntil = null;
+                                            progress[epIdx].status = 'chua_thi';
+                                            progress[epIdx].tracNghiem = null;
+                                            progress[epIdx].thucHanh = 'chua_nop';
+                                            progress[epIdx].essayScore = null;
+                                            progress[epIdx].essayFile = null;
+                                            try {
+                                              await ctxUpdateStudent(r.studentId, { examProgress: progress });
+                                              toast.success(`Đã mở cho ${r.studentName} thi lại "${r.subjectLabel}"!`);
+                                              // 🔔 Thông báo cho học viên
+                                              addNotification(r.studentId, 'student', `🔓 Môn ${r.subjectLabel} đã được cấp quyền thi lại! Bạn có thể vào thi ngay.`);
+                                            } catch (err) {
+                                              toast.error('Lỗi khi reset bài thi!');
+                                            }
+                                          }
+                                        });
+                                      }}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-[10px] font-bold transition border border-blue-200"
+                                    >
+                                      🔓 Cho thi lại
+                                    </button>
                                   ) : (
                                     <span className="text-[10px] text-gray-300">—</span>
                                   )}

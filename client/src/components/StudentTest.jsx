@@ -95,7 +95,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
   // Socket & Data
   const session = JSON.parse(localStorage.getItem('student_user') || '{}');
   const STUDENT_ID = session.id || 101;
-  const { students, updateStudent } = useData() || { students: [], updateStudent: ()=>{} };
+  const { students, updateStudent, addNotification } = useData() || { students: [], updateStudent: ()=>{}, addNotification: ()=>{} };
   const { socket } = useSocket() || {};
   const student = students?.find(s => String(s.id) === String(STUDENT_ID));
   const { showModal } = useModal();
@@ -149,7 +149,9 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
         reason: reason
       });
     }
-  }, [socket, STUDENT_ID, session.name, studentName, teacherId, meta.label]);
+    // 🔔 Thông báo admin (persistent)
+    addNotification(null, 'admin', `⚠️ Vi phạm thi cử: ${session.name || studentName} - môn ${meta.label}. Lý do: ${reason}`);
+  }, [socket, STUDENT_ID, session.name, studentName, teacherId, meta.label, addNotification]);
 
   // Lắng nghe lệnh khóa từ Admin/Giảng viên qua Socket
   useEffect(() => {
@@ -163,6 +165,16 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
     socket.on('exam:locked', onLocked);
     return () => socket.off('exam:locked', onLocked);
   }, [socket, STUDENT_ID, handleViolation]);
+
+  // Reset bài thi khi camera không phát hiện mặt 5 lần liên tiếp (lần đầu)
+  const handleResetExam = useCallback(() => {
+    setAnswers(Array(TOTAL).fill(null));
+    setCurrentQ(0);
+    setIsTracNghiemSubmitted(false);
+    setTab('trac_nghiem');
+    setUploadFile(null);
+    setUploadDone(false);
+  }, [TOTAL]);
 
   const handleAnswer = (qi, oi) => {
     const next = [...answers]; next[qi] = oi; setAnswers(next);
@@ -198,6 +210,8 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
         lockUntil: Date.now() + 7 * 24 * 60 * 60 * 1000
       });
       setPhase('result');
+      // 🔔 Thông báo admin
+      addNotification(null, 'admin', `❌ Học viên ${studentName} rớt trắc nghiệm môn ${meta.label}: ${finalScore}/${TOTAL} (${finalPct}%)`);
     } else {
       // Đậu trắc nghiệm => chuyển sang tab tự luận
       updateExamProgress({
@@ -205,6 +219,8 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
         status: 'dang_thi'
       });
       setTab('tu_luan');
+      // 🔔 Thông báo admin
+      addNotification(null, 'admin', `✅ Học viên ${studentName} đạt trắc nghiệm môn ${meta.label}: ${finalScore}/${TOTAL} (${finalPct}%). Đang làm phần thực hành.`);
     }
   };
 
@@ -215,6 +231,8 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
       status: 'dat'
     });
     setPhase('result');
+    // 🔔 Thông báo admin
+    addNotification(null, 'admin', `📝 Học viên ${studentName} đã nộp bài thực hành môn ${meta.label}. Vui lòng chấm điểm.`);
   };
 
   const trySubmit = () => {
@@ -403,12 +421,12 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
               {/* ── RIGHT — Camera ── */}
               <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                 {/* Camera AI label */}
-                <div className="flex items-center gap-1.5 text-right">
+                <div className="flex items-center gap-2 text-right">
                   <div>
-                    <p className="text-white text-xs font-semibold text-right">Giám sát qua Camera AI</p>
-                    <p className="text-slate-500 text-[10px] text-right">Hệ thống tự động phát hiện vi phạm.</p>
+                    <p className="text-white text-sm font-bold text-right">Giám sát qua Camera AI</p>
+                    <p className="text-slate-500 text-xs text-right">Hệ thống tự động phát hiện vi phạm.</p>
                   </div>
-                  <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse flex-shrink-0" />
+                  <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse flex-shrink-0" />
                 </div>
                 {/* Camera preview box */}
                 <CameraHeaderPanel monitorRef={monitorRef} />
@@ -579,7 +597,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
       )}
 
       {/* ExamMonitor (logic only) */}
-      <ExamMonitor ref={monitorRef} isActive={phase === 'test'} onViolate={handleViolation} />
+      <ExamMonitor ref={monitorRef} isActive={phase === 'test'} onViolate={handleViolation} onResetExam={handleResetExam} />
 
       {/* ══════════ MODALS ══════════ */}
       {showSubmitConfirm && (
