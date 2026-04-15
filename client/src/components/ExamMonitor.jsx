@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef, us
 import { AlertTriangle, ShieldCheck, Camera } from 'lucide-react';
 
 const CONFIG = {
-  MAX_CAMERA_WARNINGS: 5,
-  CAMERA_CHECK_INTERVAL: 5000, // Cực kỳ "thoải mái" - check mỗi 5 giây
+  MAX_CAMERA_WARNINGS: 50,         // Rất thoáng — 50 lần mới cảnh báo nặng
+  CAMERA_CHECK_INTERVAL: 15000,    // Check mỗi 15 giây — không quá nhạy
+  SHOW_WARNING_EVERY: 10,          // Chỉ hiện popup cảnh báo mỗi 10 lần
 };
 
 const ExamMonitor = forwardRef(({ isActive, onViolate }, ref) => {
@@ -39,44 +40,7 @@ const ExamMonitor = forwardRef(({ isActive, onViolate }, ref) => {
     } catch (e) { }
   };
 
-  const handleTabViolation = useCallback(() => {
-    if (!isActive || isTerminated) return;
-    
-    const now = Date.now();
-    // Chặn việc kích hoạt nhiều lần cùng lúc (khi vừa bị blur vừa bị visibilitychange)
-    if (now - lastViolationTimeRef.current < 2000) return; 
-    lastViolationTimeRef.current = now;
 
-    tabWarningsRef.current += 1;
-    const n = tabWarningsRef.current;
-    setTabWarnings(n);
-    if (n >= 2) {
-      terminateExam('Hủy bài: Chuyển tab/cửa sổ hoặc thoát khỏi màn hình quá 2 lần!');
-    } else {
-      playWarningBeep();
-      setWarningOverlay({
-        type: 'tab',
-        message: '🚨 PHÁT HIỆN THOÁT KHỎI TEST!',
-        sub: `Lần ${n}/2. Hệ thống đã ghi nhận vi phạm. Đủ 2 lần bài thi sẽ bị hủy ngay lập tức!`,
-        count: n,
-        max: 2,
-        persistent: false
-      });
-    }
-  }, [isActive, isTerminated, terminateExam]);
-
-  useEffect(() => {
-    if (!isActive || isTerminated) return;
-    const handleVisibility = () => { if (document.hidden) handleTabViolation(); };
-    const handleBlur = () => { handleTabViolation(); };
-    
-    document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('blur', handleBlur);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('blur', handleBlur);
-    };
-  }, [isActive, isTerminated, handleTabViolation]);
 
   useImperativeHandle(ref, () => ({
     getStats: () => ({ cameraWarnings: cameraWarningsRef.current, tabWarnings: tabWarningsRef.current, lastFaceDetected, cameraStatus }),
@@ -130,23 +94,34 @@ const ExamMonitor = forwardRef(({ isActive, onViolate }, ref) => {
               cameraWarningsRef.current += 1;
               const n = cameraWarningsRef.current;
               setCameraWarnings(n);
-              if (n >= CONFIG.MAX_CAMERA_WARNINGS) {
-                terminateExam(`Hủy bài: Không thấy khuôn mặt quá 5 lần!`);
-              } else {
+              // Chỉ hiện cảnh báo mỗi SHOW_WARNING_EVERY lần để tránh spam
+              if (n % CONFIG.SHOW_WARNING_EVERY === 0) {
                 playWarningBeep();
-                setWarningOverlay({
-                  type: 'camera',
-                  message: '📸 KIỂM TRA CAMERA!',
-                  sub: `Hệ thống tạm thời không nhận diện được bạn. Lần ${n}/5.`,
-                  count: n,
-                  max: 5
-                });
+                if (n >= CONFIG.MAX_CAMERA_WARNINGS) {
+                  setWarningOverlay({
+                    type: 'camera',
+                    message: '⚠️ CẢNH BÁO CAMERA!',
+                    sub: `Hệ thống không nhận diện được bạn. Giám khảo sẽ xem xét sau.`,
+                    count: n,
+                    max: CONFIG.MAX_CAMERA_WARNINGS
+                  });
+                } else {
+                  setWarningOverlay({
+                    type: 'camera',
+                    message: '📸 KIỂM TRA CAMERA!',
+                    sub: `Vui lòng ngồi đúng vị trí trước camera. (${n}/${CONFIG.MAX_CAMERA_WARNINGS})`,
+                    count: n,
+                    max: CONFIG.MAX_CAMERA_WARNINGS
+                  });
+                }
               }
             }
           } catch (e) { }
         }, CONFIG.CAMERA_CHECK_INTERVAL);
       } catch (err) {
         setCameraStatus('denied');
+        // Không có camera => bỏ qua kiểm tra khuôn mặt hoàn toàn
+        setLastFaceDetected(true);
       }
     };
     setupCamera();

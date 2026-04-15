@@ -19,7 +19,7 @@ const StudentProfileUpdateModal = ({ student, onClose }) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await updateStudent(student.id, formData);
+      await updateStudent(student._id || student.id, formData);
       showModal({ title: 'Thành công', content: 'Hệ thống đã cập nhật thông tin hồ sơ của bạn thành công!', type: 'success' });
       onClose();
     } catch (err) {

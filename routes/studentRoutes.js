@@ -378,7 +378,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
       if (req.user.id !== req.params.id) {
         return res.status(403).json({ success: false, message: 'Bạn chỉ có thể cập nhật hồ sơ của chính mình' });
       }
-      const allowedKeys = ['name', 'email', 'phone', 'zalo', 'address', 'password', 'avatar'];
+      const allowedKeys = ['name', 'email', 'phone', 'zalo', 'address', 'password', 'avatar', 'examProgress'];
       Object.keys(safeBody).forEach(key => {
         if (!allowedKeys.includes(key)) {
           delete safeBody[key];

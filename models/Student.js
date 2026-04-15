@@ -147,6 +147,20 @@ const StudentSchema = new mongoose.Schema(
       // Chỉ được set = true khi đã hoàn thành đủ totalSessions buổi học
     },
 
+    // ── Tiến độ thi tốt nghiệp (per-subject) ────────────────────
+    examProgress: [{
+      id:         { type: String },                        // 'coban', 'word', 'excel', 'powerpoint'
+      status:     { type: String, default: 'chua_thi' },   // 'chua_thi' | 'dang_thi' | 'dat' | 'khong_dat'
+      tracNghiem: {
+        score: { type: Number, default: 0 },
+        total: { type: Number, default: 15 }
+      },
+      thucHanh:   { type: String, default: 'chua_nop' },   // 'chua_nop' | 'da_nop'
+      essayFile:  { type: String, default: '' },            // URL file bài tự luận đã upload
+      essayScore: { type: Number, default: null },          // Điểm chấm bởi admin (0-10)
+      lockUntil:  { type: Number, default: null },          // Timestamp: khóa thi lại trong 7 ngày
+    }],
+
     // ── Tài khoản học viên (login) ────────────────────────────────
     password: {
       type: String,

@@ -1201,6 +1201,8 @@ const AdminDashboard = ({ onNavigate }) => {
 
   // Exam Results states (Học viên - Đào tạo HV)
   const [erSearch, setErSearch] = useState('');
+  const [gradingRow, setGradingRow] = useState(null);   // e.g. 'studentId-subjectId'
+  const [gradingValue, setGradingValue] = useState('');
   const [erForm, setErForm] = useState(null);
   const BLANK_ER = {
     type: 'student',
@@ -3199,7 +3201,7 @@ const AdminDashboard = ({ onNavigate }) => {
                   
                   { key: 'files', icon: Download, label: 'Tài liệu', count: studentTrainingData?.files?.length || 0 },
                   { key: 'questions', icon: HelpCircle, label: 'Ngân hàng câu hỏi', count: studentQuestions?.length || 0 },
-                  { key: 'exam-results', icon: Trophy, label: 'Kết quả thi', count: (examResults || []).filter(r => r.type === 'student').length },
+                  { key: 'exam-results', icon: Trophy, label: 'Kết quả thi', count: (students || []).reduce((acc, s) => acc + (s.examProgress || []).filter(ep => ep.status && ep.status !== 'chua_thi').length, 0) },
                 ].map(t => (
                   <button key={t.key} onClick={() => { setSTrainingTab(t.key); setSTrainingForm(null); }}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
@@ -3225,12 +3227,7 @@ const AdminDashboard = ({ onNavigate }) => {
                   <Plus size={15} /> Thêm câu hỏi
                 </button>
               )}
-              {sTrainingTab === 'exam-results' && (
-                <button onClick={() => setErForm({ ...BLANK_ER })}
-                  className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-md transition flex items-center gap-2">
-                  <Plus size={15} /> Thêm kết quả thi
-                </button>
-              )}
+              {/* Kết quả thi tự động từ bài thi của học viên - không cần thêm thủ công */}
 
               {/* Add/Edit Form */}
               {sTrainingForm && (
@@ -3298,8 +3295,61 @@ const AdminDashboard = ({ onNavigate }) => {
                 </div>
               )}
 
-              {/* ===== EXAM RESULTS TAB HOÀN CHỈNH ===== */}
-              {sTrainingTab === 'exam-results' && (
+              {/* ===== EXAM RESULTS TAB - ĐỌC TỪ students.examProgress ===== */}
+              {sTrainingTab === 'exam-results' && (() => {
+                const SUBJECT_LABELS = { coban: 'Máy vi tính (Cơ bản)', word: 'Microsoft Word', excel: 'Microsoft Excel', powerpoint: 'Microsoft PowerPoint' };
+                // Flatten all students' examProgress into rows
+                const allRows = (students || []).flatMap(s => 
+                  (s.examProgress || [])
+                    .filter(ep => ep.status && ep.status !== 'chua_thi')
+                    .map(ep => ({
+                      studentId: s._id || s.id,
+                      studentName: s.name,
+                      course: s.course,
+                      subjectId: ep.id,
+                      subjectLabel: SUBJECT_LABELS[ep.id] || ep.id,
+                      score: ep.tracNghiem?.score ?? 0,
+                      total: ep.tracNghiem?.total ?? 15,
+                      thucHanh: ep.thucHanh || 'chua_nop',
+                      essayFile: ep.essayFile || '',
+                      essayScore: ep.essayScore ?? null,
+                      status: ep.status,
+                      lockUntil: ep.lockUntil,
+                    }))
+                );
+                const filtered = allRows.filter(r => 
+                  !erSearch || r.studentName?.toLowerCase().includes(erSearch.toLowerCase())
+                );
+
+                // Helper: save essay score to student's examProgress
+                const saveEssayScore = async (studentId, subjectId, newScore) => {
+                  const student = (students || []).find(s => (s._id || s.id) === studentId);
+                  if (!student) return;
+                  const progress = (student.examProgress || []).map(ep => ({...ep}));
+                  const idx = progress.findIndex(ep => ep.id === subjectId);
+                  if (idx === -1) return;
+                  progress[idx].essayScore = newScore;
+                  // Nếu trắc nghiệm đạt >= 50% VÀ tự luận >= 5 => đạt, nếu < 5 => rớt + khóa 7 ngày
+                  const tn = progress[idx].tracNghiem;
+                  const tnPct = tn ? Math.round((tn.score / tn.total) * 100) : 0;
+                  if (tnPct >= 50 && progress[idx].thucHanh === 'da_nop') {
+                    if (newScore >= 5) {
+                      progress[idx].status = 'dat';
+                      progress[idx].lockUntil = null;
+                    } else {
+                      progress[idx].status = 'khong_dat';
+                      progress[idx].lockUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
+                    }
+                  }
+                  try {
+                    await ctxUpdateStudent(studentId, { examProgress: progress });
+                    toast.success(`Đã chấm ${newScore}/10 điểm tự luận cho ${student.name}!`);
+                  } catch (err) {
+                    toast.error('Lỗi khi lưu điểm!');
+                  }
+                };
+
+                return (
                 <div className="space-y-4 animate-in fade-in duration-300">
                   {/* Filters */}
                   <div className="flex flex-wrap gap-3 items-center">
@@ -3310,126 +3360,175 @@ const AdminDashboard = ({ onNavigate }) => {
                         placeholder="Tìm theo tên học viên..." />
                     </div>
                     <span className="text-xs text-gray-400 font-bold ml-auto">
-                      {(examResults || []).filter(r => r.type === 'student').length} bản ghi
+                      {filtered.length} bản ghi
                     </span>
                   </div>
 
                   {/* Table */}
                   <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
                     <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse min-w-[900px]">
+                      <table className="w-full text-left border-collapse min-w-[1050px]">
                         <thead>
                           <tr className="bg-amber-50 border-b border-amber-100">
                             <th className="px-4 py-3 text-[10px] font-black text-amber-700 uppercase tracking-widest">Học viên</th>
+                            <th className="px-4 py-3 text-[10px] font-black text-amber-700 uppercase tracking-widest">Khóa học</th>
                             <th className="px-4 py-3 text-[10px] font-black text-amber-700 uppercase tracking-widest">Môn thi</th>
                             <th className="px-4 py-3 text-[10px] font-black text-amber-700 uppercase tracking-widest text-center">Trắc nghiệm</th>
-                            <th className="px-4 py-3 text-[10px] font-black text-amber-700 uppercase tracking-widest text-center">Tự luận (File/Điểm)</th>
-                            <th className="px-4 py-3 text-[10px] font-black text-amber-700 uppercase tracking-widest text-center">Trạng thái chung</th>
-                            <th className="px-4 py-3 text-[10px] font-black text-amber-700 uppercase tracking-widest">Ngày thi</th>
-                            <th className="px-4 py-3 text-[10px] font-black text-amber-700 uppercase tracking-widest text-right">Thao tác</th>
+                            <th className="px-4 py-3 text-[10px] font-black text-amber-700 uppercase tracking-widest text-center">Tự luận (File)</th>
+                            <th className="px-4 py-3 text-[10px] font-black text-amber-700 uppercase tracking-widest text-center">Chấm điểm TL</th>
+                            <th className="px-4 py-3 text-[10px] font-black text-amber-700 uppercase tracking-widest text-center">Trạng thái</th>
+                            <th className="px-4 py-3 text-[10px] font-black text-amber-700 uppercase tracking-widest text-center">Khóa đến</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
-                          {(examResults || [])
-                            .filter(r => {
-                              const nameMatch = !erSearch ||
-                                (r.studentName || '').toLowerCase().includes(erSearch.toLowerCase());
-                              return r.type === 'student' && nameMatch;
-                            })
-                            .map(r => {
-                              const mcCorrect = Number(r.multipleChoiceCorrect) || 0;
-                              const mcTotal = Number(r.multipleChoiceTotal) || 0;
-                              const essayScore = Number(r.essayScore);
-                              return (
-                                <tr key={r.id || r._id} className="hover:bg-amber-50/30 transition-colors">
-                                  <td className="px-4 py-3">
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-8 h-8 rounded-xl bg-orange-500 flex items-center justify-center text-white text-xs font-black">
-                                        {(r.studentName || '?')[0]}
-                                      </div>
-                                      <span className="font-bold text-sm text-gray-800">{r.studentName}</span>
+                          {filtered.map((r, idx) => {
+                            const pct = r.total > 0 ? Math.round((r.score / r.total) * 100) : 0;
+                            const isLocked = r.lockUntil && r.lockUntil > Date.now();
+                            const tnPass = pct >= 50;
+                            // Trạng thái tổng hợp: TN đạt + TL đã nộp + chấm >= 5 => ĐẠT
+                            const finalStatus = !tnPass ? 'khong_dat'
+                              : r.thucHanh !== 'da_nop' ? r.status
+                              : r.essayScore === null ? 'cho_cham' // chờ chấm
+                              : r.essayScore >= 5 ? 'dat' : 'khong_dat';
+                            return (
+                              <tr key={`${r.studentId}-${r.subjectId}`} className="hover:bg-amber-50/30 transition-colors">
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-xl bg-orange-500 flex items-center justify-center text-white text-xs font-black">
+                                      {(r.studentName || '?')[0]}
                                     </div>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <p className="text-xs font-bold text-gray-700 max-w-[160px] truncate">{r.subject || 'Chưa rõ'}</p>
-                                  </td>
-                                  <td className="px-4 py-3 text-center">
-                                    {mcTotal > 0 ? (
-                                      <div className="flex flex-col items-center">
-                                        <span className={`text-lg font-black ${
-                                          mcCorrect / mcTotal >= 0.7 ? 'text-green-600' : 'text-red-500'
-                                        }`}>{mcCorrect}/{mcTotal}</span>
-                                        <span className="text-[9px] text-gray-400 font-bold uppercase">câu đúng</span>
-                                      </div>
-                                    ) : <span className="text-gray-300 text-xs">—</span>}
-                                  </td>
-                                  <td className="px-4 py-3 text-center">
-                                    <div className="flex flex-col items-center gap-1">
-                                      {r.essayFile ? (
-                                        <a href="#" onClick={(e) => { 
-                                            e.preventDefault(); 
-                                            showGlobalModal({ 
-                                                title: 'Liên kết tài liệu', 
-                                                content: `Đang liên kết dữ liệu đám mây để tải file: ${r.essayFile}. Vui lòng kiểm tra lại đường truyền.`, 
-                                                type: 'info' 
-                                            }); 
-                                        }} className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold transition-all border border-blue-200">
-                                          <Download size={10} /> {r.essayFile}
-                                        </a>
-                                      ) : null}
-                                      {r.essayScore !== '' && r.essayScore !== undefined && r.essayScore !== null ? (
-                                        <div className="flex flex-col items-center mt-1">
-                                          <span className={`text-lg font-black ${essayScore >= 5 ? 'text-green-600' : 'text-red-500'}`}>{r.essayScore}/10</span>
-                                          {r.essayNote && <span className="text-[9px] text-gray-400 font-bold truncate max-w-[80px]">{r.essayNote}</span>}
-                                        </div>
-                                      ) : (
-                                        <button onClick={() => setErForm({ ...r })}
-                                          className="text-[10px] font-black px-2 py-1 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition border border-amber-200 mt-1">
-                                          Chấm điểm
-                                        </button>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3 text-center">
-                                    <span className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-black ${
-                                      r.passed ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-600 border border-red-200'
-                                    }`}>
-                                      {r.passed ? <><CheckCircle2 size={11} /> ĐẠT</> : <><XCircle size={11} /> CHƯA ĐẠT</>}
+                                    <span className="font-bold text-sm text-gray-800">{r.studentName}</span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className="text-xs font-semibold text-gray-500">{r.course}</span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className="text-xs font-bold text-gray-700">{r.subjectLabel}</span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  <div className="flex flex-col items-center">
+                                    <span className={`text-lg font-black ${pct >= 50 ? 'text-green-600' : 'text-red-500'}`}>{r.score}/{r.total}</span>
+                                    <span className="text-[9px] text-gray-400 font-bold">{pct}%</span>
+                                  </div>
+                                </td>
+                                {/* Cột Tự luận: Chưa nộp / Nút tải xuống */}
+                                <td className="px-4 py-3 text-center">
+                                  {r.thucHanh === 'da_nop' ? (
+                                    r.essayFile ? (
+                                      <a href={r.essayFile.startsWith('http') ? r.essayFile : `http://localhost:5000${r.essayFile}`} 
+                                         target="_blank" rel="noopener noreferrer"
+                                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-[10px] font-black transition border border-blue-200">
+                                        <Download size={12} /> Tải bài
+                                      </a>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black bg-green-50 text-green-700 border border-green-200">
+                                        ✅ Đã nộp
+                                      </span>
+                                    )
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black bg-gray-50 text-gray-400 border border-gray-200">
+                                      ⏳ Chưa nộp
                                     </span>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <span className="text-xs text-gray-400 font-bold">{r.date || 'N/A'}</span>
-                                  </td>
-                                  <td className="px-4 py-3 text-right">
-                                    <div className="flex justify-end gap-1">
-                                      <button onClick={() => setErForm({ ...r })}
-                                        className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition">
-                                        <Edit3 size={13} />
+                                  )}
+                                </td>
+                                {/* Cột Chấm điểm Tự luận (0-10) — INLINE INPUT */}
+                                <td className="px-4 py-3 text-center">
+                                  {r.thucHanh === 'da_nop' ? (() => {
+                                    const rowKey = `${r.studentId}-${r.subjectId}`;
+                                    const isGrading = gradingRow === rowKey;
+                                    if (r.essayScore !== null && !isGrading) {
+                                      // Đã chấm: hiện điểm + nút chấm lại
+                                      return (
+                                        <div className="flex flex-col items-center gap-1">
+                                          <span className={`text-lg font-black ${r.essayScore >= 5 ? 'text-green-600' : 'text-red-500'}`}>
+                                            {r.essayScore}/10
+                                          </span>
+                                          <button onClick={() => { setGradingRow(rowKey); setGradingValue(String(r.essayScore)); }}
+                                            className="text-[9px] text-blue-500 hover:text-blue-700 font-bold cursor-pointer">
+                                            Chấm lại
+                                          </button>
+                                        </div>
+                                      );
+                                    }
+                                    if (isGrading) {
+                                      // Đang nhập điểm inline
+                                      return (
+                                        <div className="flex items-center gap-1.5 justify-center">
+                                          <input
+                                            type="number" min="0" max="10" step="0.5"
+                                            value={gradingValue}
+                                            onChange={e => setGradingValue(e.target.value)}
+                                            onKeyDown={e => {
+                                              if (e.key === 'Enter' && gradingValue !== '' && !isNaN(gradingValue)) {
+                                                saveEssayScore(r.studentId, r.subjectId, Math.min(10, Math.max(0, Number(gradingValue))));
+                                                setGradingRow(null); setGradingValue('');
+                                              }
+                                              if (e.key === 'Escape') { setGradingRow(null); setGradingValue(''); }
+                                            }}
+                                            autoFocus
+                                            className="w-14 px-2 py-1.5 border-2 border-amber-400 rounded-lg text-center text-sm font-black outline-none focus:border-amber-600 bg-amber-50"
+                                            placeholder="0-10"
+                                          />
+                                          <button onClick={() => {
+                                            if (gradingValue !== '' && !isNaN(gradingValue)) {
+                                              saveEssayScore(r.studentId, r.subjectId, Math.min(10, Math.max(0, Number(gradingValue))));
+                                              setGradingRow(null); setGradingValue('');
+                                            }
+                                          }} className="p-1.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition" title="Lưu điểm">
+                                            <CheckCircle2 size={14} />
+                                          </button>
+                                          <button onClick={() => { setGradingRow(null); setGradingValue(''); }}
+                                            className="p-1.5 bg-gray-200 text-gray-500 rounded-lg hover:bg-gray-300 transition" title="Huỷ">
+                                            <X size={14} />
+                                          </button>
+                                        </div>
+                                      );
+                                    }
+                                    // Chưa chấm: nút bấm để mở input
+                                    return (
+                                      <button onClick={() => { setGradingRow(rowKey); setGradingValue(''); }}
+                                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-100 text-amber-700 hover:bg-amber-200 rounded-lg text-[10px] font-black transition border border-amber-300">
+                                        ✏️ Chấm điểm
                                       </button>
-                                      <button onClick={() => { 
-                                        showGlobalModal({
-                                          title: 'Xoá kết quả thi?',
-                                          content: 'Bạn có chắc chắn muốn xoá kết quả thi này không?',
-                                          type: 'warning',
-                                          confirmText: 'Xoá ngay',
-                                          cancelText: 'Quay lại',
-                                          onConfirm: () => removeExamResult(r.id)
-                                        });
-                                      }}
-                                        className="p-2 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition">
-                                        <Trash2 size={13} />
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          {(examResults || []).filter(r => r.type === 'student').length === 0 && (
+                                    );
+                                  })() : (
+                                    <span className="text-[10px] text-gray-300">—</span>
+                                  )}
+                                </td>
+                                {/* Trạng thái tổng hợp */}
+                                <td className="px-4 py-3 text-center">
+                                  <span className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-[10px] font-black ${
+                                    finalStatus === 'dat' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : finalStatus === 'khong_dat' ? 'bg-red-50 text-red-600 border border-red-200'
+                                    : finalStatus === 'cho_cham' ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                    : finalStatus === 'dang_thi' ? 'bg-yellow-50 text-yellow-700 border border-yellow-200'
+                                    : 'bg-gray-50 text-gray-500 border border-gray-200'
+                                  }`}>
+                                    {finalStatus === 'dat' && <><CheckCircle2 size={11} /> ĐẠT</>}
+                                    {finalStatus === 'khong_dat' && <><XCircle size={11} /> RỚT</>}
+                                    {finalStatus === 'dang_thi' && '⏳ ĐANG THI'}
+                                    {finalStatus === 'cho_cham' && '📝 CHỜ CHẤM'}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-center">
+                                  {isLocked ? (
+                                    <span className="text-[10px] font-bold text-red-500">
+                                      🔒 {new Date(r.lockUntil).toLocaleDateString('vi-VN')}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-gray-300">—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {filtered.length === 0 && (
                             <tr>
-                              <td colSpan="7" className="px-6 py-14 text-center text-gray-400">
+                              <td colSpan="8" className="px-6 py-14 text-center text-gray-400">
                                 <Trophy size={36} className="mx-auto mb-3 text-gray-200" />
                                 <p className="text-sm font-bold">Chưa có kết quả thi nào</p>
-                                <p className="text-xs text-gray-300 mt-1">Bấm "Thêm kết quả thi" để ghi nhận điểm cho học viên</p>
+                                <p className="text-xs text-gray-300 mt-1">Khi học viên hoàn thành bài thi, kết quả sẽ tự động hiện tại đây</p>
                               </td>
                             </tr>
                           )}
@@ -3438,7 +3537,8 @@ const AdminDashboard = ({ onNavigate }) => {
                     </div>
                   </div>
                 </div>
-              )}
+                );
+              })()}
 
               {/* List items (training content) */}
               {sTrainingTab !== 'exam-results' && (

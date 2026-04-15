@@ -587,7 +587,7 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
             { key: 'courses', icon: PlayCircle, label: 'Video học tập', count: courses.length },
             { key: 'files', icon: FileBox, label: 'Tài liệu', count: trainingData?.files?.length || 0 },
             { key: 'assignments', icon: BookOpen, label: 'Bài tập về nhà', count: trainingData?.assignments?.length || 0 },
-            { key: 'exams', icon: Award, label: 'Điểm thi', count: trainingData?.exams?.length || 0 },
+            { key: 'exams', icon: Award, label: 'Điểm thi', count: (student.examProgress || []).filter(ep => ep.status && ep.status !== 'chua_thi').length },
           ].map(t => (
             <button key={t.key} onClick={() => setMainTab(t.key)}
               className={`flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-[13px] font-bold tracking-wide transition-all ${mainTab === t.key
@@ -840,14 +840,15 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack }) => {
                       const trScore = sub.tracNghiem ? `${sub.tracNghiem.score}/${sub.tracNghiem.total}` : '-';
 
                       let thText = <span className="text-gray-400 font-medium">Chưa làm</span>;
-                      if (sub.thucHanh === 'da_nop') thText = <span className="text-green-600 font-bold bg-green-50 px-2.5 py-1 rounded-md">Chờ chấm</span>;
-                      else if (sub.thucHanh === 'cham_diem' || sub.datThucHanh !== undefined) {
-                        if (sub.datThucHanh === true) thText = <span className="text-emerald-700 font-bold bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-md">Đạt</span>;
-                        else if (sub.datThucHanh === false) thText = <span className="text-red-700 font-bold bg-red-50 border border-red-100 px-2.5 py-1 rounded-md">Chưa đạt</span>;
-                        else thText = <span className="text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-md">Đã chấm</span>;
+                      if (sub.essayScore != null) {
+                        thText = <span className={`font-bold px-2.5 py-1 rounded-md ${sub.essayScore >= 5 ? 'text-emerald-700 bg-emerald-50 border border-emerald-100' : 'text-red-700 bg-red-50 border border-red-100'}`}>{sub.essayScore}/10</span>;
+                      } else if (sub.thucHanh === 'da_nop') {
+                        thText = <span className="text-green-600 font-bold bg-green-50 px-2.5 py-1 rounded-md">Chờ chấm</span>;
+                      } else if (sub.thucHanh === 'chua_nop') {
+                        thText = <span className="text-gray-400 font-medium">Chưa làm</span>;
+                      } else if (sub.thucHanh) {
+                        thText = <span className="text-gray-600 font-medium">{sub.thucHanh}</span>;
                       }
-                      else if (sub.thucHanh === 'chua_nop') thText = <span className="text-gray-400 font-medium">Chưa làm</span>;
-                      else if (sub.thucHanh) thText = <span className="text-gray-600 font-medium">{sub.thucHanh}</span>;
 
                       let resText = <span className="text-gray-400 font-bold">CHƯA THI</span>;
                       if (sub.status === 'dat') resText = <span className="text-emerald-600 font-black">ĐẠT</span>;

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import api from '../services/api';
 import { useModal } from '../utils/Modal.jsx';
+import { useData } from '../context/DataContext';
 
 const fmt = (n) => n ? Number(n).toLocaleString('vi-VN') + 'đ' : '0đ';
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('vi-VN') : '—';
@@ -17,6 +18,28 @@ export default function StudentDetailModal({ studentId, onClose }) {
   const [data, setData]           = useState(null);
   const { showModal }             = useModal();
   const [activeTab, setActiveTab] = useState('summary'); // 'summary' | 'attendance' | 'finance' | 'academic'
+
+  const { updateStudent } = useData() || {};
+  const handleUnlockExams = async () => {
+    if (!data.student || !data.student.examProgress || !updateStudent) return;
+    const newProgress = data.student.examProgress.map(s => {
+      if (s.lockUntil) {
+         return { ...s, lockUntil: null };
+      }
+      return s;
+    });
+    
+    try {
+      await updateStudent(data.student._id || data.student.id, { examProgress: newProgress });
+      setData({ ...data, student: { ...data.student, examProgress: newProgress } });
+      showModal({
+        title: 'Thành công',
+        content: 'Đã gỡ bỏ đếm ngược 7 ngày! Học viên có thể thi lại ngay.',
+        type: 'success'
+      });
+    } catch (err) {}
+  };
+
 
   useEffect(() => {
     if (!studentId) return;
@@ -545,29 +568,54 @@ export default function StudentDetailModal({ studentId, onClose }) {
                          <Trophy size={16} className="text-amber-500" /> Kết quả thi tốt nghiệp
                        </h3>
                        <div className="space-y-4">
-                          {data.examResults.length === 0 ? (
+                          {(data.student.examProgress || []).filter(ep => ep.status && ep.status !== 'chua_thi').length === 0 ? (
                             <div className="bg-slate-50 rounded-3xl p-8 border border-slate-100 border-dashed text-center">
                                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest italic">Học viên chưa tham gia kỳ thi nào</p>
                             </div>
-                          ) : (
-                            data.examResults.map(res => (
-                              <div key={res._id} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex items-center justify-between">
-                                 <div className="flex gap-4">
-                                    <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-500">
-                                       <Hash size={24} />
-                                    </div>
-                                    <div>
-                                       <p className="text-[10px] font-black text-slate-400 uppercase mb-0.5">{fmtDate(res.createdAt)}</p>
-                                       <p className="text-sm font-black text-slate-800">Môn: {res.subject || 'Tổng hợp'}</p>
-                                    </div>
-                                 </div>
-                                 <div className="text-right">
-                                    <p className="text-3xl font-black text-indigo-600">{res.score}</p>
-                                    <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Đạt tiêu chuẩn</span>
-                                 </div>
-                              </div>
-                            ))
-                          )}
+                          ) : (() => {
+                              const SL = { coban: 'Máy vi tính (Cơ bản)', word: 'Microsoft Word', excel: 'Microsoft Excel', powerpoint: 'Microsoft PowerPoint' };
+                              return (data.student.examProgress || []).filter(ep => ep.status && ep.status !== 'chua_thi').map(ep => {
+                                const tn = ep.tracNghiem || {};
+                                const pct = tn.total > 0 ? Math.round(((tn.score || 0) / tn.total) * 100) : 0;
+                                const isDat = ep.status === 'dat';
+                                const isKhongDat = ep.status === 'khong_dat';
+                                return (
+                                  <div key={ep.id || ep._id} className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm">
+                                     <div className="flex items-center gap-3 mb-3">
+                                        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${isDat ? 'bg-emerald-50 text-emerald-500' : isKhongDat ? 'bg-red-50 text-red-500' : 'bg-amber-50 text-amber-500'}`}>
+                                           <Trophy size={20} />
+                                        </div>
+                                        <div>
+                                           <p className="text-sm font-black text-slate-800">{SL[ep.id] || ep.id}</p>
+                                           <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${isDat ? 'bg-emerald-50 text-emerald-600' : isKhongDat ? 'bg-red-50 text-red-500' : 'bg-amber-50 text-amber-600'}`}>
+                                             {isDat ? 'ĐẠT' : isKhongDat ? 'RỚT' : 'ĐANG THI'}
+                                           </span>
+                                        </div>
+                                     </div>
+                                     <div className="grid grid-cols-3 gap-3">
+                                        <div className="bg-slate-50 rounded-xl p-3 text-center">
+                                           <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Trắc nghiệm</p>
+                                           <p className={`text-xl font-black ${pct >= 50 ? 'text-emerald-600' : 'text-red-500'}`}>{tn.score || 0}/{tn.total || 15}</p>
+                                           <p className="text-[9px] text-slate-400 font-bold">{pct}%</p>
+                                        </div>
+                                        <div className="bg-slate-50 rounded-xl p-3 text-center">
+                                           <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Tự luận</p>
+                                           <p className="text-sm font-black text-slate-600">{ep.thucHanh === 'da_nop' ? 'Đã nộp' : 'Chưa nộp'}</p>
+                                           {ep.essayScore != null && <p className={`text-lg font-black ${ep.essayScore >= 5 ? 'text-emerald-600' : 'text-red-500'}`}>{ep.essayScore}/10</p>}
+                                        </div>
+                                        <div className="bg-slate-50 rounded-xl p-3 text-center">
+                                           <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Khóa đến</p>
+                                           {ep.lockUntil && ep.lockUntil > Date.now() ? (
+                                             <p className="text-xs font-black text-red-500">{new Date(ep.lockUntil).toLocaleDateString('vi-VN')}</p>
+                                           ) : (
+                                             <p className="text-xs font-bold text-slate-300">—</p>
+                                           )}
+                                        </div>
+                                     </div>
+                                  </div>
+                                );
+                              });
+                            })()}
                        </div>
                     </div>
 

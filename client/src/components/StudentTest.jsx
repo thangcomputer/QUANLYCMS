@@ -102,6 +102,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
   const teacherId = student?.teacherId;
 
   const [tab, setTab]           = useState('trac_nghiem');
+  const [isTracNghiemSubmitted, setIsTracNghiemSubmitted] = useState(false);
   const [answers, setAnswers]   = useState(Array(TOTAL).fill(null));
   const [currentQ, setCurrentQ] = useState(0);
   const [timeLeft, setTimeLeft] = useState(meta.time);
@@ -177,11 +178,42 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
     } else {
       newProgress.push({ id: subjectId, ...changes });
     }
-    updateStudent(student.id, { examProgress: newProgress });
+    updateStudent(student._id || student.id, { examProgress: newProgress });
   }, [student, updateStudent, subjectId]);
 
   const handleSubmitFinal = () => {
+    const finalScore = answers.reduce((acc, a, i) => acc + (a === questions[i]?.answer ? 1 : 0), 0);
+    const finalPct = Math.round((finalScore / TOTAL) * 100);
+    const passedTN = finalPct >= 50;
+
+    setIsTracNghiemSubmitted(true);
+
+    if (!passedTN) {
+      // Rớt trắc nghiệm => khóa 7 ngày, về result
+      clearInterval(timerRef.current);
+      updateExamProgress({
+        tracNghiem: { score: finalScore, total: TOTAL },
+        thucHanh: 'chua_nop',
+        status: 'khong_dat',
+        lockUntil: Date.now() + 7 * 24 * 60 * 60 * 1000
+      });
+      setPhase('result');
+    } else {
+      // Đậu trắc nghiệm => chuyển sang tab tự luận
+      updateExamProgress({
+        tracNghiem: { score: finalScore, total: TOTAL },
+        status: 'dang_thi'
+      });
+      setTab('tu_luan');
+    }
+  };
+
+  const handleFinalTuLuan = () => {
     clearInterval(timerRef.current);
+    updateExamProgress({
+      thucHanh: 'da_nop',
+      status: 'dat'
+    });
     setPhase('result');
   };
 
@@ -193,7 +225,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
 
   const trySubmitTuLuan = () => {
     if (!uploadFile) setShowNoFileConfirm(true);
-    else { setUploadDone(true); }
+    else { setUploadDone(true); handleFinalTuLuan(); }
   };
 
   // Drag & drop
@@ -274,24 +306,32 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
           })}
         </div>
 
-        {/* Upload thực hành */}
-        <div className="bg-white rounded-2xl border p-5">
-          <h3 className="font-bold text-gray-700 mb-3 flex items-center gap-2 text-sm"><Paperclip size={15}/> Nộp bài tự luận</h3>
-          {uploadDone ? (
-            <div className="flex items-center gap-2 text-green-600 font-semibold p-3 bg-green-50 rounded-xl text-sm">
-              <CheckCircle size={16}/> Đã nộp! File đã được gửi đến giám khảo.
-            </div>
-          ) : (
-            <>
-              <input ref={fileRef} type="file" accept=".xlsx,.xls,.docx,.pptx" className="hidden" onChange={e => setUploadFile(e.target.files[0])} />
-              {uploadFile
-                ? <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl border border-blue-100 mb-3 text-sm"><span className="text-blue-700 font-medium truncate">{uploadFile.name}</span><button onClick={() => setUploadFile(null)} className="text-gray-400 hover:text-red-500 ml-2 flex-shrink-0">×</button></div>
-                : <button onClick={() => fileRef.current?.click()} className="w-full border-2 border-dashed border-gray-200 rounded-xl py-5 text-gray-400 hover:border-blue-300 hover:text-blue-500 text-sm flex flex-col items-center gap-1 mb-3"><Upload size={20}/> Chọn file</button>
-              }
-              <button onClick={() => { if (!uploadFile) return; setUploadDone(true); }} className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl text-sm">Nộp bài tự luận</button>
-            </>
-          )}
-        </div>
+        {/* Nếu đậu trắc nghiệm thì hiện upload thực hành */}
+        {passed && (
+          <div className="bg-white rounded-2xl border p-5">
+            <h3 className="font-bold text-gray-700 mb-3 flex items-center gap-2 text-sm"><Paperclip size={15}/> Nộp bài tự luận</h3>
+            {uploadDone ? (
+              <div className="flex items-center gap-2 text-green-600 font-semibold p-3 bg-green-50 rounded-xl text-sm">
+                <CheckCircle size={16}/> Đã nộp! File đã được gửi đến giám khảo.
+              </div>
+            ) : (
+              <>
+                <input ref={fileRef} type="file" accept=".xlsx,.xls,.docx,.pptx" className="hidden" onChange={e => setUploadFile(e.target.files[0])} />
+                {uploadFile
+                  ? <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl border border-blue-100 mb-3 text-sm"><span className="text-blue-700 font-medium truncate">{uploadFile.name}</span><button onClick={() => setUploadFile(null)} className="text-gray-400 hover:text-red-500 ml-2 flex-shrink-0">×</button></div>
+                  : <button onClick={() => fileRef.current?.click()} className="w-full border-2 border-dashed border-gray-200 rounded-xl py-5 text-gray-400 hover:border-blue-300 hover:text-blue-500 text-sm flex flex-col items-center gap-1 mb-3"><Upload size={20}/> Chọn file</button>
+                }
+                <button onClick={() => { if (!uploadFile) return; setUploadDone(true); handleFinalTuLuan(); }} className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl text-sm">Nộp bài tự luận</button>
+              </>
+            )}
+          </div>
+        )}
+        {/* Nếu rớt: thông báo khóa 7 ngày */}
+        {!passed && (
+          <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-5 text-center">
+            <p className="text-red-700 font-bold text-sm">⏳ Bạn không đạt phần trắc nghiệm. Bài thi sẽ bị khóa trong 7 ngày trước khi có thể thi lại.</p>
+          </div>
+        )}
         <button onClick={() => onBack?.()} className="w-full py-3 bg-gray-800 hover:bg-black text-white font-bold rounded-xl">← Về Phòng Thi</button>
       </div>
     </div>
@@ -383,22 +423,27 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
       <div className="px-3 md:px-6 mt-3">
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
           <div className="flex border-b border-gray-100">
-            {[
-              { id: 'trac_nghiem', label: '📝 Trắc nghiệm' },
-              { id: 'tu_luan',     label: '🖥 Tự luận' },
-            ].map(t => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className={`flex-1 py-3.5 text-sm font-semibold transition-all ${
-                  tab === t.id
+            <button
+              onClick={() => setTab('trac_nghiem')}
+              className={`flex-1 py-3.5 text-sm font-semibold transition-all ${
+                tab === 'trac_nghiem' ? 'text-gray-800 bg-white border-b-0' : 'text-gray-400 bg-gray-50/50 hover:text-gray-600'
+              }`}
+            >
+              📝 Trắc nghiệm {isTracNghiemSubmitted && '✅'}
+            </button>
+            <button
+              onClick={() => { if (isTracNghiemSubmitted) setTab('tu_luan'); }}
+              disabled={!isTracNghiemSubmitted}
+              className={`flex-1 py-3.5 text-sm font-semibold transition-all ${
+                !isTracNghiemSubmitted
+                  ? 'opacity-50 cursor-not-allowed text-gray-300 bg-gray-100'
+                  : tab === 'tu_luan'
                     ? 'text-gray-800 bg-white border-b-0'
                     : 'text-gray-400 bg-gray-50/50 hover:text-gray-600'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
+              }`}
+            >
+              🖥 Tự luận {!isTracNghiemSubmitted && '🔒'}
+            </button>
           </div>
           {/* Thin progress line */}
           <div className="h-0.5 bg-gray-100">
@@ -416,12 +461,13 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
                 {q.options.map((opt, i) => (
                   <button
                     key={i}
-                    onClick={() => handleAnswer(currentQ, i)}
+                    onClick={() => { if (!isTracNghiemSubmitted) handleAnswer(currentQ, i); }}
+                    disabled={isTracNghiemSubmitted}
                     className={`w-full flex items-center gap-4 px-5 py-3.5 rounded-2xl border text-left transition-all ${
                       answers[currentQ] === i
                         ? 'border-transparent bg-gray-900 text-white shadow-lg'
                         : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm text-gray-700'
-                    }`}
+                    } ${isTracNghiemSubmitted ? 'opacity-60 cursor-not-allowed' : ''}`}
                   >
                     <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${
                       answers[currentQ] === i ? 'bg-white text-gray-900' : 'bg-gray-100 text-gray-500'
@@ -518,7 +564,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
       </div>
 
       {/* ══════════ FOOTER: Nộp trắc nghiệm ══════════ */}
-      {tab === 'trac_nghiem' && (
+      {tab === 'trac_nghiem' && !isTracNghiemSubmitted && (
         <div className="px-3 md:px-6 py-4 flex items-center justify-between">
           <span className="text-sm text-gray-400">
             Đã làm: <span className={`font-bold ${answeredCount === TOTAL ? 'text-green-600' : 'text-orange-500'}`}>{answeredCount}/{TOTAL}</span>
@@ -554,7 +600,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
           message="bài làm đính kèm.\nVẫn nộp bài trắng?"
           confirmLabel="Nộp bài"
           cancelLabel="Quay lại chọn"
-          onConfirm={() => { setShowNoFileConfirm(false); setUploadDone(true); updateExamProgress({ thucHanh: 'chua_nop' }); }}
+          onConfirm={() => { setShowNoFileConfirm(false); setUploadDone(true); updateExamProgress({ thucHanh: 'chua_nop', status: 'dat' }); setPhase('result'); }}
           onCancel={() => setShowNoFileConfirm(false)}
         />
       )}
