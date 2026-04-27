@@ -1,5 +1,5 @@
 const express = require('express');
-const router  = express.Router();
+const router = express.Router();
 const Student = require('../models/Student');
 const Invoice = require('../models/Invoice');
 const Schedule = require('../models/Schedule');
@@ -30,26 +30,26 @@ router.get('/', [authMiddleware, branchFilter], async (req, res) => {
       return res.status(403).json({ success: false, message: 'Quyền truy cập bị từ chối' });
     }
 
-    if (teacherId) filter.teacherId           = teacherId;
-    if (paid !== undefined) filter.paid       = paid === 'true';
-    if (status)  filter.status                = status;
-    if (course)  filter.course               = { $regex: course, $options: 'i' };
+    if (teacherId) filter.teacherId = teacherId;
+    if (paid !== undefined) filter.paid = paid === 'true';
+    if (status) filter.status = status;
+    if (course) filter.course = { $regex: course, $options: 'i' };
     if (search) {
       filter.$or = [
-        { name:  { $regex: search, $options: 'i' } },
-        { zalo:  { $regex: search, $options: 'i' } },
+        { name: { $regex: search, $options: 'i' } },
+        { zalo: { $regex: search, $options: 'i' } },
         { phone: { $regex: search, $options: 'i' } },
-        { course:{ $regex: search, $options: 'i' } },
+        { course: { $regex: search, $options: 'i' } },
       ];
     }
 
     // ── Pagination ──────────────────────────────────────────────────
-    const pageNum  = Math.max(1, parseInt(page) || 1);
+    const pageNum = Math.max(1, parseInt(page) || 1);
     const limitNum = Math.max(1, Math.min(100, parseInt(limit) || 10));
-    const skip     = (pageNum - 1) * limitNum;
+    const skip = (pageNum - 1) * limitNum;
 
     const totalRecords = await Student.countDocuments(filter);
-    const totalPages   = Math.ceil(totalRecords / limitNum);
+    const totalPages = Math.ceil(totalRecords / limitNum);
 
     const students = await Student.find(filter)
       .populate('teacherId', 'name phone specialty')
@@ -63,11 +63,13 @@ router.get('/', [authMiddleware, branchFilter], async (req, res) => {
     // 1. Đếm số buổi hoàn thành + số buổi chưa trả lương (gom theo học viên)
     const sessionAgg = await Schedule.aggregate([
       { $match: { studentId: { $in: studentIds }, status: 'completed' } },
-      { $group: {
-        _id: '$studentId',
-        completed:        { $sum: 1 },
-        pendingPayment:   { $sum: { $cond: [{ $eq: ['$is_paid_to_teacher', false] }, 1, 0] } },
-      }},
+      {
+        $group: {
+          _id: '$studentId',
+          completed: { $sum: 1 },
+          pendingPayment: { $sum: { $cond: [{ $eq: ['$is_paid_to_teacher', false] }, 1, 0] } },
+        }
+      },
     ]);
     const sessionMap = Object.fromEntries(sessionAgg.map(r => [String(r._id), r]));
 
@@ -84,17 +86,17 @@ router.get('/', [authMiddleware, branchFilter], async (req, res) => {
       const sid = String(st._id);
       const sess = sessionMap[sid];
       const realCompleted = sess?.completed || 0;
-      doc.completedSessions             = realCompleted;
-      doc.remainingSessions             = Math.max(0, (st.totalSessions || 12) - realCompleted);
+      doc.completedSessions = realCompleted;
+      doc.remainingSessions = Math.max(0, (st.totalSessions || 12) - realCompleted);
       doc.pendingTeacherPaymentSessions = sess?.pendingPayment || 0;
 
       const lastAt = cooldownMap[sid];
       if (lastAt) {
-        const diffMs   = Date.now() - new Date(lastAt).getTime();
+        const diffMs = Date.now() - new Date(lastAt).getTime();
         const remainHrs = Math.max(0, 12 - diffMs / (1000 * 60 * 60));
-        doc.can_check_in             = false;
+        doc.can_check_in = false;
         doc.remaining_cooldown_hours = parseFloat(remainHrs.toFixed(1));
-        doc.last_attendance_at       = lastAt;
+        doc.last_attendance_at = lastAt;
       } else {
         doc.can_check_in = true;
         doc.remaining_cooldown_hours = 0;
@@ -130,9 +132,9 @@ router.get('/stats', [authMiddleware, branchFilter], async (req, res) => {
       bf.branchId = branch_id;
     }
 
-    const total   = await Student.countDocuments(bf);
-    const paid    = await Student.countDocuments({ ...bf, paid: true });
-    const unpaid  = await Student.countDocuments({ ...bf, paid: false });
+    const total = await Student.countDocuments(bf);
+    const paid = await Student.countDocuments({ ...bf, paid: true });
+    const unpaid = await Student.countDocuments({ ...bf, paid: false });
     const unlocked = await Student.countDocuments({ ...bf, studentExamUnlocked: true });
 
     // ⭐ Fix: Doanh thu = SUM(paidAmount) chỉ từ HV đã thanh toán
@@ -140,11 +142,13 @@ router.get('/stats', [authMiddleware, branchFilter], async (req, res) => {
     // Fallback sang price nếu paidAmount = 0 (compatibility)
     const revenueResult = await Student.aggregate([
       { $match: { ...bf, paid: true } },
-      { $group: {
-        _id: null,
-        totalPaidAmount: { $sum: { $cond: [{ $gt: ['$paidAmount', 0] }, '$paidAmount', '$price'] } },
-        totalListedPrice: { $sum: '$price' },
-      }},
+      {
+        $group: {
+          _id: null,
+          totalPaidAmount: { $sum: { $cond: [{ $gt: ['$paidAmount', 0] }, '$paidAmount', '$price'] } },
+          totalListedPrice: { $sum: '$price' },
+        }
+      },
     ]);
     const totalRevenue = revenueResult[0]?.totalPaidAmount || 0;
 
@@ -167,7 +171,7 @@ router.get('/stats', [authMiddleware, branchFilter], async (req, res) => {
     const Teacher = require('../models/Teacher');
     const teacherBranchFilter = req.userBranchId ? { branchId: req.userBranchId } : {};
     if (branch_id && branch_id !== 'all' && !req.userBranchId) teacherBranchFilter.branchId = branch_id;
-    const activeTeachers = await Teacher.countDocuments({ ...teacherBranchFilter, status: { $in: ['Active','active'] }, role: 'teacher' });
+    const activeTeachers = await Teacher.countDocuments({ ...teacherBranchFilter, status: { $in: ['Active', 'active'] }, role: 'teacher' });
     const pendingTeachers = await Teacher.countDocuments({ role: 'teacher', status: 'Pending' });
 
     res.json({
@@ -195,8 +199,8 @@ router.get('/:id', [authMiddleware, branchFilter], async (req, res) => {
       }
     }
 
-    const isSelf      = req.user.role === 'student' && req.user.id === student._id.toString();
-    const isMyTeacher = req.user.role === 'teacher'  && student.teacherId?._id?.toString() === req.user.id;
+    const isSelf = req.user.role === 'student' && req.user.id === student._id.toString();
+    const isMyTeacher = req.user.role === 'teacher' && student.teacherId?._id?.toString() === req.user.id;
     const isAdminOrStaff = req.user.role === 'admin' || req.user.role === 'staff';
 
     if (!isAdminOrStaff && !isSelf && !isMyTeacher) {
@@ -245,7 +249,7 @@ router.get('/:id/full-detail', [authMiddleware, branchFilter], async (req, res) 
 
     // 3. Kết quả thi (nếu có)
     const ExamResult = require('../models/ExamResult');
-    const examResults = await ExamResult.find({ 
+    const examResults = await ExamResult.find({
       $or: [
         { studentId: req.params.id },
         { sbd: student.sbd } // Fallback cho dữ liệu cũ dùng SBD
@@ -284,8 +288,8 @@ router.post('/import', [authMiddleware, branchFilter], async (req, res) => {
       branchId: branchId || s.branchId || null,
       status: s.status || 'Chờ xếp lớp',
       paid: s.paid === true || s.paid === 'Đã đóng phí',
-      learningMode: ['ONLINE', 'OFFLINE'].includes(s.learningMode?.toUpperCase()) 
-        ? s.learningMode.toUpperCase() 
+      learningMode: ['ONLINE', 'OFFLINE'].includes(s.learningMode?.toUpperCase())
+        ? s.learningMode.toUpperCase()
         : 'OFFLINE'
     })).filter(s => s.name && (s.phone || s.zalo));
 
@@ -303,8 +307,8 @@ router.post('/import', [authMiddleware, branchFilter], async (req, res) => {
   } catch (err) {
     if (err.name === 'BulkWriteError' || err.code === 11000) {
       const inserted = err.result?.nInserted || 0;
-      return res.json({ 
-        success: true, 
+      return res.json({
+        success: true,
         message: `Đã nhập ${inserted} bản ghi (Một số bản ghi bị trùng SĐT đã được bỏ qua).`,
         count: inserted
       });
@@ -325,7 +329,7 @@ router.post('/', [authMiddleware, branchFilter], async (req, res) => {
     // Bảo mật: STAFF chỉ được tạo HV thuộc chi nhánh của mình
     // SUPER_ADMIN tự đặt branchId hoặc để trống
     if (req.userBranchId) {
-      req.body.branchId   = req.userBranchId;
+      req.body.branchId = req.userBranchId;
       req.body.branchCode = req.userBranchCode || '';
     }
 
@@ -362,7 +366,7 @@ router.post('/', [authMiddleware, branchFilter], async (req, res) => {
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
     const safeBody = { ...req.body };
-    
+
     // Nếu là Teacher, chỉ cho phép cập nhật thông tin điểm danh, thành tích
     if (req.user.role === 'teacher') {
       const allowedKeys = ['completedSessions', 'remainingSessions', 'lastGrade', 'avgGrade', 'grades', 'status', 'notes', 'linkHoc', 'nextClass', 'nextClassTime'];
@@ -375,10 +379,10 @@ router.put('/:id', authMiddleware, async (req, res) => {
 
     // Nếu Admin cập nhật thông tin và có gán Giảng viên, tự động chuyển sang Đang học
     if (safeBody.teacherId) {
-       const currentSt = await Student.findById(req.params.id);
-       if (currentSt && currentSt.status === 'Chờ xếp lớp') {
-          safeBody.status = 'Đang học';
-       }
+      const currentSt = await Student.findById(req.params.id);
+      if (currentSt && currentSt.status === 'Chờ xếp lớp') {
+        safeBody.status = 'Đang học';
+      }
     }
 
     // Nếu là Student, chỉ cho phép cập nhật hồ sơ cá nhân CỦA CHÍNH MÌNH
@@ -435,7 +439,7 @@ router.patch('/:id/price', authMiddleware, isAdmin, async (req, res) => {
     }
 
     const oldPrice = student.price;
-    student.price        = Number(newPrice);
+    student.price = Number(newPrice);
     student.priceHistory = student.priceHistory || [];
     student.priceHistory.push({
       oldPrice,
@@ -476,23 +480,23 @@ router.put('/:id/pay', authMiddleware, isAdmin, async (req, res) => {
     }
 
     // Cập nhật trạng thái thanh toán
-    student.paid          = true;
-    student.paidAt        = new Date();
+    student.paid = true;
+    student.paidAt = new Date();
     student.paymentMethod = paymentMethod;
     await student.save({ validateModifiedOnly: true });
 
     // Tự động tạo hóa đơn
     const count = await Invoice.countDocuments();
-    const now   = new Date();
-    const maHD  = `HD${now.getFullYear().toString().slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}-${String(count + 1).padStart(4, '0')}`;
+    const now = new Date();
+    const maHD = `HD${now.getFullYear().toString().slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}-${String(count + 1).padStart(4, '0')}`;
 
     const invoice = await Invoice.create({
       maHoaDon: maHD,
-      hocVien:  student._id,
-      hoTen:    student.name,
-      khoaHoc:  student.course,
-      hocPhi:   student.price,
-      ghiChu:   note,
+      hocVien: student._id,
+      hoTen: student.name,
+      khoaHoc: student.course,
+      hocPhi: student.price,
+      ghiChu: note,
     });
 
     // Thông báo real-time
@@ -775,14 +779,14 @@ router.post('/:id/reset-history', authMiddleware, isAdmin, async (req, res) => {
     // Reset các field lịch sử trên Student document, giữ nguyên: name, phone, zalo, course, paid, price...
     await Student.findByIdAndUpdate(req.params.id, {
       $set: {
-        remainingSessions:   student.totalSessions || 12, // reset về đủ buổi
+        remainingSessions: student.totalSessions || 12, // reset về đủ buổi
         studentExamUnlocked: false,
-        grade:               null,
-        status:              'active',
+        grade: null,
+        status: 'active',
         // Xóa lịch sử điểm danh nếu có field này
-        attendanceHistory:   [],
-        examScore:           null,
-        practicalStatus:     'pending',
+        attendanceHistory: [],
+        examScore: null,
+        practicalStatus: 'pending',
       },
     });
 
@@ -829,8 +833,8 @@ router.put('/:id/pay-teacher', authMiddleware, isAdmin, async (req, res) => {
       );
 
       if (student.teacher_payment_status === 'UNPAID') {
-         student.teacher_payment_status = 'PARTIAL';
-         await student.save();
+        student.teacher_payment_status = 'PARTIAL';
+        await student.save();
       }
 
       return res.json({ success: true, message: `Thanh toán thành công ${updated.modifiedCount} buổi dạy của HV ${student.name}.` });
