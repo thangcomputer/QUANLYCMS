@@ -7,7 +7,7 @@ async function check() {
     await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/quanlycms');
     console.log('✅ Connected to MongoDB');
 
-    const beTho = await Student.findOne({ name: /BÉ THỎ/i }).populate('teacherId');
+    const beTho = await Student.findOne({ name: /BÉ THỎ/i }).lean();
     console.log('Bé thỏ:', JSON.stringify(beTho, null, 2));
 
   } catch (error) {
