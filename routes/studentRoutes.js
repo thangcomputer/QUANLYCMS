@@ -329,6 +329,11 @@ router.post('/', [authMiddleware, branchFilter], async (req, res) => {
       req.body.branchCode = req.userBranchCode || '';
     }
 
+    // Nếu lúc tạo có gán Giảng viên luôn thì chuyển trạng thái thành Đang học
+    if (req.body.teacherId && (!req.body.status || req.body.status === 'Chờ xếp lớp')) {
+      req.body.status = 'Đang học';
+    }
+
     const student = new Student(req.body);
     await student.save();
 
@@ -366,6 +371,14 @@ router.put('/:id', authMiddleware, async (req, res) => {
           delete safeBody[key];
         }
       });
+    }
+
+    // Nếu Admin cập nhật thông tin và có gán Giảng viên, tự động chuyển sang Đang học
+    if (safeBody.teacherId) {
+       const currentSt = await Student.findById(req.params.id);
+       if (currentSt && currentSt.status === 'Chờ xếp lớp') {
+          safeBody.status = 'Đang học';
+       }
     }
 
     // Nếu là Student, chỉ cho phép cập nhật hồ sơ cá nhân CỦA CHÍNH MÌNH
@@ -589,9 +602,15 @@ router.put('/:id/assign-teacher', authMiddleware, isAdmin, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Thiếu teacherId' });
     }
 
+    const updateData = { teacherId };
+    const currentStudent = await Student.findById(req.params.id);
+    if (currentStudent && currentStudent.status === 'Chờ xếp lớp') {
+      updateData.status = 'Đang học';
+    }
+
     const student = await Student.findByIdAndUpdate(
       req.params.id,
-      { teacherId },
+      updateData,
       { new: true }
     ).populate('teacherId', 'name phone specialty');
 

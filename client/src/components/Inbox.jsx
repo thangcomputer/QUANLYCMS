@@ -713,52 +713,6 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
                         {/* Bubble + action buttons */}
                         <div className={`flex items-end gap-1.5 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}>
 
-                          {/* Thu hồi button — chỉ hiện khi là tin của mình và chưa thu hồi */}
-                          {isMine && !msg.isRecalled && (
-                            <button
-                              onClick={() => handleRecall(msg.id)}
-                              disabled={recallingId === msg.id}
-                              className="opacity-0 group-hover/msg:opacity-100 w-7 h-7 flex items-center justify-center bg-white rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm border border-slate-100 active:scale-90 disabled:opacity-30"
-                              title="Thu hồi tin nhắn"
-                            >
-                              {recallingId === msg.id
-                                ? <span className="w-3 h-3 border-2 border-red-300 border-t-red-500 rounded-full inline-block animate-spin" />
-                                : <RotateCcw size={12} />
-                              }
-                            </button>
-                          )}
-
-                          {/* Reaction picker button */}
-                          {!msg.isRecalled && (
-                            <ReactionPicker
-                              msgId={msg.id}
-                              isMine={isMine}
-                              onReact={handleReaction}
-                              myReactions={myReactions}
-                            />
-                          )}
-                          
-                          {/* Options/Menu button for Soft Delete */}
-                          <div className="relative">
-                            <button
-                              onClick={() => setShowMessageOptions(showMessageOptions === msg.id ? null : msg.id)}
-                              className="opacity-0 group-hover/msg:opacity-100 w-7 h-7 flex items-center justify-center bg-white rounded-full text-gray-400 hover:text-slate-600 hover:bg-slate-100 transition-all shadow-sm border border-slate-100 active:scale-90"
-                              title="Tùy chọn"
-                            >
-                              <MoreHorizontal size={14} />
-                            </button>
-                            {showMessageOptions === msg.id && (
-                              <div className="absolute bottom-full right-0 mb-1 z-50 animate-in fade-in zoom-in-95 duration-100">
-                                <button
-                                  onClick={() => handleDeleteHistory(msg.id)}
-                                  className="flex items-center gap-2 whitespace-nowrap bg-white px-3 py-2 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.18)] border border-slate-100 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors"
-                                >
-                                  <Trash2 size={12} /> Xóa lịch sử
-                                </button>
-                              </div>
-                            )}
-                          </div>
-
                           {/* Message bubble */}
                           <div className={`relative px-4 py-2.5 rounded-[22px] text-[14px] leading-relaxed shadow-sm transition-all ${bubbleBg} ${
                             isMine ? 'rounded-tr-none' : 'rounded-tl-none'
@@ -803,6 +757,53 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
                               </div>
                             )}
                           </div>
+
+                          {/* Reaction picker button */}
+                          {!msg.isRecalled && (
+                            <ReactionPicker
+                              msgId={msg.id}
+                              isMine={isMine}
+                              onReact={handleReaction}
+                              myReactions={myReactions}
+                            />
+                          )}
+                          
+                          {/* Options/Menu button for Soft Delete */}
+                          <div className="relative">
+                            <button
+                              onClick={() => setShowMessageOptions(showMessageOptions === msg.id ? null : msg.id)}
+                              className="opacity-0 group-hover/msg:opacity-100 w-7 h-7 flex items-center justify-center bg-white rounded-full text-gray-400 hover:text-slate-600 hover:bg-slate-100 transition-all shadow-sm border border-slate-100 active:scale-90"
+                              title="Tùy chọn"
+                            >
+                              <MoreHorizontal size={14} />
+                            </button>
+                            {showMessageOptions === msg.id && (
+                              <div className={`absolute bottom-full mb-1 z-50 animate-in fade-in zoom-in-95 duration-100 ${isMine ? 'right-0' : 'left-0'}`}>
+                                <button
+                                  onClick={() => handleDeleteHistory(msg.id)}
+                                  className="flex items-center gap-2 whitespace-nowrap bg-white px-3 py-2 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.18)] border border-slate-100 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors"
+                                >
+                                  <Trash2 size={12} /> Xóa lịch sử
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Thu hồi button — chỉ hiện khi là tin của mình và chưa thu hồi */}
+                          {isMine && !msg.isRecalled && (
+                            <button
+                              onClick={() => handleRecall(msg.id)}
+                              disabled={recallingId === msg.id}
+                              className="opacity-0 group-hover/msg:opacity-100 w-7 h-7 flex items-center justify-center bg-white rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all shadow-sm border border-slate-100 active:scale-90 disabled:opacity-30"
+                              title="Thu hồi tin nhắn"
+                            >
+                              {recallingId === msg.id
+                                ? <span className="w-3 h-3 border-2 border-red-300 border-t-red-500 rounded-full inline-block animate-spin" />
+                                : <RotateCcw size={12} />
+                              }
+                            </button>
+                          )}
+
                         </div>
 
                         {/* Time & read status */}
