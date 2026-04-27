@@ -118,7 +118,7 @@ const LoginPage = ({ onLogin }) => {
           {/* Logo & Branding */}
           <div className="w-full max-w-md space-y-10 z-10">
             <div className="text-center md:text-left flex flex-col items-center md:items-start animate-in fade-in zoom-in duration-700">
-              <img src={dynamicLogo || "/logo_thangtinhoc.png"} alt="Logo" className="h-16 mb-8 brightness-110 object-contain" onError={(e) => { if (!dynamicLogo) e.target.src = 'https://i.ibb.co/68H8LzG/logo.png'; }} />
+              <img src={dynamicLogo || "/logo-thang-tin-hoc.png"} alt="Logo" className="h-16 mb-8 brightness-110 object-contain" onError={(e) => { if (!dynamicLogo) e.target.src = 'https://i.ibb.co/68H8LzG/logo.png'; }} />
               
               <div className="space-y-4">
                  {/* Role Switcher */}

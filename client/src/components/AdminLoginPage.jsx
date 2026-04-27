@@ -160,7 +160,7 @@ const AdminLoginPage = ({ onLogin }) => {
             <div className="text-center space-y-6 animate-in fade-in zoom-in duration-700">
               <div className="relative inline-block">
                 <div className="absolute inset-0 bg-red-600 rounded-full blur-2xl opacity-20 animate-pulse"></div>
-                <img src={dynamicLogo || "/logo_thangtinhoc.png"} alt="Logo" className="h-20 relative z-10 object-contain" onError={(e) => { if (!dynamicLogo) e.target.src = 'https://i.ibb.co/68H8LzG/logo.png'; }} />
+                <img src={dynamicLogo || "/logo-thang-tin-hoc.png"} alt="Logo" className="h-20 relative z-10 object-contain" onError={(e) => { if (!dynamicLogo) e.target.src = 'https://i.ibb.co/68H8LzG/logo.png'; }} />
               </div>
               
               <div className="space-y-3">
