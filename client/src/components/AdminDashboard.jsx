@@ -561,13 +561,15 @@ const AddStudentModal = ({ onAdd, onClose, teachers }) => {
                 <input name="name" value={form.name} onChange={handleChange} className="w-full bg-gray-50 border-2 border-transparent focus:border-red-600 focus:bg-white rounded-[20px] p-4 uppercase font-black text-gray-800 outline-none transition-all shadow-sm" placeholder="VD: NGUYỄN VĂN A" />
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div>
+              <div className="flex gap-3 items-end">
+                <div style={{width: '100px', flexShrink: 0}}>
                   <label className="text-xs font-black text-gray-500 uppercase tracking-widest block mb-2">Tuổi</label>
-                  <input name="age" type="number" value={form.age} onChange={handleChange} className="w-full bg-gray-50 border-2 border-transparent focus:border-red-600 focus:bg-white rounded-[20px] p-4 font-bold text-gray-800 outline-none transition-all shadow-sm" placeholder="VD: 20" />
+                  <input name="age" type="number" value={form.age} onChange={handleChange} className="w-full bg-gray-50 border-2 border-transparent focus:border-red-600 focus:bg-white rounded-[20px] px-3 py-4 font-bold text-gray-800 outline-none transition-all shadow-sm text-center" placeholder="20" />
                 </div>
-                <label className="text-xs font-black text-gray-500 uppercase tracking-widest block mb-2">Số điện thoại / Zalo <span className="text-red-500">*</span></label>
-                <input name="phone" value={form.phone} onChange={handleChange} className="w-full bg-gray-50 border-2 border-transparent focus:border-red-600 focus:bg-white rounded-[20px] p-4 font-black text-gray-800 outline-none transition-all shadow-sm font-mono" placeholder="0911222333" />
+                <div className="flex-1">
+                  <label className="text-xs font-black text-gray-500 uppercase tracking-widest block mb-2">Số điện thoại / Zalo <span className="text-red-500">*</span></label>
+                  <input name="phone" value={form.phone} onChange={handleChange} className="w-full bg-gray-50 border-2 border-transparent focus:border-red-600 focus:bg-white rounded-[20px] p-4 font-black text-gray-800 outline-none transition-all shadow-sm font-mono" placeholder="0911222333" />
+                </div>
               </div>
             </div>
 
