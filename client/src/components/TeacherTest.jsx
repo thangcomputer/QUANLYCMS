@@ -81,7 +81,11 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
   const fileRef = useRef(null);
   const [tabViolations, setTabViolations] = useState(0);
   const [cameraViolations, setCameraViolations] = useState(0);
-  const [warningOverlay, setWarningOverlay] = useState(null); // Quản lý cảnh báo ngay tại đây
+  const [warningOverlay, setWarningOverlay] = useState(null);
+
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const previewRef = useRef(null);
 
   const monitorRef = useRef(null);
   const timerRef = useRef(null);
@@ -142,64 +146,84 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
      } catch(e) {}
   };
 
+  const failAndExitRef = useRef();
+  failAndExitRef.current = (reasonTxt) => {
+    const fullReason = `HỦY BÀI: Hành vi cố tình ${reasonTxt} khi đang thi!`;
+    handleViolate(fullReason);
+    
+    // Gỡ token nhưng không đẩy ra /login ngay, để giao diện 'BÀI THI BỊ HỦY' kịp hiện ra cho họ biết lý do.
+    setTimeout(() => {
+      localStorage.setItem('teacher_ban_error', fullReason);
+      localStorage.removeItem('teacher_user');
+      localStorage.removeItem('teacher_access_token');
+      localStorage.removeItem('teacher_refresh_token');
+    }, 500); 
+  };
+
+  // Kiểm tra dấu vết tải lại trang từ lần trước
+  useEffect(() => {
+    const violation = localStorage.getItem('punish_teacher_exam');
+    if (violation === 'true') {
+      localStorage.removeItem('punish_teacher_exam');
+      failAndExitRef.current('tải lại trang (F5) hoặc đóng tab');
+    }
+  }, []);
+
   // ── ANTI-CHEAT: Chống F5 & Nút Back của Browser ──
   useEffect(() => {
     if (phase !== 'test') return;
 
-    // Kỹ thuật ngăn nút Back (Push history forward)
+    const confirmExit = (reasonTxt) => {
+      showModal({
+        title: 'CẢNH BÁO TỪ HỆ THỐNG',
+        content: `Nếu bạn ${reasonTxt}, đồng nghĩa với việc HỦY BÀI THI và vô hiệu hóa tài khoản Giảng viên. Bạn có chắc chắn muốn thoát?`,
+        type: 'warning',
+        confirmText: 'ĐỒNG Ý HỦY BÀI',
+        cancelText: 'Làm bài tiếp',
+        onConfirm: () => {
+          if (failAndExitRef.current) failAndExitRef.current(reasonTxt);
+        }
+      });
+    };
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'F5' || (e.ctrlKey && (e.key === 'r' || e.key === 'R'))) {
+        e.preventDefault();
+        confirmExit('tải lại trang hiện tại (F5)');
+      }
+    };
+
+    // Kỹ thuật ngăn nút Back (Push history forward một lần duy nhất)
     window.history.pushState(null, '', window.location.href);
 
     const handlePopState = () => {
-      // Khi user bấm back, họ thực sự lùi lại -> đẩy lên tiếp
       window.history.pushState(null, '', window.location.href);
-      
-      const reason = 'HỦY BÀI: Hành vi cố tình lùi màn hình (Back) khi đang thi!';
-      handleViolate(reason);
-      
-      // Gỡ token nhưng không đẩy ra /login ngay, để giao diện 'BÀI THI BỊ HỦY' kịp hiện ra cho họ biết lý do, sau đó vài giây hãy thoát.
-      setTimeout(() => {
-        localStorage.setItem('teacher_ban_error', reason);
-        localStorage.removeItem('teacher_user');
-        localStorage.removeItem('teacher_access_token');
-        localStorage.removeItem('teacher_refresh_token');
-        window.location.href = '/login';
-      }, 500); 
+      confirmExit('quay lại trạng thái trước đó');
     };
 
     const handleBeforeUnload = (e) => {
-      const reason = 'Tải lại trang (F5) hoặc đóng tab đột ngột khi đang thi';
-      // Reload / Đóng Tab: Bắn tín hiệu Locked lên server ẩn danh
-      if (teacherId) {
-        const token = localStorage.getItem('teacher_access_token');
-        fetch(`${API_BASE}/teachers/${teacherId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-          },
-          body: JSON.stringify({ status: 'Locked', lockReason: reason }),
-          keepalive: true
-        }).catch(() => {});
-      }
-
-      // Xóa phiên đăng nhập ngay lập tức
-      localStorage.setItem('teacher_ban_error', reason);
-      localStorage.removeItem('teacher_user');
-      localStorage.removeItem('teacher_access_token');
-      localStorage.removeItem('teacher_refresh_token');
-      
       e.preventDefault();
       e.returnValue = 'Bạn đang trong bài thi. Thoát sẽ bị hủy kết quả và đăng xuất?';
     };
 
+    const handleActualUnload = () => {
+      localStorage.setItem('punish_teacher_exam', 'true');
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('popstate', handlePopState);
     window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handleActualUnload);
+    window.addEventListener('unload', handleActualUnload);
 
     return () => {
+      window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('popstate', handlePopState);
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handleActualUnload);
+      window.removeEventListener('unload', handleActualUnload);
     };
-  }, [phase, handleViolate, teacherId]);
+  }, [phase]); // Loại bỏ handleViolate khỏi mảng deps để tránh loop
 
   // 4. GIÁM SÁT TAB & FOCUS (polling 500ms) - CỰC KỲ CHIẾN
   useEffect(() => {
@@ -226,6 +250,28 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
 
     return () => clearInterval(interval);
   }, [phase, banReason, handleViolate]);
+
+  // 5. YÊU CẦU CAMERA Ở BƯỚC HARDWARE CHECK TRƯỚC KHI VÀO THI
+  useEffect(() => {
+    if (phase !== 'hardware_check') return;
+
+    let stream = null;
+    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+      .then(s => {
+        stream = s;
+        if (previewRef.current) previewRef.current.srcObject = s;
+        setCameraReady(true);
+        setCameraError('');
+      })
+      .catch(err => {
+        setCameraReady(false);
+        setCameraError(err.message);
+      });
+
+    return () => {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+    };
+  }, [phase]);
 
   // Timer
   useEffect(() => {
@@ -292,49 +338,80 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
   );
 
   if (phase === 'hardware_check') return (
-    <div className="h-full  bg-slate-900 flex items-center justify-center p-6 relative overflow-hidden">
-      <div className="absolute inset-0 border-[16px] border-[#203DB5]/30 pointer-events-none rounded-[40px] m-4 animate-pulse" />
-      <div className="bg-white rounded-[40px] p-10 max-w-xl w-full text-center shadow-2xl z-10 border-t-8 border-[#203DB5] animate-in zoom-in duration-500">
-         <Monitor size={72} className="text-[#203DB5] mx-auto mb-6" />
-         <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">Kiểm tra hệ thống</h2>
-         <p className="text-slate-500 font-bold mt-3 mb-8 px-4 leading-relaxed">Để đảm bảo công bằng, bài thi yêu cầu giám sát Camera (AI). Vui lòng xác nhận phần cứng hoạt động tốt.</p>
+    <div className="min-h-screen w-full bg-slate-900 flex items-center justify-center p-6 relative overflow-hidden">
+      <div className="absolute inset-0 border-[12px] border-[#203DB5]/30 pointer-events-none rounded-[32px] m-4 animate-pulse" />
+      <div className="bg-white rounded-[28px] p-5 max-w-[320px] w-full text-center shadow-[0_0_80px_rgba(32,61,181,0.4)] z-10 border-t-[6px] border-[#203DB5] animate-in zoom-in duration-500 overflow-y-auto max-h-[90vh] no-scrollbar">
+         <h2 className="text-lg font-black text-slate-900 tracking-tight mt-0">Yêu cầu bật Camera</h2>
+         <p className="text-slate-500 font-bold mt-1 mb-3 px-2 text-[10px] leading-relaxed">
+             Để đảm bảo tính công bằng, bạn <span className="text-[#E13B35]">bắt buộc phải bật camera</span> xuyên suốt quá trình làm bài thi.
+         </p>
          
-         <div className="space-y-4 mb-10 text-left">
-           <div className="flex items-center justify-between p-5 bg-green-50 rounded-2xl border border-green-100 shadow-sm animate-in fade-in slide-in-from-left-4 delay-100">
-             <div className="flex items-center gap-4">
-               <div className="w-10 h-10 rounded-full bg-green-200 flex items-center justify-center text-green-700">
-                 <Camera size={20} />
-               </div>
+         {/* Hướng dẫn Box (Mô phỏng Dialog Chrome) */}
+         <div className="border-[1.5px] border-slate-200 rounded-[20px] p-3 mb-3 relative text-left bg-[#F4F7F6] shadow-inner select-none pointer-events-none">
+            <div className="flex items-center justify-between mb-2">
                <div>
-                 <p className="font-bold text-green-900">Camera ổn định</p>
-                 <p className="text-xs text-green-700 mt-0.5">Đã cấp quyền truy cập</p>
+                  <p className="font-bold text-slate-700 text-[13px]">dashboard.thangcomputer.com muốn</p>
+                  <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-1 font-semibold"><Camera size={12}/> Sử dụng camera có sẵn (3)</p>
                </div>
-             </div>
-             <CheckCircle2 className="text-green-600" size={24} />
-           </div>
-           
-           <div className="flex items-center justify-between p-5 bg-green-50 rounded-2xl border border-green-100 shadow-sm animate-in fade-in slide-in-from-left-4 delay-200">
-             <div className="flex items-center gap-4">
-               <div className="w-10 h-10 rounded-full bg-green-200 flex items-center justify-center text-green-700">
-                 <Video size={20} />
+               <XCircle size={16} className="text-slate-400" />
+            </div>
+
+            {/* Khung Camera Xem trước */}
+            <div className="bg-slate-900 rounded-xl h-20 mb-2 relative overflow-hidden flex items-center justify-center border-[3px] border-white shadow-md">
+               {cameraReady ? (
+                   <video ref={previewRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
+               ) : (
+                   <div className="text-white/50 text-xs flex flex-col items-center gap-2 font-bold">
+                      <Camera size={24} className="animate-pulse" />
+                      {cameraError ? 'Lỗi Camera: Bị từ chối' : 'Đang chờ cấp quyền...'}
+                   </div>
+               )}
+               <div className="absolute top-2 right-2 bg-white/20 backdrop-blur-md px-2 py-1 rounded-lg text-[10px] text-white flex items-center gap-1 font-bold">
+                 <Video size={10} /> Xem trước
                </div>
-               <div>
-                 <p className="font-bold text-green-900">Môi trường & Ánh sáng</p>
-                 <p className="text-xs text-green-700 mt-0.5">Khung hình rõ nét, ánh sáng đủ</p>
+            </div>
+
+            {/* Fake Dropdown */}
+            <div className="border border-slate-200/80 rounded-[10px] px-3 py-1.5 text-[9px] font-bold text-slate-600 mb-2 flex justify-between bg-white shadow-sm">
+               <span>HD WEB CAMERA (0a50:6100)</span>
+               <span className="text-slate-400">▼</span>
+            </div>
+
+            {/* Fake Buttons Hướng dẫn */}
+            <div className="space-y-1.5 relative mt-3">
+               {/* Nút số 1 được đóng khung đỏ */}
+               <div className="relative">
+                  <div className="absolute -left-[5px] -right-[5px] -top-[5px] -bottom-[5px] border-2 border-red-500 rounded-[14px] pointer-events-none" />
+                  <div className="bg-[#B9F5C5] text-[#1E5C2A] text-center py-1.5 rounded-[10px] font-bold text-[10px]">Cho phép mỗi khi truy cập...</div>
+                  {/* SVG Arrow Pointing UP-LEFT */}
+                  <svg className="absolute -right-[20px] -bottom-[20px] w-6 h-6 text-red-500 animate-bounce pointer-events-none" 
+                       fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                     <path d="M6 6L20 20" />
+                     <path d="M6 6v8" />
+                     <path d="M6 6h8" />
+                  </svg>
                </div>
-             </div>
-             <CheckCircle2 className="text-green-600" size={24} />
-           </div>
+
+               <div className="bg-[#B9F5C5] text-[#1E5C2A] text-center py-1.5 rounded-[10px] font-bold text-[10px] opacity-40 mix-blend-luminosity">Cho phép lần này</div>
+               <div className="bg-[#B9F5C5] text-[#1E5C2A] text-center py-1.5 rounded-[10px] font-bold text-[10px] opacity-40 mix-blend-luminosity">Không bao giờ cho phép</div>
+            </div>
          </div>
 
-         <div className="bg-yellow-50 p-4 rounded-xl text-yellow-800 text-xs font-bold flex items-start gap-3 mb-8 text-left border border-yellow-200 shadow-sm">
-           <AlertTriangle size={24} className="text-yellow-600 flex-shrink-0" />
-           <p>Lưu ý: Bạn không được phép rời khỏi màn hình hoặc chuyển tab (F5). Bất cứ cố gắng thoát nào sẽ bị AI tự động hủy bài ngay lập tức.</p>
+         {/* Trạng thái Sẵn sàng */}
+         <div className={`py-2 rounded-[14px] font-black text-[10px] mb-3 flex items-center justify-center gap-1.5 transition-all duration-300 ${cameraReady ? 'bg-[#E1FDEB] text-[#008945]' : 'bg-slate-100 text-slate-400 opacity-60'}`}>
+            <CheckCircle2 size={13} className={cameraReady ? '' : 'grayscale'}/> Camera đã sẵn sàng!
          </div>
 
-         <button onClick={() => { setPhase('test'); localStorage.setItem('teacher_test_phase', 'test'); }} 
-             className="w-full py-5 bg-[#E13B35] text-white font-black rounded-3xl shadow-xl shadow-red-900/30 hover:bg-black transition-all text-xl flex items-center justify-center gap-3">
-             <Zap size={24} className="fill-current" /> XÁC NHẬN VÀ VÀO THI
+         {/* Nút Vào thi */}
+         <button 
+             disabled={!cameraReady}
+             onClick={() => { setPhase('test'); localStorage.setItem('teacher_test_phase', 'test'); }} 
+             className={`w-full py-2.5 font-black rounded-[14px] transition-all text-[11px] flex items-center justify-center gap-2 ${
+                 cameraReady 
+                 ? 'bg-[#E13B35] text-white shadow-xl shadow-red-500/30 hover:bg-black hover:scale-[1.02] active:scale-95' 
+                 : 'bg-slate-100 text-slate-300 cursor-not-allowed opacity-70'
+             }`}>
+             TÔI ĐÃ HIỂU VÀ BẮT ĐẦU THI
          </button>
       </div>
     </div>

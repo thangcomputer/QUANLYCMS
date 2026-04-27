@@ -358,31 +358,33 @@ export default function RevenueAnalyticsTab() {
             {loading ? (
               <div className="space-y-2">{[1,2].map(i => <div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />)}</div>
             ) : (enrollment?.byBranch?.length ? (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-xs text-gray-400 border-b border-gray-100">
-                    <th className="pb-2 text-left font-bold">Chi nhánh</th>
-                    <th className="pb-2 text-center font-bold">Học viên mới</th>
-                    <th className="pb-2 text-center font-bold">Đã thu phí</th>
-                    <th className="pb-2 text-right font-bold">Doanh thu</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {enrollment.byBranch.map((b, i) => (
-                    <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="py-2.5 font-medium text-gray-700">
-                        <div className="flex items-center gap-2">
-                          <Building2 size={13} className="text-gray-400" />
-                          {b.branchCode || 'Không xác định'}
-                        </div>
-                      </td>
-                      <td className="py-2.5 text-center font-bold text-indigo-700">{b.count}</td>
-                      <td className="py-2.5 text-center text-emerald-600 font-bold">{b.paid}</td>
-                      <td className="py-2.5 text-right font-black text-gray-800">{b.revenue.toLocaleString('vi-VN')}đ</td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[400px]">
+                  <thead>
+                    <tr className="text-xs text-gray-400 border-b border-gray-100">
+                      <th className="pb-2 text-left font-bold">Chi nhánh</th>
+                      <th className="pb-2 text-center font-bold whitespace-nowrap">Học viên mới</th>
+                      <th className="pb-2 text-center font-bold whitespace-nowrap">Đã thu phí</th>
+                      <th className="pb-2 text-right font-bold whitespace-nowrap">Doanh thu</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {enrollment.byBranch.map((b, i) => (
+                      <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="py-2.5 font-medium text-gray-700 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <Building2 size={13} className="text-gray-400 flex-shrink-0" />
+                            {b.branchCode || 'Không xác định'}
+                          </div>
+                        </td>
+                        <td className="py-2.5 text-center font-bold text-indigo-700">{b.count}</td>
+                        <td className="py-2.5 text-center text-emerald-600 font-bold">{b.paid}</td>
+                        <td className="py-2.5 text-right font-black text-gray-800 whitespace-nowrap">{b.revenue.toLocaleString('vi-VN')}đ</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             ) : <div className="text-center text-gray-400 py-4 text-sm">Chưa có dữ liệu đăng ký</div>)}
           </div>
 

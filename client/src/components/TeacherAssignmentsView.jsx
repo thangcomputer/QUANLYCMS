@@ -218,48 +218,50 @@ const TeacherAssignmentsView = ({ teacherId, myStudents }) => {
               {activeSubmissions.submissions?.length === 0 ? (
                 <div className="text-center py-10 opacity-50"><p className="font-bold">Chưa có học viên nào nộp bài</p></div>
               ) : (
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-slate-50 text-slate-500 text-xs uppercase font-black tracking-wider">
-                      <th className="p-3 rounded-tl-xl">Học viên</th>
-                      <th className="p-3">Thời gian nộp</th>
-                      <th className="p-3">Trạng thái</th>
-                      <th className="p-3">Bài làm</th>
-                      <th className="p-3 rounded-tr-xl">Điểm / Chấm</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activeSubmissions.submissions.map(sub => {
-                      const isGraded = sub.status === 'graded';
-                      return (
-                        <tr key={sub._id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                          <td className="p-3 font-bold text-slate-700 text-sm">{sub.studentId?.name || 'Không xác định'}</td>
-                          <td className="p-3 text-xs font-semibold text-slate-500">{new Date(sub.submittedAt || sub.createdAt).toLocaleString('vi-VN')}</td>
-                          <td className="p-3">
-                            {isGraded ? <span className="bg-green-100 text-green-700 text-[10px] uppercase font-black px-2 py-1 rounded-md">Đã chấm</span> : <span className="bg-blue-100 text-blue-700 text-[10px] uppercase font-black px-2 py-1 rounded-md">Đã nộp</span>}
-                          </td>
-                          <td className="p-3">
-                            <a href={sub.submittedFileUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1">
-                              <Download size={14}/> Mở bài làm
-                            </a>
-                          </td>
-                          <td className="p-3">
-                            {isGraded ? (
-                              <div className="text-sm">
-                                <span className="font-black text-green-600">{sub.grade}/10</span>
-                                <span className="block text-[10px] text-slate-500 max-w-[120px] truncate" title={sub.teacherFeedback}>{sub.teacherFeedback}</span>
-                              </div>
-                            ) : (
-                              <button onClick={() => { setGradingSubmission(sub); setGradeData({ grade: '', teacherFeedback: '' }); }} className="text-xs font-bold bg-orange-100 text-orange-700 hover:bg-orange-200 px-3 py-1.5 rounded-lg transition-colors">
-                                Chấm bài
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[600px]">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-500 text-xs uppercase font-black tracking-wider border-b border-slate-100">
+                        <th className="p-3">Học viên</th>
+                        <th className="p-3">Thời gian nộp</th>
+                        <th className="p-3">Trạng thái</th>
+                        <th className="p-3">Bài làm</th>
+                        <th className="p-3">Điểm / Chấm</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeSubmissions.submissions.map(sub => {
+                        const isGraded = sub.status === 'graded';
+                        return (
+                          <tr key={sub._id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                            <td className="p-3 font-bold text-slate-700 text-sm whitespace-nowrap">{sub.studentId?.name || 'Không xác định'}</td>
+                            <td className="p-3 text-xs font-semibold text-slate-500 whitespace-nowrap">{new Date(sub.submittedAt || sub.createdAt).toLocaleString('vi-VN')}</td>
+                            <td className="p-3 whitespace-nowrap">
+                              {isGraded ? <span className="bg-green-100 text-green-700 text-[10px] uppercase font-black px-2 py-1 rounded-md">Đã chấm</span> : <span className="bg-blue-100 text-blue-700 text-[10px] uppercase font-black px-2 py-1 rounded-md">Đã nộp</span>}
+                            </td>
+                            <td className="p-3 whitespace-nowrap">
+                              <a href={sub.submittedFileUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1 w-max">
+                                <Download size={14}/> Mở bài làm
+                              </a>
+                            </td>
+                            <td className="p-3">
+                              {isGraded ? (
+                                <div className="text-sm">
+                                  <span className="font-black text-green-600">{sub.grade}/10</span>
+                                  <span className="block text-[10px] text-slate-500 max-w-[120px] truncate" title={sub.teacherFeedback}>{sub.teacherFeedback}</span>
+                                </div>
+                              ) : (
+                                <button onClick={() => { setGradingSubmission(sub); setGradeData({ grade: '', teacherFeedback: '' }); }} className="text-xs font-bold bg-orange-100 text-orange-700 hover:bg-orange-200 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap">
+                                  Chấm bài
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>

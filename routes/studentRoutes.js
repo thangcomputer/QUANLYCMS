@@ -57,46 +57,44 @@ router.get('/', [authMiddleware, branchFilter], async (req, res) => {
       .skip(skip)
       .limit(limitNum);
 
-    // ⭐ ĐẾM SỐ BUỔI ĐIỂM DANH THEO TỪNG HỌC VIÊN CỤ THỂ 
-    // Tuyệt đối không dùng biến đếm chung (global counter)
-    // Số buổi đã học = COUNT các bản ghi Schedule (Attendance) ĐỒNG THỜI 3 điều kiện:
-    const studentsWithRealSessions = await Promise.all(students.map(async (st) => {
+    // ⚡ FIX N+1: Thay vì chạy 3 query/học-viên, dùng 1 lần aggregate tổng hợp toàn bộ
+    const studentIds = students.map(s => s._id);
+
+    // 1. Đếm số buổi hoàn thành + số buổi chưa trả lương (gom theo học viên)
+    const sessionAgg = await Schedule.aggregate([
+      { $match: { studentId: { $in: studentIds }, status: 'completed' } },
+      { $group: {
+        _id: '$studentId',
+        completed:        { $sum: 1 },
+        pendingPayment:   { $sum: { $cond: [{ $eq: ['$is_paid_to_teacher', false] }, 1, 0] } },
+      }},
+    ]);
+    const sessionMap = Object.fromEntries(sessionAgg.map(r => [String(r._id), r]));
+
+    // 2. Kiểm tra Cooldown 12h bằng 1 query duy nhất
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+    const cooldownAgg = await Schedule.aggregate([
+      { $match: { studentId: { $in: studentIds }, status: 'completed', createdAt: { $gte: twelveHoursAgo } } },
+      { $group: { _id: '$studentId', latestCreatedAt: { $max: '$createdAt' } } },
+    ]);
+    const cooldownMap = Object.fromEntries(cooldownAgg.map(r => [String(r._id), r.latestCreatedAt]));
+
+    const studentsWithRealSessions = students.map(st => {
       const doc = st.toObject();
-      // Truy vấn bảng Schedule (Điểm danh)
-      const realCompleted = await Schedule.countDocuments({
-        studentId: st._id,      // 1. Đúng định danh học viên
-        course: st.course,      // 2. Đúng khóa học hiện tại
-        status: 'completed',    // 3. Trạng thái 'Đã học/PRESENT'
-      });
-      
-      // Tách biệt logic trừ buổi: Tổng trừ đi số đã điểm danh hợp lệ
-      doc.completedSessions = realCompleted;
-      doc.remainingSessions = Math.max(0, (st.totalSessions || 12) - realCompleted);
+      const sid = String(st._id);
+      const sess = sessionMap[sid];
+      const realCompleted = sess?.completed || 0;
+      doc.completedSessions             = realCompleted;
+      doc.remainingSessions             = Math.max(0, (st.totalSessions || 12) - realCompleted);
+      doc.pendingTeacherPaymentSessions = sess?.pendingPayment || 0;
 
-      // Đếm số buổi đã dạy nhưng chưa thanh toán cho Giảng viên
-      const pendingPaymentSessions = await Schedule.countDocuments({
-        studentId: st._id,
-        course: st.course,
-        status: 'completed',
-        is_paid_to_teacher: false
-      });
-      doc.pendingTeacherPaymentSessions = pendingPaymentSessions;
-
-      // ✅ COOLDOWN 12H FLAG: Kiểm tra xem học viên có thể điểm danh không
-      const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
-      const recentAttendance = await Schedule.findOne({
-        studentId: st._id,
-        course: st.course,
-        status: 'completed',
-        createdAt: { $gte: twelveHoursAgo },
-      }).sort({ createdAt: -1 }).select('createdAt').lean();
-
-      if (recentAttendance) {
-        const diffMs = Date.now() - new Date(recentAttendance.createdAt).getTime();
+      const lastAt = cooldownMap[sid];
+      if (lastAt) {
+        const diffMs   = Date.now() - new Date(lastAt).getTime();
         const remainHrs = Math.max(0, 12 - diffMs / (1000 * 60 * 60));
-        doc.can_check_in = false;
+        doc.can_check_in             = false;
         doc.remaining_cooldown_hours = parseFloat(remainHrs.toFixed(1));
-        doc.last_attendance_at = recentAttendance.createdAt;
+        doc.last_attendance_at       = lastAt;
       } else {
         doc.can_check_in = true;
         doc.remaining_cooldown_hours = 0;
@@ -104,7 +102,7 @@ router.get('/', [authMiddleware, branchFilter], async (req, res) => {
       }
 
       return doc;
-    }));
+    });
 
     res.json({
       success: true,
@@ -331,10 +329,7 @@ router.post('/', [authMiddleware, branchFilter], async (req, res) => {
       req.body.branchCode = req.userBranchCode || '';
     }
 
-    console.log("=== POST /api/students ===");
-    console.log("req.body:", req.body);
     const student = new Student(req.body);
-    console.log("student doc:", student.toObject());
     await student.save();
 
     const io = req.app.get('io');
@@ -386,15 +381,10 @@ router.put('/:id', authMiddleware, async (req, res) => {
       });
     }
 
-    console.log("=== PUT /api/students ===");
-    console.log("safeBody from UI:", safeBody);
-
     const student = await Student.findByIdAndUpdate(req.params.id, safeBody, {
       new: true,
       runValidators: true,
     }).populate('teacherId', 'name phone specialty');
-
-    console.log("student updated doc:", student ? student.toObject() : null);
 
     if (!student) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy học viên' });

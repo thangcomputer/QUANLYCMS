@@ -34,7 +34,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
       // Tạo Student mới
       const newStudent = await Student.create({
         name, email, googleId, avatar,
-        phone: '', zalo: '', course: '', paid: false, status: 'active',
+        phone: 'Chưa cập nhật', zalo: 'Chưa cập nhật', course: 'Chưa xếp lớp', price: 0, paid: false, status: 'Chờ xếp lớp',
         password: Math.random().toString(36).slice(-10),
       });
       return done(null, { ...newStudent.toObject(), role: 'student' });
@@ -221,7 +221,7 @@ router.get('/zalo/callback', async (req, res) => {
     if (!student) {
       student = await Student.create({
         name: zName, zaloId, avatar: zAvatar,
-        phone: '', zalo: '', course: '', paid: false, status: 'active',
+        phone: 'Chưa cập nhật', zalo: 'Chưa cập nhật', course: 'Chưa xếp lớp', price: 0, paid: false, status: 'Chờ xếp lớp',
         password: Math.random().toString(36).slice(-10),
       });
     }

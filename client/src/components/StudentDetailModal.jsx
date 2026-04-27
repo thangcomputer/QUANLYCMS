@@ -310,8 +310,9 @@ export default function StudentDetailModal({ studentId, onClose }) {
               {activeTab === 'attendance' && (
                 <div className="animate-in slide-in-from-right-10 duration-500">
                   <div className="bg-white rounded-3xl overflow-hidden border border-slate-100">
-                    <table className="w-full text-left">
-                      <thead>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left min-w-[600px]">
+                        <thead>
                         <tr className="bg-slate-50">
                           <th className="px-6 py-4 text-[11px] font-black text-slate-400 tracking-widest uppercase">Ngày học</th>
                           <th className="px-4 py-4 text-[11px] font-black text-slate-400 tracking-widest uppercase">Giảng viên</th>
@@ -339,6 +340,7 @@ export default function StudentDetailModal({ studentId, onClose }) {
                         )}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 </div>
               )}
@@ -391,8 +393,9 @@ export default function StudentDetailModal({ studentId, onClose }) {
 
                   <h3 className="font-black text-slate-900 text-sm uppercase tracking-wider pt-4">Lịch sử hóa đơn</h3>
                   <div className="bg-white rounded-3xl overflow-hidden border border-slate-100 shadow-sm">
-                    <table className="w-full text-left">
-                      <thead>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left min-w-[600px]">
+                        <thead>
                         <tr className="bg-slate-50">
                           <th className="px-6 py-4 text-[11px] font-black text-slate-400 tracking-widest uppercase">Mã Hóa đơn</th>
                           <th className="px-4 py-4 text-[11px] font-black text-slate-400 tracking-widest uppercase">Ngày tạo</th>
@@ -422,6 +425,7 @@ export default function StudentDetailModal({ studentId, onClose }) {
                         )}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 </div>
               )}
@@ -494,9 +498,10 @@ export default function StudentDetailModal({ studentId, onClose }) {
                     )}
 
                     <div className="bg-white rounded-[32px] overflow-hidden border border-slate-100 shadow-sm">
-                      <table className="w-full text-left">
-                        <thead>
-                          <tr className="bg-slate-50">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left min-w-[600px]">
+                          <thead>
+                            <tr className="bg-slate-50">
                             <th className="px-6 py-4 text-[11px] font-black text-slate-400 tracking-widest uppercase">Bài tập</th>
                             <th className="px-4 py-4 text-[11px] font-black text-slate-400 tracking-widest uppercase">Thời hạn</th>
                             <th className="px-4 py-4 text-[11px] font-black text-slate-400 tracking-widest uppercase text-center">Tiến độ</th>
@@ -554,6 +559,7 @@ export default function StudentDetailModal({ studentId, onClose }) {
                           })}
                         </tbody>
                       </table>
+                      </div>
                     </div>
                   </div>
                 )}

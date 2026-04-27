@@ -1797,7 +1797,7 @@ const AdminDashboard = ({ onNavigate }) => {
                                     className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
                                     {s.studentExamUnlocked ? <><Lock size={13} /> Khóa phòng thi</> : <><Unlock size={13} /> Cho phép thi</>}
                                   </button>
-                                  <button onClick={() => { updateStudent(s.id || s._id, { requireWebcam: !s.requireWebcam }); setActionMenuId(null); }}
+                                  <button onClick={() => { ctxUpdateStudent(s.id || s._id, { requireWebcam: !s.requireWebcam }); setActionMenuId(null); }}
                                     className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-gray-700 hover:bg-teal-50 hover:text-teal-600 transition-colors">
                                     <Camera size={13} /> {s.requireWebcam !== false ? 'Tắt giám sát Webcam' : 'Bật giám sát Webcam'}
                                   </button>
@@ -2302,9 +2302,13 @@ const AdminDashboard = ({ onNavigate }) => {
                               </span>
                             </div>
                           </div>
-                          <div className="bg-white p-4 rounded-2xl border border-gray-100 relative mt-2 shadow-sm">
-                            <MessageSquare size={14} className="absolute -left-2 -top-2 text-red-300" />
-                            <p className="text-sm text-gray-600 italic">"{ev.comment}"</p>
+                          <div className="bg-white p-5 rounded-3xl border-2 border-red-50 relative mt-4 shadow-sm min-h-[80px] flex items-center">
+                            <div className="absolute -left-3 -top-3 bg-red-100 rounded-full p-2 border-4 border-white shadow-sm">
+                               <MessageSquare size={18} className="text-red-500" />
+                            </div>
+                            <p className="text-base text-gray-800 font-medium leading-relaxed italic pl-2">
+                              {ev.comment ? `"${ev.comment}"` : <span className="text-gray-400">Không có lời nhắn đi kèm.</span>}
+                            </p>
                           </div>
                         </div>
                         <div className="flex flex-col gap-2 flex-shrink-0">

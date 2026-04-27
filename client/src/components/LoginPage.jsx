@@ -204,19 +204,7 @@ const LoginPage = ({ onLogin }) => {
                 )}
               </button>
 
-              <div className="relative py-4">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
-                <div className="relative flex justify-center text-[10px] uppercase font-black tracking-widest px-4"><span className="bg-[#0f172a] text-gray-500 px-4">Hoặc sử dụng</span></div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <button type="button" className="flex items-center justify-center gap-3 bg-white/5 border border-white/10 rounded-2xl py-3 text-sm font-black text-gray-300 hover:bg-white/10 transition-all">
-                  <img src="https://www.google.com/favicon.ico" className="w-4 h-4" /> Google
-                </button>
-                <button type="button" className="flex items-center justify-center gap-3 bg-white/5 border border-white/10 rounded-2xl py-3 text-sm font-black text-gray-300 hover:bg-white/10 transition-all">
-                  <img src="https://stc-zaloprofile.zdn.vn/favicon.ico" className="w-4 h-4 rounded-full" /> Zalo
-                </button>
-              </div>
             </form>
 
             <div className="text-center pt-8 animate-in fade-in duration-1000 delay-500">

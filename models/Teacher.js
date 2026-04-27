@@ -26,6 +26,8 @@ const TeacherSchema = new mongoose.Schema(
       match: [/^[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}$/, 'Email không hợp lệ'],
       sparse: true,
     },
+    googleId: { type: String, sparse: true, unique: true },
+    zaloId: { type: String, sparse: true, unique: true },
     avatar: { type: String, default: '' }, // URL ảnh đại diện
 
     // ── Tài khoản đăng nhập ────────────────────────────────────────

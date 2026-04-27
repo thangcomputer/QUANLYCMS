@@ -291,26 +291,13 @@ const StudentExamRoom = ({ onNavigate, onStartExam }) => {
   });
 
   const [subjects, setSubjects] = useState(() => buildSubjects(student?.examProgress));
-  const skipSaveRef = React.useRef(false);
 
-  // Sync FROM DataContext → local state (khi admin reset, mở khóa, v.v.)
+  // Chỉ Sync One-Way TỪ DataContext → local state để tránh vĩnh viễn Infinite Loop Update
   React.useEffect(() => {
     if (student?.examProgress && Array.isArray(student.examProgress)) {
-      skipSaveRef.current = true;
       setSubjects(buildSubjects(student.examProgress));
     }
   }, [JSON.stringify(student?.examProgress)]);
-
-  // Lưu tiến độ thi vào DataContext mỗi khi subjects thay đổi (chỉ khi local change)
-  React.useEffect(() => {
-    if (skipSaveRef.current) {
-      skipSaveRef.current = false;
-      return;
-    }
-    if (student?._id || student?.id) {
-      updateStudent(student._id || student.id, { examProgress: subjects });
-    }
-  }, [subjects]);
 
   // Luồng 1: Admin ghi đè mở toàn bộ
   const isAdminApproved = student?.studentExamUnlocked === true;

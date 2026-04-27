@@ -136,7 +136,7 @@ function StudentTestWrapper({ session }) {
 function AppRoutes({ session, onSessionChange, isAuthLoading, onLogin, onLogout }) {
   const nav = useNavigate();
 
-  const go = useCallback((page) => {
+  const go = useCallback((page, data) => {
     const routes = {
       register: '/',
       admin:    '/admin',
@@ -148,7 +148,7 @@ function AppRoutes({ session, onSessionChange, isAuthLoading, onLogin, onLogout 
               :                               '/teacher/inbox',
       test:     '/teacher/test',
     };
-    nav(routes[page] || '/');
+    nav(routes[page] || '/', { state: data });
   }, [nav, session]);
 
   // Hiển thị loading khi đang verify token

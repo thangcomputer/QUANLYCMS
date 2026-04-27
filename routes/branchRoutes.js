@@ -17,6 +17,8 @@ const adminGuard = [authMiddleware, checkPermission('manage_staff')];
 router.get('/', async (req, res) => {
   try {
     const branches = await Branch.find({ isActive: true }).sort({ name: 1 });
+    // Cache 5 phút — danh sách chi nhánh ít thay đổi
+    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=60');
     return res.json({ success: true, count: branches.length, data: branches });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });

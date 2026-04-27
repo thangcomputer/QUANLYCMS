@@ -14,6 +14,10 @@ const StudentSchema = new mongoose.Schema(
       trim: true,
       uppercase: true,
     },
+    email: { type: String, trim: true, lowercase: true },
+    googleId: { type: String, sparse: true, unique: true },
+    zaloId: { type: String, sparse: true, unique: true },
+    avatar: { type: String, default: '' },
     age: {
       type: Number,
       min: [10, 'Tuổi tối thiểu là 10'],
@@ -146,6 +150,11 @@ const StudentSchema = new mongoose.Schema(
       default: false,
       // Chỉ được set = true khi đã hoàn thành đủ totalSessions buổi học
     },
+    requireWebcam: {
+      type: Boolean,
+      default: true,
+      // true: Bắt buộc bật webcam khi thi, false: Bỏ qua kiểm tra webcam/tab
+    },
 
     // ── Tiến độ thi tốt nghiệp (per-subject) ────────────────────
     examProgress: [{
@@ -208,11 +217,16 @@ StudentSchema.methods.comparePassword = async function (candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-// ── Indexes ───────────────────────────────────────────────────────
+// ── Indexes ──────────────────────────────────────────────────────────────────────
 StudentSchema.index({ zalo: 1 });
+StudentSchema.index({ phone: 1 });                    // Auth lookup
 StudentSchema.index({ course: 1 });
 StudentSchema.index({ teacherId: 1 });
+StudentSchema.index({ branchId: 1 });
 StudentSchema.index({ paid: 1 });
+StudentSchema.index({ status: 1 });                    // Lọc "Chờ xếp lớp" / "Đang học"
+StudentSchema.index({ studentExamUnlocked: 1 });       // Kiểm tra phòng thi
+StudentSchema.index({ teacherId: 1, status: 1 });      // Bộ đôi hay dùng nhất
 
 const Student = mongoose.model('Student', StudentSchema);
 module.exports = Student;

@@ -157,27 +157,29 @@ export default function StudentImportModal({ onClose, branchId }) {
                </div>
 
                <div className="flex-1 max-h-64 overflow-y-auto rounded-2xl border border-slate-100">
-                  <table className="w-full text-left text-xs">
-                     <thead className="sticky top-0 bg-slate-50 border-b border-slate-100">
-                        <tr>
-                           <th className="p-3 font-black text-slate-400 uppercase">Họ tên</th>
-                           <th className="p-3 font-black text-slate-400 uppercase">SĐT/Zalo</th>
-                           <th className="p-3 font-black text-slate-400 uppercase">Khóa học</th>
-                        </tr>
-                     </thead>
-                     <tbody className="divide-y divide-slate-50">
-                        {data.slice(0, 10).map((s, i) => (
-                           <tr key={i} className="hover:bg-slate-50 transition">
-                              <td className="p-3 font-black text-slate-700">{s.name}</td>
-                              <td className="p-3 font-medium text-slate-500 font-mono">{s.phone}</td>
-                              <td className="p-3 font-bold text-emerald-600 uppercase">{s.course}</td>
-                           </tr>
-                        ))}
-                        {data.length > 10 && (
-                          <tr><td colSpan={3} className="p-3 text-center text-slate-400 font-black tracking-widest text-[9px]">VÀ {data.length - 10} BẢN GHI KHÁC...</td></tr>
-                        )}
-                     </tbody>
-                  </table>
+                  <div className="overflow-x-auto relative">
+                    <table className="w-full text-left text-xs min-w-[500px]">
+                       <thead className="sticky top-0 bg-slate-50 border-b border-slate-100">
+                          <tr>
+                             <th className="p-3 font-black text-slate-400 uppercase">Họ tên</th>
+                             <th className="p-3 font-black text-slate-400 uppercase">SĐT/Zalo</th>
+                             <th className="p-3 font-black text-slate-400 uppercase">Khóa học</th>
+                          </tr>
+                       </thead>
+                       <tbody className="divide-y divide-slate-50">
+                          {data.slice(0, 10).map((s, i) => (
+                             <tr key={i} className="hover:bg-slate-50 transition">
+                                <td className="p-3 font-black text-slate-700 whitespace-nowrap">{s.name}</td>
+                                <td className="p-3 font-medium text-slate-500 font-mono whitespace-nowrap">{s.phone}</td>
+                                <td className="p-3 font-bold text-emerald-600 uppercase whitespace-nowrap">{s.course}</td>
+                             </tr>
+                          ))}
+                          {data.length > 10 && (
+                            <tr><td colSpan={3} className="p-3 text-center text-slate-400 font-black tracking-widest text-[9px]">VÀ {data.length - 10} BẢN GHI KHÁC...</td></tr>
+                          )}
+                       </tbody>
+                    </table>
+                  </div>
                </div>
 
                <div className="flex gap-3">

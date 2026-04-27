@@ -7,7 +7,7 @@ const CONFIG = {
   MAX_RESETS: 1,                   // Cho phép reset 1 lần, lần sau hủy bài thi
 };
 
-const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam }, ref) => {
+const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam, requireWebcam = true }, ref) => {
   const [cameraWarnings, setCameraWarnings] = useState(0);
   const [tabWarnings, setTabWarnings] = useState(0);
   const [cameraStatus, setCameraStatus] = useState('loading');
@@ -53,6 +53,12 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam }, ref) => {
   // CAMERA DETECTION - NATIVE / HEURISTIC
   useEffect(() => {
     if (!isActive || isTerminated) return;
+    if (!requireWebcam) {
+      setCameraStatus('active'); // Dummy status to avoid UI warning
+      setLastFaceDetected(true);
+      return;
+    }
+    
     let isMounted = true;
     const canvas = document.createElement('canvas');
     canvas.width = 160; canvas.height = 120;
@@ -148,7 +154,38 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam }, ref) => {
     };
     setupCamera();
     return () => { isMounted = false; clearInterval(intervalRef.current); if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); };
-  }, [isActive, isTerminated, terminateExam]);
+  }, [isActive, isTerminated, requireWebcam, terminateExam]);
+
+  // TAB DETECTION
+  useEffect(() => {
+    if (!isActive || isTerminated || !requireWebcam) return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        tabWarningsRef.current += 1;
+        setTabWarnings(tabWarningsRef.current);
+        const w = tabWarningsRef.current;
+        playWarningBeep();
+
+        if (w >= 2) {
+          terminateExam('Chuyển tab hoặc rời khỏi màn hình thi quá 2 lần. Bài thi bị hủy tự động!');
+        } else {
+          setWarningOverlay({
+            type: 'tab',
+            message: 'CẢNH BÁO CHUYỂN TAB!',
+            sub: 'Hệ thống phát hiện bạn vừa rời khỏi màn hình thi. Nếu tiếp tục vi phạm nốt lần nữa, bài thi sẽ tự động HỦY.',
+            count: w,
+            max: 2
+          });
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isActive, isTerminated, requireWebcam, terminateExam]);
 
   if (!isActive) return null;
 

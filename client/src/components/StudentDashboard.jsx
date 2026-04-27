@@ -114,7 +114,7 @@ const StatCard = ({ icon: Icon, label, value, sub, color }) => (
 
 // ─── Schedule Section ───────────────────────────────────────────────────────
 
-const ScheduleView = ({ schedules, student }) => {
+const ScheduleView = ({ schedules, student, setNoteModalSched }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
 
@@ -273,8 +273,13 @@ const ScheduleView = ({ schedules, student }) => {
                          </a>
                        )}
                        <button 
-                         onClick={() => setNoteModalSched(s)}
-                         className="flex-1 bg-white/10 hover:bg-white/20 border border-white/20 text-white py-2.5 rounded-xl text-xs font-black text-center transition-all">
+                         type="button"
+                         onClick={(e) => {
+                           e.preventDefault();
+                           e.stopPropagation();
+                           setNoteModalSched(s);
+                         }}
+                         className="flex-1 bg-white/10 hover:bg-white/20 border border-white/20 text-white py-2.5 rounded-xl text-xs font-black text-center transition-all relative z-10 cursor-pointer">
                            GHI CHÚ / ĐỔI LỊCH
                        </button>
                     </div>
@@ -576,7 +581,9 @@ const EvaluationView = ({
   RATING_CRITERIA,
   rateTeacher,
   privateEvaluations,
-  teacherRatingData
+  teacherRatingData,
+  setTeacherRatingData,
+  api
 }) => {
   const [privateForm, setPrivateForm] = useState({ satisfied: 'yes', lessonClear: 'yes', comment: '' });
   const [activeTab, setActiveTab] = useState('admin'); // 'admin' | 'teacher'
@@ -592,7 +599,7 @@ const EvaluationView = ({
           </div>
           <div>
             <h2 className="text-2xl font-black">Trung tâm Lắng nghe Bạn!</h2>
-            <p className="text-yellow-100 text-sm mt-1 max-w-lg">Phản hồi của bạn giúp chúng tôi cải thiện chất lượng giảng dạy. Mọi đánh giá riêng cho Admin đều được bảo mật 100%.</p>
+            <p className="text-yellow-100 text-sm mt-1 max-w-lg">Phản hồi của bạn giúp chúng tôi cải thiện chất lượng giảng dạy. Mọi đánh giá riêng cho Trung tâm đều được bảo mật 100%.</p>
           </div>
         </div>
       </div>
@@ -605,7 +612,7 @@ const EvaluationView = ({
             activeTab === 'admin' ? 'bg-white text-red-600 shadow-md' : 'text-slate-400 hover:text-slate-600'
           }`}
         >
-          <AlertCircle size={14} /> Gửi Phản hồi Admin
+          <AlertCircle size={14} /> Phản hồi cho Trung tâm
         </button>
         <button 
           onClick={() => setActiveTab('teacher')}
@@ -678,8 +685,8 @@ const EvaluationView = ({
                      </div>
 
                      {isEvaluating && (
-                       <div className="px-6 pb-6 animate-in slide-in-from-top-4 duration-300">
-                          <div className="bg-slate-50/50 rounded-3xl p-6 border border-slate-100 space-y-6">
+                       <div className="px-4 pb-4 animate-in slide-in-from-top-4 duration-300">
+                          <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100 space-y-4">
                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                <div className="space-y-3">
                                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Mức độ hài lòng với trung tâm?</p>
@@ -691,8 +698,8 @@ const EvaluationView = ({
                                      <button 
                                        key={v.val} 
                                        onClick={() => setPrivateForm(prev => ({ ...prev, satisfied: v.val }))}
-                                       className={`flex-1 py-3 border-2 rounded-2xl text-[10px] font-black transition-all uppercase ${
-                                         privateForm.satisfied === v.val ? 'bg-red-600 border-red-600 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-400 hover:border-red-200'
+                                       className={`flex-1 py-2 border-2 rounded-xl text-[9px] font-black transition-all uppercase ${
+                                         privateForm.satisfied === v.val ? 'bg-red-600 border-red-600 text-white shadow-md' : 'bg-white border-slate-100 text-slate-400 hover:border-red-200'
                                        }`}
                                      >
                                        {v.label}
@@ -710,8 +717,8 @@ const EvaluationView = ({
                                      <button 
                                        key={v.val} 
                                        onClick={() => setPrivateForm(prev => ({ ...prev, lessonClear: v.val }))}
-                                       className={`flex-1 py-3 border-2 rounded-2xl text-[10px] font-black transition-all uppercase ${
-                                         privateForm.lessonClear === v.val ? 'bg-red-600 border-red-600 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-400 hover:border-red-200'
+                                       className={`flex-1 py-2 border-2 rounded-xl text-[9px] font-black transition-all uppercase ${
+                                         privateForm.lessonClear === v.val ? 'bg-red-600 border-red-600 text-white shadow-md' : 'bg-white border-slate-100 text-slate-400 hover:border-red-200'
                                        }`}
                                      >
                                        {v.label}
@@ -722,12 +729,12 @@ const EvaluationView = ({
                              </div>
 
                              <div className="space-y-2">
-                               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Góp ý riêng cho Admin điều chỉnh (Bảo mật):</p>
+                               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1">Góp ý riêng cho Trung tâm điều chỉnh (Bảo mật):</p>
                                <textarea 
                                  value={privateForm.comment}
                                  onChange={e => setPrivateForm(prev => ({ ...prev, comment: e.target.value }))}
                                  placeholder="Nhập điều bạn chưa hài lòng hoặc muốn trung tâm cải thiện..."
-                                 className="w-full bg-white border border-slate-100 rounded-2xl p-5 text-sm font-medium outline-none focus:border-red-500 transition-all h-32 shadow-inner"
+                                 className="w-full bg-white border border-slate-100 rounded-xl p-3 text-xs font-medium outline-none focus:border-red-500 transition-all h-[60px] shadow-inner resize-none"
                                />
                              </div>
 
@@ -748,9 +755,9 @@ const EvaluationView = ({
                                      type: 'success' 
                                  });
                                }}
-                               className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 py-4 rounded-2xl text-white font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-3 shadow-xl shadow-red-100"
+                               className="w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 py-2.5 rounded-xl text-white font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-100"
                              >
-                               <Star size={18} className="fill-white" /> {existingEval ? 'CẬP NHẬT PHẢN HỒI' : 'GỬI PHẢN HỒI RIÊNG CHO ADMIN'}
+                               <Star size={14} className="fill-white" /> {existingEval ? 'CẬP NHẬT PHẢN HỒI' : 'GỬI PHẢN HỒI CHO TRUNG TÂM'}
                              </button>
                              <p className="text-[9px] text-center text-slate-400 italic">Mọi thông tin bạn gửi ở đây Giảng viên sẽ KHÔNG biết.</p>
                           </div>
@@ -768,7 +775,7 @@ const EvaluationView = ({
           </div>
         ) : (
           /* ═══ TAB: TEACHER RATING ═══ */
-          <div className="max-w-2xl mx-auto space-y-6">
+          <div className="max-w-4xl mx-auto space-y-6">
             <div className="flex items-center justify-center gap-2 mb-2">
               <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">
                 <Star size={24} className="text-yellow-500 fill-yellow-500" /> Đánh giá Giảng viên (Công khai)
@@ -782,20 +789,27 @@ const EvaluationView = ({
               const showForm = !hasRated || isEditing;
 
               return (
-                <div className="bg-white rounded-[40px] p-8 md:p-12 border border-slate-100 shadow-xl space-y-10">
-                  <div className="flex flex-col items-center text-center space-y-4">
-                    <div className="w-24 h-24 bg-gradient-to-br from-yellow-100 to-orange-50 rounded-3xl flex items-center justify-center text-yellow-600 font-black text-4xl shadow-inner border border-yellow-200/50">
+                <div className="bg-white rounded-[32px] p-6 md:p-8 border border-slate-100 shadow-xl flex flex-col md:flex-row gap-6 md:gap-8 items-stretch">
+                  <div className="flex flex-col items-center justify-center text-center space-y-3 md:w-[35%] md:border-r border-slate-100 md:pr-8 py-2">
+                    <div className="w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-yellow-100 to-orange-50 rounded-[20px] flex items-center justify-center text-yellow-600 font-black text-2xl md:text-3xl shadow-inner border border-yellow-200/50">
                       {studentData.teacher?.split(' ').slice(-1)[0][0]}
                     </div>
                     <div>
-                      <h4 className="text-2xl font-black text-slate-800">{studentData.teacher}</h4>
-                      <p className="text-xs text-slate-400 font-black uppercase tracking-[0.2em] mt-1">Giảng viên trực tiếp</p>
+                      <h4 className="text-lg md:text-xl font-black text-slate-800">{studentData.teacher}</h4>
+                      <p className="text-[9px] md:text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-1">Giảng viên trực tiếp</p>
                     </div>
+                    {!hasRated || isEditing ? (
+                      <div className="w-full pt-4 md:pt-6 space-y-2">
+                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest text-left px-1">LỜI NHẮN CHO GIẢNG VIÊN (Tùy chọn):</p>
+                        <textarea value={ratingComment} onChange={e => setRatingComment(e.target.value)}
+                          placeholder="Chia sẻ thêm nếu bạn muốn..."
+                          className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-[13px] font-medium outline-none focus:border-yellow-400 focus:bg-white transition-all h-[95px] shadow-inner resize-none text-left" />
+                      </div>
+                    ) : null}
                   </div>
 
-                  <div className="h-px bg-slate-100 w-full opacity-50"></div>
-
-                  {hasRated && !isEditing ? (
+                  <div className="flex-1 flex flex-col justify-center">
+                    {hasRated && !isEditing ? (
                     <div className="bg-yellow-50/50 rounded-[32px] p-8 border border-yellow-100 space-y-6 text-center">
                        <div className="flex flex-col items-center gap-2">
                           <span className="text-5xl font-black text-yellow-600 tracking-tighter">{existingRating?.criteria?.stars || 5}</span>
@@ -817,53 +831,84 @@ const EvaluationView = ({
                        </button>
                     </div>
                   ) : showForm ? (
-                    <div className="space-y-8">
-                      {RATING_CRITERIA && Object.entries(RATING_CRITERIA).map(([catKey, cat]) => (
-                        <div key={catKey} className="space-y-3">
-                          <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest text-center">{cat.label}</p>
-                          <div className="flex flex-wrap justify-center gap-2">
-                            {cat.options.map(opt => (
-                              <button key={opt.key}
-                                onClick={() => setRatingCriteria(prev => ({ ...prev, [catKey]: opt.key }))}
-                                className={`px-4 py-2.5 rounded-2xl text-[10px] font-black transition-all border-2 ${
-                                  ratingCriteria[catKey] === opt.key ? 'bg-yellow-500 border-yellow-500 text-white shadow-lg' : 'bg-slate-50 border-slate-50 text-slate-400 hover:border-yellow-200'
-                                }`}>
-                                {opt.label}
-                              </button>
-                            ))}
+                    <div className="space-y-6 flex-1 flex flex-col justify-between">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4">
+                        {RATING_CRITERIA && Object.entries(RATING_CRITERIA).map(([catKey, cat]) => (
+                          <div key={catKey} className="space-y-2 bg-slate-50/50 p-3 rounded-[20px] border border-slate-100/50">
+                            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest text-center">{cat.label}</p>
+                            <div className="flex flex-wrap justify-center gap-1.5">
+                              {cat.options.map(opt => (
+                                <button key={opt.key}
+                                  onClick={() => setRatingCriteria(prev => ({ ...prev, [catKey]: opt.key }))}
+                                  className={`relative px-3 py-1.5 rounded-xl text-[9px] font-black transition-all outline-none focus:outline-none overflow-hidden flex-1 ${
+                                    ratingCriteria[catKey] === opt.key 
+                                      ? 'bg-gradient-to-r from-orange-400 to-yellow-500 text-white shadow-[0_4px_10px_-2px_rgba(249,115,22,0.4)] scale-105 border-transparent' 
+                                      : 'bg-white border text-slate-400 hover:bg-orange-50 hover:border-orange-200 hover:text-orange-500'
+                                  }`}>
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                      
-                      <div className="space-y-3">
-                        <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest text-center">Lời nhắn cho Giảng viên:</p>
-                        <textarea value={ratingComment} onChange={e => setRatingComment(e.target.value)}
-                          placeholder="Nhập cảm nhận, lời khen hoặc góp ý xây dựng cho Giảng viên..."
-                          className="w-full bg-slate-50 border border-slate-100 rounded-[32px] p-6 text-sm font-medium outline-none focus:border-yellow-400 focus:bg-white transition-all h-32 shadow-inner" />
+                        ))}
                       </div>
 
                       <button 
-                        onClick={async () => {
-                          await rateTeacher(studentData.teacherId, STUDENT_ID, ratingCriteria, ratingComment);
-                          setRatingSubmitted(true);
-                          setIsEditingRating(false);
-                          
-                          // Refetch to update UI instantly!
-                          api.evaluations.getByTeacher(studentData.teacherId).then(res => {
-                            if (res.success && res.data) {
-                              const validRatings = res.data.filter(r => r.criteria && r.criteria.stars);
-                              const count = validRatings.length;
-                              const avg = count > 0 ? (Math.round((validRatings.reduce((s, r) => s + r.criteria.stars, 0) / count) * 10) / 10) : 0;
-                              setTeacherRatingData({ avg, count, ratings: res.data });
+                        type="button"
+                        disabled={Object.keys(RATING_CRITERIA || {}).some(k => !ratingCriteria[k])}
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          try {
+                            const scores = Object.entries(ratingCriteria || {}).map(([cat, key]) => {
+                              const opt = RATING_CRITERIA[cat]?.options.find(o => o.key === key);
+                              return opt ? opt.score : 3;
+                            });
+                            const newStars = scores.length > 0 ? (Math.round((scores.reduce((s, v) => s + v, 0) / scores.length) * 10) / 10) : 5;
+
+                            // Optimistic UI Update first
+                            setTeacherRatingData(prev => {
+                              const safeRatings = Array.isArray(prev.ratings) ? prev.ratings : [];
+                              const newRatings = [...safeRatings];
+                              const idx = newRatings.findIndex(r => String(r.studentId) === String(STUDENT_ID));
+                              const fakeData = { studentId: STUDENT_ID, comment: ratingComment, criteria: { ...ratingCriteria, stars: newStars } };
+                              if (idx >= 0) newRatings[idx] = fakeData;
+                              else newRatings.push(fakeData);
+                              return { ...prev, ratings: newRatings };
+                            });
+
+                            setRatingSubmitted(true);
+                            setIsEditingRating(false);
+
+                            // Then send API
+                            if (studentData.teacherId) {
+                              await rateTeacher(studentData.teacherId, STUDENT_ID, ratingCriteria, ratingComment);
+                              
+                              // Refetch to ensure sync
+                              api.evaluations.getByTeacher(studentData.teacherId).then(res => {
+                                if (res.success && res.data) {
+                                  const validRatings = res.data.filter(r => r.criteria && r.criteria.stars);
+                                  const count = validRatings.length;
+                                  const avg = count > 0 ? (Math.round((validRatings.reduce((s, r) => s + r.criteria.stars, 0) / count) * 10) / 10) : 0;
+                                  setTeacherRatingData({ avg, count, ratings: res.data });
+                                }
+                              }).catch(err => console.error("Refetch rating check error:", err));
                             }
-                          });
+                          } catch (err) {
+                            console.error("Submit Evaluation Logic Crash:", err);
+                          }
                         }}
-                        className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 py-5 rounded-[28px] text-white font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-yellow-200 transition-all active:scale-[0.98]"
+                        className={`w-full py-3.5 rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] transition-all relative z-50 cursor-pointer overflow-hidden ${
+                          Object.keys(RATING_CRITERIA || {}).some(k => !ratingCriteria[k]) 
+                            ? 'bg-slate-100 text-slate-300 cursor-not-allowed' 
+                            : 'bg-gradient-to-r from-orange-400 to-yellow-500 text-white shadow-[0_15px_35px_-10px_rgba(249,115,22,0.4)] hover:shadow-[0_20px_40px_-5px_rgba(249,115,22,0.5)] hover:-translate-y-1 active:scale-95'
+                        }`}
                       >
-                        GỬI ĐÁNH GIÁ CÔNG KHAI
+                        {Object.keys(RATING_CRITERIA || {}).some(k => !ratingCriteria[k]) ? 'CHỌN ĐỦ TIÊU CHÍ ĐỂ GỬI' : 'GỬI ĐÁNH GIÁ CÔNG KHAI'}
                       </button>
                     </div>
                   ) : null}
+                  </div>
                 </div>
               );
             })()}
@@ -1130,12 +1175,23 @@ const StudentDashboard = ({ onNavigate }) => {
            schedule={noteModalSched} 
            onClose={() => setNoteModalSched(null)} 
            onSubmit={async (noteText) => {
+             const targetId = noteModalSched._id || noteModalSched.id;
+             
+             // 1. Tắt Modal trước ngay lập tức để học viên không phải đợi (Optimistic)
+             setNoteModalSched(null);
+             
+             // 2. Thử cập nhật giao diện ngầm nếu tồn tại hàm báo mảng
              try {
-               await api.schedules.update(noteModalSched._id, { studentNote: noteText, hasUnreadStudentNote: true });
-               setSchedules(prev => prev.map(s => s._id === noteModalSched._id ? { ...s, studentNote: noteText } : s));
-               setNoteModalSched(null);
+               if (typeof setSchedules === 'function') {
+                 setSchedules(prev => prev.map(s => (s._id === targetId || s.id === targetId) ? { ...s, studentNote: noteText } : s));
+               }
+             } catch(err) { /* ignore */ }
+
+             // 3. Gửi chạy ngầm tới máy chủ
+             try {
+               await api.schedules.update(targetId, { studentNote: noteText, hasUnreadStudentNote: true });
              } catch(e) {
-               console.error(e);
+               console.error('Lỗi khi gửi Note:', e);
              }
            }} 
          />
@@ -1241,7 +1297,7 @@ const StudentDashboard = ({ onNavigate }) => {
                 {mySchedules?.filter(s => s.status === 'completed').length || 0}/{studentData.totalSessions} buổi hoàn thành
               </span>
             </div>
-            <ScheduleView schedules={mySchedules} student={studentData} />
+            <ScheduleView schedules={mySchedules} student={studentData} setNoteModalSched={setNoteModalSched} />
 
             {/* Nhật ký điểm danh & nhận xét */}
             <div className="mt-8">
@@ -1322,6 +1378,7 @@ const StudentDashboard = ({ onNavigate }) => {
             privateEvaluations={privateEvaluations}
             teacherRatingData={teacherRatingData}
             setTeacherRatingData={setTeacherRatingData}
+            api={api}
           />
 
         ) : currentHash === 'profile' ? (

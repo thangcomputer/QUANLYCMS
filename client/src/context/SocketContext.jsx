@@ -128,17 +128,22 @@ export const SocketProvider = ({ userId, role, name, children }) => {
     });
 
     // Gọi refresh data khi có thay đổi từ server (phổ biến)
-    newSocket.on('data:refresh', (data) => {
+    const triggerRefresh = (data) => {
       if (dataRefreshCallbackRef.current) {
         dataRefreshCallbackRef.current(data);
       }
-    });
+    };
 
-    newSocket.on('student:updated', (data) => {
-      if (dataRefreshCallbackRef.current) {
-        dataRefreshCallbackRef.current(data);
-      }
-    });
+    newSocket.on('data:refresh', triggerRefresh);
+    newSocket.on('student:updated', triggerRefresh);
+    
+    // Binding ALL web application actions to trigger seamless automated real-time background syncs:
+    const refreshEvents = [
+      'schedule:new', 'schedule:updated', 'schedule:completed', 'schedule:cancelled',
+      'assignment:new', 'assignment:graded', 'assignment:submitted',
+      'teacher:updated', 'exam:unlocked'
+    ];
+    refreshEvents.forEach(ev => newSocket.on(ev, triggerRefresh));
 
     // Centralized Notification Event
     newSocket.on('RECEIVE_NOTIFICATION', (data) => {

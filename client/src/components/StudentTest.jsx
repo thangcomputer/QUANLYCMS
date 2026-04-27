@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ArrowLeft, Send, ChevronLeft, ChevronRight,
-  Upload, CheckCircle, Download, Paperclip
+  Upload, CheckCircle, Download, Paperclip, Monitor, XCircle
 } from 'lucide-react';
 import ExamMonitor, { CameraHeaderPanel } from './ExamMonitor';
 import { useSocket } from '../context/SocketContext';
@@ -106,8 +106,12 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
   const [answers, setAnswers]   = useState(Array(TOTAL).fill(null));
   const [currentQ, setCurrentQ] = useState(0);
   const [timeLeft, setTimeLeft] = useState(meta.time);
-  const [phase, setPhase]       = useState('test'); // test | result | banned
+  const [phase, setPhase]       = useState('hardware_check'); // hardware_check | test | result | banned
   const [banReason, setBanReason] = useState('');
+
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState('');
+  const previewRef = useRef(null);
 
   // Modals
   const [showSubmitConfirm, setShowSubmitConfirm]   = useState(false);
@@ -122,6 +126,41 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
   const monitorRef = useRef(null);
   const fileRef    = useRef(null);
 
+  const updateExamProgress = useCallback((changes) => {
+    if (!student || !updateStudent) return;
+    const progress = student.examProgress || [];
+    const idx = progress.findIndex(s => s.id === subjectId);
+    let newProgress = [...progress];
+    if (idx !== -1) {
+      newProgress[idx] = { ...newProgress[idx], ...changes };
+    } else {
+      newProgress.push({ id: subjectId, ...changes });
+    }
+    updateStudent(student._id || student.id, { examProgress: newProgress });
+  }, [student, updateStudent, subjectId]);
+
+  // ── YÊU CẦU CAMERA Ở BƯỚC HARDWARE CHECK TRƯỚC KHI VÀO THI ──
+  useEffect(() => {
+    if (phase !== 'hardware_check') return;
+
+    let stream = null;
+    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+      .then(s => {
+        stream = s;
+        if (previewRef.current) previewRef.current.srcObject = s;
+        setCameraReady(true);
+        setCameraError('');
+      })
+      .catch(err => {
+        setCameraReady(false);
+        setCameraError(err.message);
+      });
+
+    return () => {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+    };
+  }, [phase]);
+
   // ── Timer ──
   useEffect(() => {
     if (phase !== 'test') return;
@@ -134,10 +173,86 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
     return () => clearInterval(timerRef.current);
   }, [phase]);
 
+  // ── Browser Trap (Chống F5, Ctrl+R, Back) ──
+  const failAndExitRef = useRef();
+  failAndExitRef.current = () => {
+    updateExamProgress({
+      tracNghiem: { score: 0, total: TOTAL },
+      thucHanh: 'chua_nop',
+      status: 'khong_dat',
+      lockUntil: Date.now() + 7 * 24 * 60 * 60 * 1000
+    });
+    onBack?.();
+  };
+
+
+  useEffect(() => {
+    if (phase !== 'test') return;
+
+    const confirmExit = (reasonTxt) => {
+      showModal({
+        title: 'CẢNH BÁO TỪ HỆ THỐNG',
+        content: `Nếu bạn ${reasonTxt}, đồng nghĩa với việc HỦY BÀI THI và bạn sẽ bị đánh rớt môn này bắt buộc. Bạn có chắc chắn muốn thoát?`,
+        type: 'warning',
+        confirmText: 'ĐỒNG Ý HỦY BÀI',
+        cancelText: 'Làm bài tiếp',
+        onConfirm: () => {
+          if (failAndExitRef.current) failAndExitRef.current();
+        }
+      });
+    };
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'F5' || (e.ctrlKey && (e.key === 'r' || e.key === 'R'))) {
+        e.preventDefault();
+        confirmExit('tải lại trang hiện tại (F5)');
+      }
+    };
+
+    // Chỉ push trạng thái MỘT LẦN duy nhất khi mount Test Phase
+    window.history.pushState(null, '', window.location.href);
+    
+    const handlePopState = () => {
+      window.history.pushState(null, '', window.location.href);
+      confirmExit('quay lại trạng thái trước đó');
+    };
+
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = 'Rời khỏi lúc này sẽ mất toàn bộ bài làm. Bạn có chắc không?';
+    };
+
+    // Bắt sự kiện khi thực sự rời khỏi trang (Reload hoặc Đóng tab)
+    const handleActualUnload = () => {
+      localStorage.setItem('punish_student_exam', 'true');
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handleActualUnload);
+    window.addEventListener('unload', handleActualUnload);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handleActualUnload);
+      window.removeEventListener('unload', handleActualUnload);
+    };
+  }, [phase]); // ĐÃ XÓA onBack, updateExamProgress VÀ showModal ĐỂ TRÁNH LẶP VÒNG LẶP PUSH HISTORY
+
   const handleViolation = useCallback((reason) => {
     clearInterval(timerRef.current);
     setBanReason(reason);
     setPhase('banned');
+    
+    updateExamProgress({
+      tracNghiem: { score: 0, total: TOTAL },
+      thucHanh: 'chua_nop',
+      status: 'khong_dat',
+      lockUntil: Date.now() + 7 * 24 * 60 * 60 * 1000
+    });
     
     // Phát cảnh báo qua socket cho Admin & Giảng viên
     if (socket) {
@@ -151,7 +266,16 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
     }
     // 🔔 Thông báo admin (persistent)
     addNotification(null, 'admin', `⚠️ Vi phạm thi cử: ${session.name || studentName} - môn ${meta.label}. Lý do: ${reason}`);
-  }, [socket, STUDENT_ID, session.name, studentName, teacherId, meta.label, addNotification]);
+  }, [socket, STUDENT_ID, session.name, studentName, teacherId, meta.label, addNotification, updateExamProgress, TOTAL]);
+
+  // Kiểm tra dấu vết tải lại trang từ lần trước
+  useEffect(() => {
+    const violation = localStorage.getItem('punish_student_exam');
+    if (violation === 'true') {
+      localStorage.removeItem('punish_student_exam');
+      handleViolation('HỦY BÀI: Hành vi cố tình tải lại trang hoặc đóng tab khi đang thi!');
+    }
+  }, [handleViolation]);
 
   // Lắng nghe lệnh khóa từ Admin/Giảng viên qua Socket
   useEffect(() => {
@@ -179,19 +303,6 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
   const handleAnswer = (qi, oi) => {
     const next = [...answers]; next[qi] = oi; setAnswers(next);
   };
-
-  const updateExamProgress = useCallback((changes) => {
-    if (!student || !updateStudent) return;
-    const progress = student.examProgress || [];
-    const idx = progress.findIndex(s => s.id === subjectId);
-    let newProgress = [...progress];
-    if (idx !== -1) {
-      newProgress[idx] = { ...newProgress[idx], ...changes };
-    } else {
-      newProgress.push({ id: subjectId, ...changes });
-    }
-    updateStudent(student._id || student.id, { examProgress: newProgress });
-  }, [student, updateStudent, subjectId]);
 
   const handleSubmitFinal = () => {
     const finalScore = answers.reduce((acc, a, i) => acc + (a === questions[i]?.answer ? 1 : 0), 0);
@@ -258,6 +369,89 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
   const passed = pct >= 50;
   const mins   = Math.floor(timeLeft / 60);
   const secs   = timeLeft % 60;
+
+  // ══════════════════════════════════════════════════════
+  // HARDWARE CHECK
+  // ══════════════════════════════════════════════════════
+  if (phase === 'hardware_check') return (
+    <div className="min-h-screen w-full bg-slate-900 flex items-center justify-center p-6 relative overflow-hidden">
+      <div className="absolute inset-0 border-[12px] border-blue-500/30 pointer-events-none rounded-[32px] m-4 animate-pulse" />
+      <div className="bg-white rounded-[28px] p-5 max-w-[320px] w-full text-center shadow-[0_0_80px_rgba(32,61,181,0.4)] z-10 border-t-[6px] border-blue-600 animate-in zoom-in duration-500 overflow-y-auto max-h-[90vh] no-scrollbar">
+         <h2 className="text-lg font-black text-slate-900 tracking-tight mt-0">Yêu cầu bật Camera</h2>
+         <p className="text-slate-500 font-bold mt-1 mb-3 px-2 text-[10px] leading-relaxed">
+             Để đảm bảo tính công bằng, bạn <span className="text-red-500">bắt buộc phải bật camera</span> xuyên suốt quá trình làm bài thi.
+         </p>
+         
+         {/* Hướng dẫn Box (Mô phỏng Dialog Chrome) */}
+         <div className="border-[1.5px] border-slate-200 rounded-[20px] p-3 mb-3 relative text-left bg-slate-50 shadow-inner select-none pointer-events-none">
+            <div className="flex items-center justify-between mb-2">
+               <div>
+                  <p className="font-bold text-slate-700 text-[13px]">dashboard.thangcomputer.com muốn</p>
+                  <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-1 font-semibold"><Monitor size={12}/> Sử dụng camera có sẵn</p>
+               </div>
+               <XCircle size={16} className="text-slate-400" />
+            </div>
+
+            {/* Khung Camera Xem trước */}
+            <div className="bg-slate-900 rounded-xl h-20 mb-2 relative overflow-hidden flex items-center justify-center border-[3px] border-white shadow-md">
+               {cameraReady ? (
+                   <video ref={previewRef} autoPlay playsInline muted className="w-full h-full object-cover scale-x-[-1]" />
+               ) : (
+                   <div className="text-white/50 text-xs flex flex-col items-center gap-2 font-bold">
+                      <Monitor size={24} className="animate-pulse" />
+                      {cameraError ? 'Lỗi Camera: Bị từ chối' : 'Đang chờ cấp quyền...'}
+                   </div>
+               )}
+               <div className="absolute top-2 right-2 bg-white/20 backdrop-blur-md px-2 py-1 rounded-lg text-[10px] text-white flex items-center gap-1 font-bold">
+                 <CheckCircle size={10} /> Xem trước
+               </div>
+            </div>
+
+            {/* Fake Dropdown */}
+            <div className="border border-slate-200/80 rounded-[10px] px-3 py-1.5 text-[9px] font-bold text-slate-600 mb-2 flex justify-between bg-white shadow-sm">
+               <span>HD WEB CAMERA</span>
+               <span className="text-slate-400">▼</span>
+            </div>
+
+            {/* Fake Buttons Hướng dẫn */}
+            <div className="space-y-1.5 relative mt-3">
+               {/* Nút số 1 được đóng khung đỏ */}
+               <div className="relative">
+                  <div className="absolute -left-[5px] -right-[5px] -top-[5px] -bottom-[5px] border-2 border-red-500 rounded-[14px] pointer-events-none" />
+                  <div className="bg-green-200/50 text-green-800 text-center py-1.5 rounded-[10px] font-bold text-[10px]">Cho phép mỗi khi truy cập...</div>
+                  {/* SVG Arrow Pointing UP-LEFT */}
+                  <svg className="absolute -right-[20px] -bottom-[20px] w-6 h-6 text-red-500 animate-bounce pointer-events-none" 
+                       fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                     <path d="M6 6L20 20" />
+                     <path d="M6 6v8" />
+                     <path d="M6 6h8" />
+                  </svg>
+               </div>
+
+               <div className="bg-green-100/50 text-green-700 text-center py-1.5 rounded-[10px] font-bold text-[10px] opacity-40 mix-blend-luminosity">Cho phép lần này</div>
+               <div className="bg-green-100/50 text-green-700 text-center py-1.5 rounded-[10px] font-bold text-[10px] opacity-40 mix-blend-luminosity">Không bao giờ cho phép</div>
+            </div>
+         </div>
+
+         {/* Trạng thái Sẵn sàng */}
+         <div className={`py-2 rounded-[14px] font-black text-[10px] mb-3 flex items-center justify-center gap-1.5 transition-all duration-300 ${cameraReady ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400 opacity-60'}`}>
+            <CheckCircle size={13} className={cameraReady ? '' : 'grayscale'}/> Camera đã sẵn sàng!
+         </div>
+
+         {/* Nút Vào thi */}
+         <button 
+             disabled={!cameraReady}
+             onClick={() => setPhase('test')} 
+             className={`w-full py-2.5 font-black rounded-[14px] transition-all text-[11px] flex items-center justify-center gap-2 ${
+                 cameraReady 
+                 ? 'bg-red-500 text-white shadow-xl shadow-red-500/30 hover:bg-red-600 hover:scale-[1.02] active:scale-95' 
+                 : 'bg-slate-100 text-slate-300 cursor-not-allowed opacity-70'
+             }`}>
+             TÔI ĐÃ HIỂU VÀ BẮT ĐẦU THI
+         </button>
+      </div>
+    </div>
+  );
 
   // ══════════════════════════════════════════════════════
   // BANNED
@@ -377,12 +571,20 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
                 <button
                   onClick={() => { 
                     showModal({
-                      title: 'Rời khỏi bài thi?',
-                      content: 'Bạn có chắc chắn muốn rời khỏi bài thi không? Tiến độ làm bài của bạn sẽ không được lưu nếu bạn chưa nộp bài.',
-                      type: 'question',
-                      confirmText: 'Rời đi',
-                      cancelText: 'Quay lại',
-                      onConfirm: () => onBack?.()
+                      title: 'CẢNH BÁO TỪ HỆ THỐNG',
+                      content: 'Nếu bạn quay lại bây giờ, bài thi sẽ lập tức BỊ HỦY và hệ thống sẽ hiển thị RỚT. Bạn có chắc chắn muốn thoát?',
+                      type: 'warning',
+                      confirmText: 'ĐỒNG Ý HỦY BÀI',
+                      cancelText: 'Làm bài tiếp',
+                      onConfirm: () => {
+                        updateExamProgress({
+                          tracNghiem: { score: 0, total: TOTAL },
+                          thucHanh: 'chua_nop',
+                          status: 'khong_dat',
+                          lockUntil: Date.now() + 7 * 24 * 60 * 60 * 1000
+                        });
+                        onBack?.();
+                      }
                     });
                   }}
                   className="self-start flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3.5 py-2 rounded-xl transition-colors"
@@ -597,7 +799,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
       )}
 
       {/* ExamMonitor (logic only) */}
-      <ExamMonitor ref={monitorRef} isActive={phase === 'test'} onViolate={handleViolation} onResetExam={handleResetExam} />
+      <ExamMonitor ref={monitorRef} isActive={phase === 'test'} onViolate={handleViolation} onResetExam={handleResetExam} requireWebcam={student?.requireWebcam !== false} />
 
       {/* ══════════ MODALS ══════════ */}
       {showSubmitConfirm && (

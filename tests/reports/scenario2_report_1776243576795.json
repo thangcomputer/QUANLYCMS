@@ -1,0 +1,708 @@
+{
+  "summary": {
+    "totalStudents": 5,
+    "examEntries": 5,
+    "successEntries": 5,
+    "totalAnswers": 0,
+    "tabSwitches": 50,
+    "violations": 50,
+    "submissions": 5,
+    "successSubmits": 5,
+    "avgSubmitTime": "4082ms",
+    "totalApiCalls": 1441,
+    "totalErrors": 4,
+    "errorRate": "0.28%",
+    "crashDetected": false,
+    "testDuration": "81.2s"
+  },
+  "examEntries": [
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "entryTime": 4254,
+      "success": true
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "entryTime": 4255,
+      "success": true
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "entryTime": 4255,
+      "success": true
+    },
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "entryTime": 4296,
+      "success": true
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "entryTime": 4296,
+      "success": true
+    }
+  ],
+  "answerClicks": [],
+  "tabSwitches": [
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "switchTime": 1776243529525,
+      "returnTime": 1776243531559,
+      "duration": 2034,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "switchTime": 1776243529525,
+      "returnTime": 1776243531560,
+      "duration": 2035,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "switchTime": 1776243529525,
+      "returnTime": 1776243531560,
+      "duration": 2035,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "switchTime": 1776243529525,
+      "returnTime": 1776243531560,
+      "duration": 2035,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "switchTime": 1776243529525,
+      "returnTime": 1776243531561,
+      "duration": 2036,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "switchTime": 1776243532578,
+      "returnTime": 1776243534598,
+      "duration": 2020,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "switchTime": 1776243532579,
+      "returnTime": 1776243534600,
+      "duration": 2021,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "switchTime": 1776243532579,
+      "returnTime": 1776243534600,
+      "duration": 2021,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "switchTime": 1776243532579,
+      "returnTime": 1776243534600,
+      "duration": 2021,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "switchTime": 1776243532579,
+      "returnTime": 1776243534602,
+      "duration": 2023,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "switchTime": 1776243535606,
+      "returnTime": 1776243537622,
+      "duration": 2016,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "switchTime": 1776243535608,
+      "returnTime": 1776243537629,
+      "duration": 2021,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "switchTime": 1776243535608,
+      "returnTime": 1776243537631,
+      "duration": 2023,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "switchTime": 1776243535608,
+      "returnTime": 1776243537637,
+      "duration": 2029,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "switchTime": 1776243535609,
+      "returnTime": 1776243537638,
+      "duration": 2029,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "switchTime": 1776243538652,
+      "returnTime": 1776243540664,
+      "duration": 2012,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "switchTime": 1776243538650,
+      "returnTime": 1776243540666,
+      "duration": 2016,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "switchTime": 1776243538650,
+      "returnTime": 1776243540666,
+      "duration": 2016,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "switchTime": 1776243538663,
+      "returnTime": 1776243540692,
+      "duration": 2029,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "switchTime": 1776243538663,
+      "returnTime": 1776243540692,
+      "duration": 2029,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "switchTime": 1776243541671,
+      "returnTime": 1776243543689,
+      "duration": 2018,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "switchTime": 1776243541672,
+      "returnTime": 1776243543690,
+      "duration": 2018,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "switchTime": 1776243541672,
+      "returnTime": 1776243543690,
+      "duration": 2018,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "switchTime": 1776243541712,
+      "returnTime": 1776243543735,
+      "duration": 2023,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "switchTime": 1776243541712,
+      "returnTime": 1776243543735,
+      "duration": 2023,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "switchTime": 1776243544702,
+      "returnTime": 1776243546714,
+      "duration": 2012,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "switchTime": 1776243544701,
+      "returnTime": 1776243546714,
+      "duration": 2013,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "switchTime": 1776243544702,
+      "returnTime": 1776243546715,
+      "duration": 2013,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "switchTime": 1776243544754,
+      "returnTime": 1776243546768,
+      "duration": 2014,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "switchTime": 1776243544753,
+      "returnTime": 1776243546769,
+      "duration": 2016,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "switchTime": 1776243547737,
+      "returnTime": 1776243549760,
+      "duration": 2023,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "switchTime": 1776243547737,
+      "returnTime": 1776243549763,
+      "duration": 2026,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "switchTime": 1776243547737,
+      "returnTime": 1776243549765,
+      "duration": 2028,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "switchTime": 1776243547785,
+      "returnTime": 1776243549813,
+      "duration": 2028,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "switchTime": 1776243547785,
+      "returnTime": 1776243549813,
+      "duration": 2028,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "switchTime": 1776243550770,
+      "returnTime": 1776243552782,
+      "duration": 2012,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "switchTime": 1776243550777,
+      "returnTime": 1776243552791,
+      "duration": 2014,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "switchTime": 1776243550777,
+      "returnTime": 1776243552791,
+      "duration": 2014,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "switchTime": 1776243550834,
+      "returnTime": 1776243552854,
+      "duration": 2020,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "switchTime": 1776243550834,
+      "returnTime": 1776243552854,
+      "duration": 2020,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "switchTime": 1776243553797,
+      "returnTime": 1776243555817,
+      "duration": 2020,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "switchTime": 1776243553794,
+      "returnTime": 1776243555819,
+      "duration": 2025,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "switchTime": 1776243553822,
+      "returnTime": 1776243555834,
+      "duration": 2012,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "switchTime": 1776243553863,
+      "returnTime": 1776243555885,
+      "duration": 2022,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "switchTime": 1776243553863,
+      "returnTime": 1776243555887,
+      "duration": 2024,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "switchTime": 1776243556829,
+      "returnTime": 1776243558848,
+      "duration": 2019,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "switchTime": 1776243556829,
+      "returnTime": 1776243558850,
+      "duration": 2021,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "switchTime": 1776243556859,
+      "returnTime": 1776243558878,
+      "duration": 2019,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "switchTime": 1776243556898,
+      "returnTime": 1776243558917,
+      "duration": 2019,
+      "socketAlive": true
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "switchTime": 1776243556901,
+      "returnTime": 1776243558924,
+      "duration": 2023,
+      "socketAlive": true
+    }
+  ],
+  "submissions": [
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "submitTime": 1776243569059,
+      "responseTime": 4098,
+      "status": "success"
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "submitTime": 1776243569573,
+      "responseTime": 4101,
+      "status": "success"
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "submitTime": 1776243570054,
+      "responseTime": 4084,
+      "status": "success"
+    },
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "submitTime": 1776243570542,
+      "responseTime": 4074,
+      "status": "success"
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "submitTime": 1776243571018,
+      "responseTime": 4053,
+      "status": "success"
+    }
+  ],
+  "violations": [
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "type": "tab_switch_detected",
+      "time": 1776243531571
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "type": "tab_switch_detected",
+      "time": 1776243531571
+    },
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "type": "tab_switch_detected",
+      "time": 1776243531571
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "type": "tab_switch_detected",
+      "time": 1776243531571
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "type": "tab_switch_detected",
+      "time": 1776243531572
+    },
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "type": "tab_switch_detected",
+      "time": 1776243534604
+    },
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "type": "tab_switch_detected",
+      "time": 1776243534608
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "type": "tab_switch_detected",
+      "time": 1776243534609
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "type": "tab_switch_detected",
+      "time": 1776243534609
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "type": "tab_switch_detected",
+      "time": 1776243534609
+    },
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "type": "tab_switch_detected",
+      "time": 1776243537647
+    },
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "type": "tab_switch_detected",
+      "time": 1776243537648
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "type": "tab_switch_detected",
+      "time": 1776243537651
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "type": "tab_switch_detected",
+      "time": 1776243537660
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "type": "tab_switch_detected",
+      "time": 1776243537661
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "type": "tab_switch_detected",
+      "time": 1776243540670
+    },
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "type": "tab_switch_detected",
+      "time": 1776243540671
+    },
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "type": "tab_switch_detected",
+      "time": 1776243540671
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "type": "tab_switch_detected",
+      "time": 1776243540713
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "type": "tab_switch_detected",
+      "time": 1776243540713
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "type": "tab_switch_detected",
+      "time": 1776243543700
+    },
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "type": "tab_switch_detected",
+      "time": 1776243543701
+    },
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "type": "tab_switch_detected",
+      "time": 1776243543701
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "type": "tab_switch_detected",
+      "time": 1776243543753
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "type": "tab_switch_detected",
+      "time": 1776243543753
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "type": "tab_switch_detected",
+      "time": 1776243546724
+    },
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "type": "tab_switch_detected",
+      "time": 1776243546724
+    },
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "type": "tab_switch_detected",
+      "time": 1776243546725
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "type": "tab_switch_detected",
+      "time": 1776243546774
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "type": "tab_switch_detected",
+      "time": 1776243546778
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "type": "tab_switch_detected",
+      "time": 1776243549768
+    },
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "type": "tab_switch_detected",
+      "time": 1776243549775
+    },
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "type": "tab_switch_detected",
+      "time": 1776243549775
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "type": "tab_switch_detected",
+      "time": 1776243549828
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "type": "tab_switch_detected",
+      "time": 1776243549832
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "type": "tab_switch_detected",
+      "time": 1776243552790
+    },
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "type": "tab_switch_detected",
+      "time": 1776243552797
+    },
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "type": "tab_switch_detected",
+      "time": 1776243552817
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "type": "tab_switch_detected",
+      "time": 1776243552860
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "type": "tab_switch_detected",
+      "time": 1776243552860
+    },
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "type": "tab_switch_detected",
+      "time": 1776243555822
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "type": "tab_switch_detected",
+      "time": 1776243555824
+    },
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "type": "tab_switch_detected",
+      "time": 1776243555856
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "type": "tab_switch_detected",
+      "time": 1776243555897
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "type": "tab_switch_detected",
+      "time": 1776243555899
+    },
+    {
+      "account": "[STUDENT #3] HỌC VIÊN TEST 03",
+      "type": "tab_switch_detected",
+      "time": 1776243558858
+    },
+    {
+      "account": "[STUDENT #1] HỌC VIÊN TEST 01",
+      "type": "tab_switch_detected",
+      "time": 1776243558859
+    },
+    {
+      "account": "[STUDENT #4] HỌC VIÊN TEST 04",
+      "type": "tab_switch_detected",
+      "time": 1776243558898
+    },
+    {
+      "account": "[STUDENT #5] HỌC VIÊN TEST 05",
+      "type": "tab_switch_detected",
+      "time": 1776243558937
+    },
+    {
+      "account": "[STUDENT #2] HỌC VIÊN TEST 02",
+      "type": "tab_switch_detected",
+      "time": 1776243558944
+    }
+  ],
+  "errors": [
+    {
+      "url": "http://localhost:5000/api/branches",
+      "error": "net::ERR_ABORTED",
+      "account": "HỌC VIÊN TEST 05",
+      "timestamp": 1776243497529
+    },
+    {
+      "url": "http://localhost:5000/api/settings/web",
+      "error": "net::ERR_ABORTED",
+      "account": "HỌC VIÊN TEST 05",
+      "timestamp": 1776243497529
+    },
+    {
+      "url": "http://localhost:5000/api/settings/web",
+      "error": "net::ERR_ABORTED",
+      "account": "HỌC VIÊN TEST 05",
+      "timestamp": 1776243497529
+    },
+    {
+      "url": "http://localhost:5000/api/branches",
+      "error": "net::ERR_ABORTED",
+      "account": "HỌC VIÊN TEST 05",
+      "timestamp": 1776243497530
+    }
+  ]
+}

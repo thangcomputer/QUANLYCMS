@@ -1,6 +1,8 @@
 const express    = require('express');
 const http       = require('http');
 const cors       = require('cors');
+const compression = require('compression'); // ⚡ Gzip compress API responses
+const helmet     = require('helmet');       // ✅ HTTP security headers
 const dotenv     = require('dotenv');
 const { Server } = require('socket.io');
 const cron       = require('node-cron');
@@ -30,6 +32,15 @@ const io = new Server(server, {
 // ==========================================
 // MIDDLEWARE
 // ==========================================
+// ⚡ Gzip compression — giảm payload size 60-70%
+app.use(compression({ level: 6, threshold: 1024 }));
+
+// ✅ Helmet — thêm các HTTP security headers tự động
+app.use(helmet({
+  contentSecurityPolicy: false, // tắt CSP vì có inline scripts trong upload
+  crossOriginResourcePolicy: { policy: 'cross-origin' }, // cho phép serve /uploads
+}));
+
 app.use(cors({
   origin: allowedOrigins.length > 0 ? allowedOrigins : '*',
   credentials: true
@@ -37,7 +48,12 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(require('passport').initialize()); // Social OAuth
-app.use('/uploads', express.static('uploads')); // Serve uploaded files
+
+// Serve uploaded files với cache 1 ngày (tăng tốc load ảnh)
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  next();
+}, express.static('uploads'));
 
 // Gắn io vào app để dùng trong routes
 app.set('io', io);
@@ -150,9 +166,7 @@ io.on('connection', (socket) => {
          io.to(teacher.socketId).emit('notification', notif);
        }
     }
-    
-    // Broadcast socket event để UI có thể trigger lock
-    io.emit('exam:locked', { studentId: data.studentId, course: data.course, reason: data.reason });
+     // (Removed io.emit('exam:locked') to prevent INFINITE LOOP with StudentTest resolving 'exam:locked' by emitting 'exam:violation')
   });
 
   // ── Giảng viên join room riêng để nhận notify ──

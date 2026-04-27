@@ -683,9 +683,9 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
                             </div>
                             <div className="flex flex-col items-end gap-3 font-black flex-shrink-0">
                               {isSubmitted ? (
-                                <div className={`px-4 py-1.5 rounded-2xl text-[10px] uppercase tracking-widest flex items-center gap-2 ${isGraded ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                                <div className={`px-4 py-1.5 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 ${isGraded ? (Number(submission.grade) >= 8 ? 'bg-gradient-to-r from-yellow-100 to-amber-100 text-amber-700 shadow-sm border border-amber-200' : Number(submission.grade) >= 5 ? 'bg-green-50 text-green-700 shadow-sm border border-green-200' : 'bg-red-50 text-red-700 shadow-sm border border-red-200') : 'bg-blue-100 text-blue-700'}`}>
                                   {isGraded ? <Check size={12}/> : <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />}
-                                  {isGraded ? `KHÁ: ${submission.grade}/10` : 'ĐÃ NỘP BÀI'}
+                                  {isGraded ? `${Number(submission.grade) >= 8 ? 'GIỎI' : Number(submission.grade) >= 5 ? 'KHÁ' : 'YẾU'}: ${submission.grade}/10` : 'ĐÃ NỘP BÀI'}
                                 </div>
                                                             ) : (
                                 <span className="px-4 py-1.5 rounded-2xl text-[10px] uppercase tracking-widest bg-gray-50 text-slate-300">CHƯA NỘP</span>
@@ -1292,13 +1292,13 @@ const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSch
                   <div className="flex gap-1 mt-0.5 flex-wrap justify-center px-1">
                     {/* Render different color dots depending on status */}
                     {daySchs.filter(s => s.status === 'scheduled').slice(0,2).map(s => (
-                      <div key={'s-'+s._id} className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-400 shadow-sm" />
+                      <div key={'s-'+s._id} className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${s.hasUnreadStudentNote ? 'bg-red-500 animate-[ping_1.5s_ease-in-out_infinite]' : 'bg-amber-400'} shadow-sm`} />
                     ))}
                     {daySchs.filter(s => s.status === 'completed').slice(0,2).map(s => (
-                      <div key={'c-'+s._id} className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-400 shadow-sm" />
+                      <div key={'c-'+s._id} className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${s.hasUnreadStudentNote ? 'bg-red-500 animate-[ping_1.5s_ease-in-out_infinite]' : 'bg-emerald-400'} shadow-sm`} />
                     ))}
                     {daySchs.filter(s => s.status === 'cancelled').slice(0,2).map(s => (
-                      <div key={'x-'+s._id} className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-red-400 shadow-sm" />
+                      <div key={'x-'+s._id} className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${s.hasUnreadStudentNote ? 'bg-red-500 animate-[ping_1.5s_ease-in-out_infinite]' : 'bg-red-400'} shadow-sm`} />
                     ))}
                     {daySchs.length > 4 && (
                       <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-slate-400 shadow-sm" />
@@ -1383,8 +1383,17 @@ const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSch
                       </p>
                       {(s.topic || s.note) && (
                         <p className="text-[11px] font-medium text-blue-600 mt-1 truncate border-l-2 border-blue-500 pl-2 bg-blue-50/50 py-0.5 rounded-r">
-                          {s.topic || s.note}
+                          <span className="font-bold opacity-80">Ghi chú của bạn:</span> {s.topic || s.note}
                         </p>
+                      )}
+                      {s.studentNote && (
+                        <div className="text-[11px] font-bold text-red-600 mt-1 line-clamp-3 border-l-2 border-red-500 pl-2 bg-red-50 py-1 rounded-r flex gap-1 items-start shadow-sm pr-2">
+                          <MessageSquare size={12} className="mt-0.5 text-red-500 flex-shrink-0" />
+                          <div className="leading-tight flex-1">
+                            {s.studentName || 'Học viên'} đã nhắn: {s.hasUnreadStudentNote && <span className="inline-block relative -top-0.5 ml-0.5 w-1.5 h-1.5 rounded-full bg-red-500 animate-[ping_1.5s_ease-in-out_infinite]" title="Có tin nhắn mới"></span>}
+                            <br/><span className="italic font-medium text-red-500 line-clamp-2 mt-0.5">"{s.studentNote}"</span>
+                          </div>
+                        </div>
                       )}
                       <span className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider inline-block mt-1 ${cfg.badge}`}>
                         {cfg.label}

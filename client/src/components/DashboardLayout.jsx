@@ -88,18 +88,32 @@ const DashboardLayout = ({ role, session, onLogout }) => {
   useEffect(() => {
     if (role !== 'teacher' || !session?.id) return;
     if (window.location.pathname === '/teacher/test') return;
+    
+    // Nếu hệ thống đang tải hoặc currentTeacher chưa có nhưng session lại nói là active/pending thì CHỜ.
+    const isLocalStatusValid = ['pending', 'active'].includes(String(session?.status).toLowerCase());
+    if (isRefetching || (!currentTeacher && isLocalStatusValid)) return;
+    
+    const currentStatus = currentTeacher?.status || session?.status;
+    if (currentStatus === undefined || currentStatus === '') return;
+    
     const allowed = ['pending', 'active'];
-    const s = String(currentTeacher?.status || session?.status || '').toLowerCase();
+    const s = String(currentStatus).toLowerCase();
+    
     if (!allowed.includes(s)) {
       localStorage.setItem('thvp_ban_error', currentTeacher?.lockReason || session?.lockReason || 'Tài khoản đã bị KHÓA do vi phạm nội quy.');
       localStorage.removeItem('teacher_user');
       window.location.href = '/login';
     }
-  }, [currentTeacher, role, session]);
+  }, [currentTeacher, role, session, isRefetching]);
 
   useEffect(() => {
     if (role !== 'teacher' || !session?.id) return;
+    
+    const isLocalStatusValid = String(session?.status).toLowerCase();
+    if (isRefetching || (!currentTeacher && isLocalStatusValid)) return;
+
     const status = String(currentTeacher?.status || session?.status || '').toLowerCase();
+    if (!status) return;
     
     // Nếu đang Pending mà cố truy cập các trang khác (finance, students...)
     if (status === 'pending' && !window.location.pathname.includes('/teacher/test')) {
@@ -109,7 +123,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
     if (status === 'active' && window.location.pathname.includes('/teacher/test')) {
       navigate('/teacher', { replace: true });
     }
-  }, [currentTeacher?.status, session?.status, role, session?.id, navigate]);
+  }, [currentTeacher?.status, session?.status, role, session?.id, navigate, isRefetching]);
 
   const handleLogout = () => onLogout?.();
 
@@ -291,7 +305,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
           </div>
         </header>
 
-        <div className="flex-1 p-4 sm:p-6 md:p-10 w-full overflow-x-hidden overflow-y-auto">
+        <div className="flex-1 p-4 sm:p-6 md:p-10 w-full overflow-x-hidden overflow-y-auto hide-scrollbar">
           <Outlet />
         </div>
       </main>

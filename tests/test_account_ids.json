@@ -1,0 +1,108 @@
+{
+  "students": [
+    {
+      "_id": "69df53065080c8b270dc8bf7",
+      "name": "HỌC VIÊN TEST 01",
+      "phone": "0900000010"
+    },
+    {
+      "_id": "69df53065080c8b270dc8bf8",
+      "name": "HỌC VIÊN TEST 02",
+      "phone": "0900000011"
+    },
+    {
+      "_id": "69df53065080c8b270dc8bf9",
+      "name": "HỌC VIÊN TEST 03",
+      "phone": "0900000012"
+    },
+    {
+      "_id": "69df53065080c8b270dc8bfa",
+      "name": "HỌC VIÊN TEST 04",
+      "phone": "0900000013"
+    },
+    {
+      "_id": "69df53065080c8b270dc8bfb",
+      "name": "HỌC VIÊN TEST 05",
+      "phone": "0900000014"
+    },
+    {
+      "_id": "69df53065080c8b270dc8bfc",
+      "name": "HỌC VIÊN TEST 06",
+      "phone": "0900000015"
+    },
+    {
+      "_id": "69df53065080c8b270dc8bfd",
+      "name": "HỌC VIÊN TEST 07",
+      "phone": "0900000016"
+    },
+    {
+      "_id": "69df53065080c8b270dc8bfe",
+      "name": "HỌC VIÊN TEST 08",
+      "phone": "0900000017"
+    },
+    {
+      "_id": "69df53065080c8b270dc8bff",
+      "name": "HỌC VIÊN TEST 09",
+      "phone": "0900000018"
+    },
+    {
+      "_id": "69df53065080c8b270dc8c00",
+      "name": "HỌC VIÊN TEST 10",
+      "phone": "0900000019"
+    }
+  ],
+  "teachers": [
+    {
+      "_id": "69df53065080c8b270dc8c01",
+      "name": "GIẢNG VIÊN TEST 01",
+      "phone": "0910000010"
+    },
+    {
+      "_id": "69df53065080c8b270dc8c02",
+      "name": "GIẢNG VIÊN TEST 02",
+      "phone": "0910000011"
+    },
+    {
+      "_id": "69df53065080c8b270dc8c03",
+      "name": "GIẢNG VIÊN TEST 03",
+      "phone": "0910000012"
+    },
+    {
+      "_id": "69df53065080c8b270dc8c04",
+      "name": "GIẢNG VIÊN TEST 04",
+      "phone": "0910000013"
+    },
+    {
+      "_id": "69df53065080c8b270dc8c05",
+      "name": "GIẢNG VIÊN TEST 05",
+      "phone": "0910000014"
+    }
+  ],
+  "admins": [
+    {
+      "_id": "69df53065080c8b270dc8c06",
+      "name": "ADMIN CHI NHÁNH TEST 01",
+      "phone": "0920000010"
+    },
+    {
+      "_id": "69df53065080c8b270dc8c07",
+      "name": "ADMIN CHI NHÁNH TEST 02",
+      "phone": "0920000011"
+    },
+    {
+      "_id": "69df53065080c8b270dc8c08",
+      "name": "ADMIN CHI NHÁNH TEST 03",
+      "phone": "0920000012"
+    },
+    {
+      "_id": "69df53065080c8b270dc8c09",
+      "name": "ADMIN CHI NHÁNH TEST 04",
+      "phone": "0920000013"
+    },
+    {
+      "_id": "69df53065080c8b270dc8c0a",
+      "name": "ADMIN CHI NHÁNH TEST 05",
+      "phone": "0920000014"
+    }
+  ]
+}

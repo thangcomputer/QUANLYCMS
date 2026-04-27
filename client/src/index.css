@@ -38,3 +38,12 @@
 ::-webkit-scrollbar-thumb:hover {
   background-color: #94a3b8;
 }
+
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

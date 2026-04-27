@@ -34,4 +34,10 @@ const ExamResultSchema = new mongoose.Schema({
   timestamps: true,
 });
 
+// Indexes: tăng tốc truy vấn theo học viên, giảng viên, trạng thái thi
+ExamResultSchema.index({ studentId: 1 });
+ExamResultSchema.index({ teacherId: 1 });
+ExamResultSchema.index({ passed: 1 });
+ExamResultSchema.index({ studentId: 1, subject: 1 });
+
 module.exports = mongoose.model('ExamResult', ExamResultSchema);
