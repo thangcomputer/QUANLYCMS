@@ -12,17 +12,23 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        // Tách vendor libraries thành các chunk riêng biệt để browser cache tốt hơn
-        manualChunks: {
-          // React core — ít thay đổi, cache lâu dài
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          // UI libraries
-          'vendor-ui': ['lucide-react'],
-          // Socket.io client
-          'vendor-socket': ['socket.io-client'],
-          // Chart / analytics (nếu có)
-          'vendor-chart': ['recharts'],
-        },
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
+              return 'vendor-react';
+            }
+            if (id.includes('lucide-react')) {
+              return 'vendor-ui';
+            }
+            if (id.includes('socket.io-client')) {
+              return 'vendor-socket';
+            }
+            if (id.includes('recharts')) {
+              return 'vendor-chart';
+            }
+            return 'vendor'; // tất cả các dependencies khác
+          }
+        }
       },
     },
   },
