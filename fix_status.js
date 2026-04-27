@@ -7,13 +7,17 @@ async function fixStatuses() {
     await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/quanlycms');
     console.log('✅ Connected to MongoDB');
 
-    // Tìm tất cả học viên có teacherId nhưng trạng thái đang là 'Chờ xếp lớp'
     const studentsToUpdate = await Student.find({
       teacherId: { $exists: true, $ne: null },
-      status: 'Chờ xếp lớp'
+      $or: [
+        { status: 'Chờ xếp lớp' },
+        { status: { $exists: false } },
+        { status: null },
+        { status: "" }
+      ]
     });
 
-    console.log(`🔍 Found ${studentsToUpdate.length} students with teacher but status is "Chờ xếp lớp"`);
+    console.log(`🔍 Found ${studentsToUpdate.length} students with teacher but status is missing or "Chờ xếp lớp"`);
 
     let count = 0;
     for (const student of studentsToUpdate) {
@@ -23,11 +27,6 @@ async function fixStatuses() {
     }
 
     console.log(`✅ Updated ${count} students to "Đang học"`);
-    
-    // Tìm học viên hoàn thành (nếu cần script có thể dựa vào tổng số buổi, 
-    // nhưng "Hoàn thành khóa học" thường do giảng viên set thủ công). 
-    // Giữ nguyên các trạng thái khác.
-
   } catch (error) {
     console.error('❌ Error:', error);
   } finally {
