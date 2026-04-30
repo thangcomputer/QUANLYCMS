@@ -1043,6 +1043,53 @@ router.post('/forgot-password/verify', async (req, res) => {
   }
 });
 
+// ─── POST /api/auth/admin/generate-otp ───────────────────────────────────────
+/**
+ * @route   POST /api/auth/admin/generate-otp
+ * @desc    Admin sinh OTP 120s cho học viên/giảng viên. Admin tự gửi qua Zalo.
+ * @access  Admin only
+ */
+router.post('/admin/generate-otp', authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin' && req.user.role !== 'staff') {
+      return res.status(403).json({ success: false, message: 'Không có quyền' });
+    }
+    const { userId, userRole } = req.body;
+    if (!userId) return res.status(400).json({ success: false, message: 'Thiếu userId' });
+
+    let user = null;
+    if (userRole === 'teacher') {
+      user = await Teacher.findById(userId).select('name phone zalo');
+    } else {
+      user = await Student.findById(userId).select('name phone zalo');
+    }
+    if (!user) return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản' });
+
+    const phone = (user.phone || user.zalo || '').trim();
+    if (!phone) return res.status(400).json({ success: false, message: 'Người dùng chưa có số điện thoại' });
+
+    // Tạo OTP 6 số, hiệu lực 120 giây
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const key = `${phone}:${userRole || 'student'}`;
+    otpStore.set(key, {
+      otp, expiresAt: Date.now() + 120000,
+      userId: user._id.toString(), userName: user.name, role: userRole || 'student'
+    });
+    setTimeout(() => otpStore.delete(key), 125000);
+
+    console.log(`[ADMIN OTP] Sinh OTP ${otp} cho ${user.name} (${phone}) - 120s`);
+
+    return res.json({
+      success: true,
+      data: { otp, phone, zalo: user.zalo || phone, name: user.name, expiresIn: 120 }
+    });
+  } catch (error) {
+    console.error('[AUTH] admin/generate-otp error:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
+
+
 // ─── POST /api/auth/reset-password-request (backward compat) ─────────────────
 router.post('/reset-password-request', async (req, res) => {
   try {

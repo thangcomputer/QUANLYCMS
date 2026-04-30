@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, CheckCircle2, AlertCircle, Phone, ShieldCheck, Database, BookOpen, Monitor, Lock, User, KeyRound, X, Copy, Check } from 'lucide-react';
+import { Eye, EyeOff, CheckCircle2, AlertCircle, Phone, Database, BookOpen, Monitor, Lock, User, KeyRound, X, Copy, Check, Clock, ShieldCheck } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { setTokens } from '../services/api';
 
@@ -16,13 +16,16 @@ const LoginPage = ({ onLogin }) => {
 
   // ── Forgot Password State ──
   const [showForgot, setShowForgot] = useState(false);
+  const [forgotStep, setForgotStep] = useState(1); // 1=nhập SĐT, 2=nhập OTP
   const [forgotPhone, setForgotPhone] = useState('');
-  const [forgotZalo, setForgotZalo] = useState('');
   const [forgotRole, setForgotRole] = useState('student');
+  const [forgotOTP, setForgotOTP] = useState('');
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotError, setForgotError] = useState('');
   const [newPasswordResult, setNewPasswordResult] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [otpCountdown, setOtpCountdown] = useState(0);
+  const countdownRef = useRef(null);
 
   const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -42,8 +45,7 @@ const LoginPage = ({ onLogin }) => {
     setLoading(true); setError(null);
     try {
       const response = await fetch(`${API}/api/auth/login/public`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier: phone, password, role }),
       });
       const data = await response.json();
@@ -64,31 +66,68 @@ const LoginPage = ({ onLogin }) => {
     finally { setLoading(false); }
   };
 
-  // ── Quên mật khẩu: xác minh SĐT + Zalo → hiện mật khẩu mới ──
-  const handleForgotPassword = async () => {
+  // Bước 1: Kiểm tra SĐT tồn tại → chuyển sang nhập OTP
+  const handleCheckPhone = async () => {
     if (!forgotPhone.trim()) { setForgotError('Vui lòng nhập số điện thoại'); return; }
-    if (!forgotZalo.trim()) { setForgotError('Vui lòng nhập số Zalo để xác minh'); return; }
     setForgotLoading(true); setForgotError('');
     try {
-      const res = await fetch(`${API}/api/auth/reset-password-request`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: forgotPhone.trim(), zalo: forgotZalo.trim(), role: forgotRole }),
+      // Gọi forgot-password/request để kiểm tra phone tồn tại (OTP sinh bởi admin)
+      // Ở đây chỉ cần check xem số này có trong DB không
+      const res = await fetch(`${API}/api/auth/forgot-password/request`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: forgotPhone.trim(), role: forgotRole }),
+      });
+      const data = await res.json();
+      // Dù thành công hay lỗi "không tìm thấy", ta vẫn xử lý
+      if (data.success || data.message?.includes('gửi mã OTP')) {
+        setForgotStep(2);
+        setOtpCountdown(120);
+        clearInterval(countdownRef.current);
+        countdownRef.current = setInterval(() => {
+          setOtpCountdown(prev => { if (prev <= 1) { clearInterval(countdownRef.current); return 0; } return prev - 1; });
+        }, 1000);
+      } else if (data.message?.includes('không tìm thấy') || data.message?.includes('Không tìm thấy')) {
+        setForgotError('Số điện thoại chưa được đăng ký trong hệ thống.');
+      } else {
+        // Vẫn cho sang bước 2 (không lộ thông tin user)
+        setForgotStep(2);
+        setOtpCountdown(120);
+        clearInterval(countdownRef.current);
+        countdownRef.current = setInterval(() => {
+          setOtpCountdown(prev => { if (prev <= 1) { clearInterval(countdownRef.current); return 0; } return prev - 1; });
+        }, 1000);
+      }
+    } catch { setForgotError('Lỗi kết nối máy chủ'); }
+    finally { setForgotLoading(false); }
+  };
+
+  // Bước 2: Xác minh OTP → nhận mật khẩu mới
+  const handleVerifyOTP = async () => {
+    if (forgotOTP.trim().length !== 6) { setForgotError('Mã OTP gồm 6 chữ số'); return; }
+    if (otpCountdown === 0) { setForgotError('Mã OTP đã hết hạn. Liên hệ Admin để cấp lại.'); return; }
+    setForgotLoading(true); setForgotError('');
+    try {
+      const res = await fetch(`${API}/api/auth/forgot-password/verify`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: forgotPhone.trim(), otp: forgotOTP.trim(), role: forgotRole }),
       });
       const data = await res.json();
       if (data.success) {
+        clearInterval(countdownRef.current);
         setNewPasswordResult({ password: data.data.newPassword, name: data.data.name });
-        toast.success('Cấp lại mật khẩu thành công!');
+        toast.success('Xác minh thành công!');
       } else {
-        setForgotError(data.message || 'Xác minh thất bại');
+        setForgotError(data.message || 'Mã OTP không đúng hoặc đã hết hạn');
       }
     } catch { setForgotError('Lỗi kết nối máy chủ'); }
     finally { setForgotLoading(false); }
   };
 
   const closeForgotModal = () => {
-    setShowForgot(false); setForgotPhone(''); setForgotZalo('');
-    setForgotError(''); setNewPasswordResult(null); setCopied(false);
+    clearInterval(countdownRef.current);
+    setShowForgot(false); setForgotStep(1); setForgotPhone('');
+    setForgotOTP(''); setForgotError(''); setNewPasswordResult(null);
+    setCopied(false); setOtpCountdown(0);
   };
 
   return (
@@ -107,9 +146,7 @@ const LoginPage = ({ onLogin }) => {
             <h1 className="text-5xl lg:text-7xl font-black text-white leading-[1.1]">
               Nền tảng <span className="text-red-500 block md:inline">Học Tin Học</span> <br />Văn Phòng Chuyên Nghiệp
             </h1>
-            <p className="text-gray-400 text-lg leading-relaxed max-w-lg">
-              Tổ chức đào tạo, thi cử và cấp chứng nhận tin học văn phòng với công nghệ hiện đại.
-            </p>
+            <p className="text-gray-400 text-lg leading-relaxed max-w-lg">Tổ chức đào tạo, thi cử và cấp chứng nhận tin học văn phòng với công nghệ hiện đại.</p>
             <div className="flex flex-wrap gap-4 pt-4">
               {[{ label: 'Microsoft Word', icon: BookOpen }, { label: 'Microsoft Excel', icon: Database }, { label: 'PowerPoint', icon: Monitor }].map((item, idx) => (
                 <div key={idx} className="flex items-center gap-3 bg-white/5 border border-white/10 px-6 py-4 rounded-2xl hover:bg-white/10 transition-all cursor-default group">
@@ -139,11 +176,7 @@ const LoginPage = ({ onLogin }) => {
             </div>
 
             <form onSubmit={handleLogin} className="space-y-6 animate-in fade-in slide-in-from-bottom-10 duration-1000 delay-200">
-              {error && (
-                <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-center gap-3 text-red-500 text-sm font-bold">
-                  <AlertCircle size={18} /> {error}
-                </div>
-              )}
+              {error && <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-center gap-3 text-red-500 text-sm font-bold"><AlertCircle size={18} /> {error}</div>}
               <div className="space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-gray-400 block ml-1">{role === 'student' ? 'SỐ ĐIỆN THOẠI HOẶC EMAIL' : 'TÀI KHOẢN GIẢNG VIÊN'}</label>
@@ -168,7 +201,7 @@ const LoginPage = ({ onLogin }) => {
                 </div>
               </div>
               <div className="flex justify-end -mt-2">
-                <button type="button" onClick={() => { setShowForgot(true); setForgotRole(role); }}
+                <button type="button" onClick={() => { setShowForgot(true); setForgotRole(role); setForgotStep(1); }}
                   className="text-xs font-bold text-gray-400 hover:text-red-400 transition-colors flex items-center gap-1">
                   <KeyRound size={12} /> Quên mật khẩu?
                 </button>
@@ -198,104 +231,122 @@ const LoginPage = ({ onLogin }) => {
             {/* Header */}
             <div className="bg-gradient-to-r from-red-600 to-orange-600 px-6 py-5 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                  <KeyRound size={20} className="text-white" />
-                </div>
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><KeyRound size={20} className="text-white" /></div>
                 <div>
                   <h3 className="text-white font-black text-lg">Quên mật khẩu</h3>
-                  <p className="text-white/70 text-xs font-medium">Xác minh để nhận mật khẩu mới</p>
+                  <p className="text-white/70 text-xs font-medium">
+                    {!newPasswordResult && forgotStep === 1 && 'Bước 1: Nhập số điện thoại'}
+                    {!newPasswordResult && forgotStep === 2 && 'Bước 2: Nhập mã OTP từ Admin'}
+                    {newPasswordResult && 'Đặt lại mật khẩu thành công!'}
+                  </p>
                 </div>
               </div>
-              <button onClick={closeForgotModal} className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/20 transition">
-                <X size={16} className="text-white" />
-              </button>
+              <button onClick={closeForgotModal} className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/20 transition"><X size={16} className="text-white" /></button>
             </div>
 
             <div className="p-6 space-y-5">
-              {!newPasswordResult ? (
+              {/* BƯỚC 1: Nhập SĐT */}
+              {!newPasswordResult && forgotStep === 1 && (
                 <>
-                  {/* Role selector */}
                   <div>
                     <label className="text-xs font-bold text-gray-400 uppercase block mb-2">Vai trò</label>
                     <div className="flex gap-2">
                       <button onClick={() => setForgotRole('student')}
-                        className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition border-2 ${forgotRole === 'student' ? 'border-red-500 bg-red-500/10 text-red-400' : 'border-white/10 text-gray-400 hover:border-white/20'}`}>
-                        Học viên
-                      </button>
+                        className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition border-2 ${forgotRole === 'student' ? 'border-red-500 bg-red-500/10 text-red-400' : 'border-white/10 text-gray-400 hover:border-white/20'}`}>Học viên</button>
                       <button onClick={() => setForgotRole('teacher')}
-                        className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition border-2 ${forgotRole === 'teacher' ? 'border-red-500 bg-red-500/10 text-red-400' : 'border-white/10 text-gray-400 hover:border-white/20'}`}>
-                        Giảng viên
-                      </button>
+                        className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition border-2 ${forgotRole === 'teacher' ? 'border-red-500 bg-red-500/10 text-red-400' : 'border-white/10 text-gray-400 hover:border-white/20'}`}>Giảng viên</button>
                     </div>
                   </div>
-
-                  {/* SĐT */}
                   <div>
                     <label className="text-xs font-bold text-gray-400 uppercase block mb-1.5">Số điện thoại đăng ký</label>
                     <div className="relative">
                       <Phone size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
                       <input type="text" value={forgotPhone} onChange={e => setForgotPhone(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleCheckPhone()}
                         className="w-full bg-[#0f172a] border-2 border-white/10 rounded-xl pl-11 pr-4 py-3 text-white text-sm font-bold outline-none focus:border-red-500 transition placeholder:text-gray-600"
                         placeholder="VD: 0935758462" />
                     </div>
                   </div>
-
-                  {/* Số Zalo xác minh */}
-                  <div>
-                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1.5">Số Zalo (xác minh)</label>
-                    <div className="relative">
-                      <ShieldCheck size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
-                      <input type="text" value={forgotZalo} onChange={e => setForgotZalo(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleForgotPassword()}
-                        className="w-full bg-[#0f172a] border-2 border-white/10 rounded-xl pl-11 pr-4 py-3 text-white text-sm font-bold outline-none focus:border-red-500 transition placeholder:text-gray-600"
-                        placeholder="Nhập số Zalo đã đăng ký..." />
-                    </div>
-                    <p className="text-[11px] text-gray-500 mt-1.5 ml-1">Số Zalo phải khớp với thông tin đã đăng ký trong hệ thống</p>
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
+                    <p className="text-amber-400 text-xs font-bold">
+                      💡 Sau khi xác nhận, liên hệ Admin để nhận mã OTP qua Zalo. Mã có hiệu lực <strong>2 phút</strong>.
+                    </p>
                   </div>
-
-                  {forgotError && (
-                    <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl flex items-center gap-2 text-red-400 text-sm font-bold">
-                      <AlertCircle size={14} /> {forgotError}
-                    </div>
-                  )}
-
-                  <button onClick={handleForgotPassword} disabled={forgotLoading}
-                    className="w-full py-3.5 bg-gradient-to-r from-red-600 to-orange-600 text-white font-black rounded-xl uppercase tracking-wider text-sm hover:from-red-700 hover:to-orange-700 transition disabled:opacity-50 flex items-center justify-center gap-2">
-                    {forgotLoading
-                      ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      : <><KeyRound size={16} /> Lấy mật khẩu mới</>}
+                  {forgotError && <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl flex items-center gap-2 text-red-400 text-sm font-bold"><AlertCircle size={14} /> {forgotError}</div>}
+                  <button onClick={handleCheckPhone} disabled={forgotLoading}
+                    className="w-full py-3.5 bg-gradient-to-r from-red-600 to-orange-600 text-white font-black rounded-xl uppercase tracking-wider text-sm hover:from-red-700 transition disabled:opacity-50 flex items-center justify-center gap-2">
+                    {forgotLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Phone size={16} /> Tiếp tục</>}
                   </button>
                 </>
-              ) : (
-                /* ── Thành công: Hiển thị mật khẩu mới ── */
-                <div className="text-center space-y-5">
-                  <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center mx-auto">
-                    <CheckCircle2 size={32} className="text-emerald-400" />
+              )}
+
+              {/* BƯỚC 2: Nhập OTP */}
+              {!newPasswordResult && forgotStep === 2 && (
+                <>
+                  {/* Countdown */}
+                  <div className="text-center">
+                    <div className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-black text-xl ${otpCountdown > 30 ? 'bg-emerald-500/10 text-emerald-400' : otpCountdown > 0 ? 'bg-amber-500/10 text-amber-400' : 'bg-red-500/10 text-red-400'}`}>
+                      <Clock size={20} />
+                      {otpCountdown > 0 ? `${Math.floor(otpCountdown/60)}:${String(otpCountdown%60).padStart(2,'0')}` : 'Hết hạn'}
+                    </div>
+                    <p className="text-gray-300 text-sm font-bold mt-3">Nhập mã OTP từ Admin gửi qua Zalo</p>
+                    <p className="text-gray-500 text-xs mt-1">SĐT: <strong className="text-white">{forgotPhone}</strong></p>
                   </div>
+
                   <div>
-                    <p className="text-white font-bold text-lg">Cấp lại mật khẩu thành công!</p>
+                    <label className="text-xs font-bold text-gray-400 uppercase block mb-1.5 text-center">Mã OTP (6 chữ số)</label>
+                    <input
+                      type="text" maxLength={6} value={forgotOTP}
+                      onChange={e => setForgotOTP(e.target.value.replace(/\D/g, ''))}
+                      onKeyDown={e => e.key === 'Enter' && handleVerifyOTP()}
+                      autoFocus
+                      className="w-full bg-[#0f172a] border-2 border-white/10 rounded-xl px-4 py-4 text-white text-3xl font-black outline-none focus:border-red-500 transition text-center tracking-[0.5em] font-mono"
+                      placeholder="______"
+                      disabled={otpCountdown === 0}
+                    />
+                  </div>
+
+                  {forgotError && <div className="bg-red-500/10 border border-red-500/20 p-3 rounded-xl flex items-center gap-2 text-red-400 text-sm font-bold"><AlertCircle size={14} /> {forgotError}</div>}
+
+                  <div className="flex gap-3">
+                    <button onClick={() => { setForgotStep(1); setForgotError(''); setForgotOTP(''); clearInterval(countdownRef.current); }}
+                      className="flex-1 py-3 border-2 border-white/10 text-gray-400 font-bold rounded-xl hover:border-white/20 transition">← Quay lại</button>
+                    <button onClick={handleVerifyOTP} disabled={forgotLoading || forgotOTP.length !== 6 || otpCountdown === 0}
+                      className="flex-[2] py-3 bg-gradient-to-r from-red-600 to-orange-600 text-white font-black rounded-xl hover:from-red-700 disabled:opacity-40 transition flex items-center justify-center gap-2">
+                      {forgotLoading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><ShieldCheck size={16} /> Xác minh OTP</>}
+                    </button>
+                  </div>
+
+                  {otpCountdown === 0 && (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center">
+                      <p className="text-red-400 text-xs font-bold">⏰ OTP đã hết hạn. Liên hệ Admin để được cấp mã OTP mới.</p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* KẾT QUẢ: Mật khẩu mới */}
+              {newPasswordResult && (
+                <div className="text-center space-y-5">
+                  <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center mx-auto"><CheckCircle2 size={32} className="text-emerald-400" /></div>
+                  <div>
+                    <p className="text-white font-bold text-lg">Đặt lại mật khẩu thành công!</p>
                     <p className="text-gray-400 text-sm mt-1">Tài khoản: <strong className="text-white">{newPasswordResult.name}</strong></p>
                   </div>
                   <div className="bg-[#0f172a] border-2 border-emerald-500/30 rounded-2xl p-5">
                     <p className="text-xs font-bold text-gray-400 uppercase mb-2">Mật khẩu mới</p>
                     <div className="flex items-center justify-center gap-3">
                       <span className="text-3xl font-black text-emerald-400 tracking-[0.3em] font-mono">{newPasswordResult.password}</span>
-                      <button onClick={() => {
-                        navigator.clipboard.writeText(newPasswordResult.password);
-                        setCopied(true); toast.success('Đã sao chép!');
-                        setTimeout(() => setCopied(false), 2000);
-                      }} className={`w-9 h-9 rounded-lg flex items-center justify-center transition ${copied ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
+                      <button onClick={() => { navigator.clipboard.writeText(newPasswordResult.password); setCopied(true); toast.success('Đã sao chép!'); setTimeout(() => setCopied(false), 2000); }}
+                        className={`w-9 h-9 rounded-lg flex items-center justify-center transition ${copied ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}>
                         {copied ? <Check size={16} /> : <Copy size={16} />}
                       </button>
                     </div>
                   </div>
                   <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
-                    <p className="text-amber-400 text-xs font-bold">⚠️ Vui lòng ghi nhớ mật khẩu mới và đăng nhập lại ngay.</p>
+                    <p className="text-amber-400 text-xs font-bold">⚠️ Vui lòng ghi nhớ mật khẩu mới và đăng nhập lại.</p>
                   </div>
-                  <button onClick={closeForgotModal}
-                    className="w-full py-3 bg-white/5 border border-white/10 text-white font-bold rounded-xl hover:bg-white/10 transition">
-                    Đóng & Đăng nhập
-                  </button>
+                  <button onClick={closeForgotModal} className="w-full py-3 bg-white/5 border border-white/10 text-white font-bold rounded-xl hover:bg-white/10 transition">Đóng & Đăng nhập</button>
                 </div>
               )}
             </div>

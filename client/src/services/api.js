@@ -181,6 +181,15 @@ export const authAPI = {
     return res.json();
   },
 
+  adminGenerateOTP: async (userId, userRole) => {
+    const res = await apiFetch('/auth/admin/generate-otp', {
+      method: 'POST',
+      body: JSON.stringify({ userId, userRole }),
+    });
+    return res.json();
+  },
+
+
   adminUpdateProfile: async (data) => {
     const res = await apiFetch('/auth/admin/profile', {
       method: 'PUT',

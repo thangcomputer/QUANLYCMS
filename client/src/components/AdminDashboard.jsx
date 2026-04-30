@@ -1167,9 +1167,11 @@ const AdminDashboard = ({ onNavigate }) => {
   }, [actionMenuId]);
 
   const [editTeacher, setEditTeacher] = useState(null);
-  const [resetPwModal, setResetPwModal] = useState(null); // { id, name, role } 
-  const [resetPwInput, setResetPwInput] = useState('');
+  const [resetPwModal, setResetPwModal] = useState(null); // { id, name, role }
   const [resetPwLoading, setResetPwLoading] = useState(false);
+  const [otpResult, setOtpResult] = useState(null); // { otp, phone, zalo, name, countdown }
+  const [otpCountdown, setOtpCountdown] = useState(0);
+  const otpTimerRef = React.useRef(null);
   const [editStudent, setEditStudent] = useState(null);
   const [deleteModal, setDeleteModal] = useState(null); // { type: 'teacher'|'student', id, name }
   const [grantModal, setGrantModal] = useState(null); // { id, name, type: 'retry' | 'first' }
@@ -4936,69 +4938,140 @@ const AdminDashboard = ({ onNavigate }) => {
         />
       )}
 
-      {/* ===== MODAL CẤP LẠI MẬT KHẨU ===== */}
+      {/* ===== MODAL CẤP LẠI MẬT KHẨU (OTP) ===== */}
       {resetPwModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[99999] p-4" onClick={() => setResetPwModal(null)}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[99999] p-4" onClick={() => { setResetPwModal(null); setOtpResult(null); clearInterval(otpTimerRef.current); }}>
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+            {/* Header */}
             <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-5 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                  <KeyRound size={20} className="text-white" />
-                </div>
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><KeyRound size={20} /></div>
                 <div>
                   <p className="font-black text-base">Cấp lại mật khẩu</p>
-                  <p className="text-white/80 text-xs">{resetPwModal.role === 'teacher' ? 'Giảng viên' : 'Học viên'}: {resetPwModal.name}</p>
+                  <p className="text-white/80 text-xs">{resetPwModal.role === 'teacher' ? '👨‍🏫 Giảng viên' : '🎓 Học viên'}: <strong>{resetPwModal.name}</strong></p>
                 </div>
               </div>
-              <button onClick={() => setResetPwModal(null)} className="hover:bg-white/20 rounded-lg p-1 transition">
-                <X size={18} />
-              </button>
+              <button onClick={() => { setResetPwModal(null); setOtpResult(null); clearInterval(otpTimerRef.current); }} className="hover:bg-white/20 rounded-lg p-1 transition"><X size={18} /></button>
             </div>
+
             <div className="p-6 space-y-4">
-              <div>
-                <label className="text-xs font-bold text-gray-500 uppercase block mb-1.5">Mật khẩu mới (tối thiểu 6 ký tự)</label>
-                <input
-                  type="text"
-                  value={resetPwInput}
-                  onChange={e => setResetPwInput(e.target.value)}
-                  autoFocus
-                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-lg font-bold font-mono tracking-widest text-center focus:border-amber-400 outline-none transition"
-                  placeholder="Nhập mật khẩu mới..."
-                  onKeyDown={e => { if (e.key === 'Enter' && resetPwInput.length >= 6) document.getElementById('btn-confirm-reset-pw').click(); }}
-                />
-                {resetPwInput && resetPwInput.length < 6 && (
-                  <p className="text-xs text-red-500 mt-1 text-center">Mật khẩu phải ít nhất 6 ký tự</p>
-                )}
-              </div>
-              <div className="flex gap-3">
-                <button onClick={() => setResetPwModal(null)}
-                  className="flex-1 py-3 border-2 border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-50 transition">
-                  Hủy
-                </button>
-                <button
-                  id="btn-confirm-reset-pw"
-                  disabled={resetPwInput.length < 6 || resetPwLoading}
-                  onClick={async () => {
-                    if (resetPwInput.length < 6) return;
-                    setResetPwLoading(true);
-                    try {
-                      const res = await api.auth.adminResetPassword(resetPwModal.id, resetPwModal.role, resetPwInput);
-                      if (res.success) {
-                        toast.success(`✅ Đã đặt lại mật khẩu cho ${resetPwModal.name}`);
-                        setResetPwModal(null);
-                        setResetPwInput('');
-                      } else {
-                        toast.error(res.message || 'Thất bại');
-                      }
-                    } catch { toast.error('Lỗi kết nối server'); }
-                    finally { setResetPwLoading(false); }
-                  }}
-                  className="flex-[2] py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-xl hover:from-amber-600 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-amber-100 transition"
-                >
-                  {resetPwLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <KeyRound size={16} />}
-                  {resetPwLoading ? 'Đang lưu...' : 'Xác nhận đặt lại'}
-                </button>
-              </div>
+              {!otpResult ? (
+                /* Bước 1: Sinh OTP */
+                <>
+                  <div className="text-center py-2">
+                    <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                      <KeyRound size={32} className="text-amber-500" />
+                    </div>
+                    <p className="text-gray-700 font-bold">Sinh mã OTP cho {resetPwModal.name}</p>
+                    <p className="text-gray-400 text-sm mt-1">Mã OTP hiệu lực <strong>2 phút</strong>. Admin tự gửi qua Zalo cho {resetPwModal.role === 'teacher' ? 'giảng viên' : 'học viên'}.</p>
+                  </div>
+                  <button
+                    disabled={resetPwLoading}
+                    onClick={async () => {
+                      setResetPwLoading(true);
+                      try {
+                        const res = await api.auth.adminGenerateOTP(resetPwModal.id, resetPwModal.role);
+                        if (res.success) {
+                          setOtpResult(res.data);
+                          setOtpCountdown(120);
+                          clearInterval(otpTimerRef.current);
+                          otpTimerRef.current = setInterval(() => {
+                            setOtpCountdown(prev => {
+                              if (prev <= 1) { clearInterval(otpTimerRef.current); return 0; }
+                              return prev - 1;
+                            });
+                          }, 1000);
+                          toast.success('✅ Đã sinh OTP thành công!');
+                        } else {
+                          toast.error(res.message || 'Thất bại');
+                        }
+                      } catch { toast.error('Lỗi kết nối server'); }
+                      finally { setResetPwLoading(false); }
+                    }}
+                    className="w-full py-3.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black rounded-xl hover:from-amber-600 disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg transition"
+                  >
+                    {resetPwLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><KeyRound size={16} /> Sinh mã OTP</>}
+                  </button>
+                </>
+              ) : (
+                /* Bước 2: Hiển thị OTP + Countdown + Zalo */
+                <div className="space-y-4">
+                  {/* Countdown */}
+                  <div className={`flex items-center justify-center gap-2 py-2 px-4 rounded-full font-black text-lg mx-auto w-fit ${
+                    otpCountdown > 30 ? 'bg-emerald-50 text-emerald-600' :
+                    otpCountdown > 0  ? 'bg-amber-50 text-amber-600' :
+                                        'bg-red-50 text-red-500'
+                  }`}>
+                    <Clock size={18} />
+                    {otpCountdown > 0 ? `${Math.floor(otpCountdown/60)}:${String(otpCountdown%60).padStart(2,'0')}` : 'Hết hạn'}
+                  </div>
+
+                  {/* OTP Code */}
+                  <div className="bg-gray-50 border-2 border-dashed border-amber-300 rounded-2xl p-4 text-center">
+                    <p className="text-xs font-bold text-gray-400 uppercase mb-1">Mã OTP</p>
+                    <p className="text-5xl font-black text-amber-600 tracking-[0.3em] font-mono">{otpResult.otp}</p>
+                  </div>
+
+                  {/* Nội dung tin nhắn gửi Zalo */}
+                  <div className="bg-blue-50 rounded-xl p-3 text-sm text-gray-700 leading-relaxed">
+                    <p className="font-bold text-blue-700 text-xs mb-1">📋 Nội dung gửi cho {otpResult.name}:</p>
+                    <p className="font-mono text-xs bg-white rounded-lg p-2 border border-blue-200">
+                      {`[THẮNG TIN HỌC] Mã OTP đặt lại mật khẩu: ${otpResult.otp}
+⏱ Hiệu lực 2 phút.
+Vào: dashboard.giasutinhoc24h.com → Quên mật khẩu → Nhập OTP.`}
+                    </p>
+                  </div>
+
+                  {/* Nút Copy + Zalo */}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        const msg = `[THẮNG TIN HỌC] Mã OTP đặt lại mật khẩu: ${otpResult.otp}\n⏱ Hiệu lực 2 phút.\nVào: dashboard.giasutinhoc24h.com → Quên mật khẩu → Nhập OTP.`;
+                        navigator.clipboard.writeText(msg);
+                        toast.success('✅ Đã copy nội dung tin nhắn!');
+                      }}
+                      className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl flex items-center justify-center gap-2 transition"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                      Copy tin
+                    </button>
+                    <button
+                      onClick={() => {
+                        const msg = encodeURIComponent(`[THẮNG TIN HỌC] Mã OTP đặt lại mật khẩu: ${otpResult.otp}\n⏱ Hiệu lực 2 phút.\nVào: dashboard.giasutinhoc24h.com → Quên mật khẩu → Nhập OTP.`);
+                        const phone = (otpResult.zalo || otpResult.phone || '').replace(/[^0-9]/g, '');
+                        window.open(`https://zalo.me/${phone}`, '_blank');
+                        navigator.clipboard.writeText(`[THẮNG TIN HỌC] Mã OTP đặt lại mật khẩu: ${otpResult.otp}\n⏱ Hiệu lực 2 phút.\nVào: dashboard.giasutinhoc24h.com → Quên mật khẩu → Nhập OTP.`);
+                        toast.success('✅ Mở Zalo! Nội dung đã được copy sẵn.');
+                      }}
+                      className="flex-[2] py-3 bg-[#0068ff] hover:bg-[#0055d4] text-white font-bold rounded-xl flex items-center justify-center gap-2 transition shadow-lg"
+                    >
+                      <svg viewBox="0 0 48 48" width="18" height="18" fill="currentColor"><path d="M24 4C13 4 4 12.1 4 22c0 5.7 2.9 10.8 7.5 14.1L9 42l6.5-3.2C18 39.6 21 40 24 40c11 0 20-8.1 20-18S35 4 24 4z"/></svg>
+                      Gửi Zalo
+                    </button>
+                  </div>
+
+                  {/* Sinh lại OTP */}
+                  {otpCountdown === 0 && (
+                    <button
+                      onClick={async () => {
+                        setResetPwLoading(true);
+                        try {
+                          const res = await api.auth.adminGenerateOTP(resetPwModal.id, resetPwModal.role);
+                          if (res.success) {
+                            setOtpResult(res.data); setOtpCountdown(120);
+                            clearInterval(otpTimerRef.current);
+                            otpTimerRef.current = setInterval(() => setOtpCountdown(p => { if (p<=1){clearInterval(otpTimerRef.current);return 0;} return p-1; }), 1000);
+                            toast.success('Đã sinh OTP mới!');
+                          }
+                        } catch { toast.error('Lỗi'); } finally { setResetPwLoading(false); }
+                      }}
+                      className="w-full py-2.5 border-2 border-amber-400 text-amber-600 font-bold rounded-xl hover:bg-amber-50 transition flex items-center justify-center gap-2"
+                    >
+                      <RefreshCw size={15} /> Sinh lại OTP mới
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
