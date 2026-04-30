@@ -872,33 +872,35 @@ const EditStudentModal = ({ student, onSave, onClose, teachers }) => {
                 <label className="text-sm font-semibold text-gray-700 block mb-1.5">Giảng viên hướng dẫn <span className="text-gray-400 font-normal">(Tùy chọn)</span></label>
                 <select name="teacherId" value={form.teacherId} onChange={handleChange} className="w-full border-2 border-gray-200 rounded-xl p-3.5 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition text-sm bg-gray-50 cursor-pointer">
                   <option value="">-- Có thể chọn sau --</option>
-                  {teachers.filter(t => t.status === 'Active' || (t.testScore >= 80)).map(t => (
-                    <option key={t.id || t._id} value={t.id || t._id}>{t.name} (Điểm: {t.testScore || 100})</option>
+                  {teachers.filter(t => {
+                    const s = (t.status || '').toLowerCase();
+                    return s === 'active' || s === 'pending' || (t.testScore >= 80);
+                  }).map(t => (
+                    <option key={t.id || t._id} value={t.id || t._id}>{t.name}{t.phone ? ` — ${t.phone}` : ''}</option>
                   ))}
                 </select>
+                {teachers.filter(t => { const s = (t.status || '').toLowerCase(); return s === 'active' || s === 'pending'; }).length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">⚠️ Chưa có giảng viên nào có trạng thái Active/Pending</p>
+                )}
               </div>
             </div>
           </div>
 
-          {/* Full width row */}
-          <div className="mt-8 pt-6 border-t border-gray-100 flex flex-col md:flex-row items-center gap-6 justify-between bg-gray-50/50 -mx-8 -mb-8 px-8 pb-8 pt-6 rounded-b-3xl">
-            <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
-              <label className="flex items-center gap-3 cursor-pointer select-none p-3.5 bg-green-50 border-2 border-green-200 rounded-2xl transition hover:bg-green-100/70 hover:shadow-sm">
-                <input type="checkbox" name="paid" checked={form.paid} onChange={handleChange} className="w-5 h-5 accent-green-600 rounded cursor-pointer" />
-                <div>
-                  <span className="text-sm font-black text-green-800 block">Đã đóng học phí</span>
-                </div>
-              </label>
+          {/* Full width row: checkboxes + buttons */}
+          <div className="mt-8 pt-6 border-t border-gray-100">
+            <div className="flex flex-col md:flex-row items-start md:items-center gap-4 justify-between">
+              <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                <label className="flex items-center gap-3 cursor-pointer select-none px-4 py-3 bg-green-50 border-2 border-green-200 rounded-2xl transition hover:bg-green-100/70">
+                  <input type="checkbox" name="paid" checked={form.paid} onChange={handleChange} className="w-5 h-5 accent-green-600 rounded cursor-pointer" />
+                  <span className="text-sm font-black text-green-800">Đã đóng học phí</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer select-none px-4 py-3 bg-blue-50 border-2 border-blue-200 rounded-2xl transition hover:bg-blue-100/70">
+                  <input type="checkbox" name="studentExamUnlocked" checked={studentExamUnlocked} onChange={handleChange} className="w-5 h-5 accent-blue-600 rounded cursor-pointer" />
+                  <span className="text-sm font-black text-blue-800">[Mở khóa phòng thi đặc cách]</span>
+                </label>
+              </div>
 
-              <label className="flex items-center gap-3 cursor-pointer select-none p-3.5 bg-blue-50 border-2 border-blue-200 rounded-2xl transition hover:bg-blue-100/70 hover:shadow-sm">
-                <input type="checkbox" name="studentExamUnlocked" checked={studentExamUnlocked} onChange={handleChange} className="w-5 h-5 accent-blue-600 rounded cursor-pointer" />
-                <div>
-                  <span className="text-sm font-black text-blue-800 block">[Mở khóa phòng thi đặc cách]</span>
-                </div>
-              </label>
-            </div>
-
-            <div className="flex gap-3 w-full md:w-auto mt-4 md:mt-0">
+              <div className="flex gap-3 w-full md:w-auto">
               <button 
                 onClick={onClose} 
                 className="flex-1 md:flex-none px-8 py-3.5 bg-white border-2 border-gray-200 rounded-2xl font-bold text-gray-600 hover:bg-gray-100 hover:border-gray-300 transition"
@@ -920,6 +922,7 @@ const EditStudentModal = ({ student, onSave, onClose, teachers }) => {
               >
                 <Save size={20} className="drop-shadow-sm" /> Lưu Thay Đổi
               </button>
+              </div>
             </div>
           </div>
         </div>
