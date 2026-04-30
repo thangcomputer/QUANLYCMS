@@ -966,24 +966,30 @@ router.post('/forgot-password/request', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản với số điện thoại này' });
     }
 
-    // Tạo OTP 6 số
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const key = `${phone.trim()}:${role || 'student'}`;
-    otpStore.set(key, { otp, expiresAt: Date.now() + 60000, userId: user._id.toString(), userName: user.name, role: role || 'student' });
-
-    // Tự xóa sau 65s
-    setTimeout(() => otpStore.delete(key), 65000);
-
-    // Gửi OTP qua Zalo
-    const zaloTarget = user.zalo || user.phone || phone.trim();
-    await sendZaloOTP(zaloTarget, otp, user.name);
+    // Tạo thông báo cho Admin
+    try {
+      const Notification = require('../models/Notification');
+      await Notification.create({
+        type: 'SYSTEM',
+        title: 'Yêu cầu cấp lại mật khẩu',
+        content: `${role === 'teacher' ? 'Giảng viên' : 'Học viên'} ${user.name} (${phone}) đang yêu cầu cấp lại mật khẩu. Vui lòng sinh mã OTP và gửi qua Zalo cho người này.`,
+        receivers: ['GLOBAL'], // Tất cả admin
+        payload: { userId: user._id, role: role, action: 'RESET_PASSWORD' }
+      });
+      // Phát sự kiện socket nếu cần (tùy thuộc vào implement socket hiện tại, thường frontend sẽ poll hoặc dùng socket io global)
+      if (global.io) {
+        global.io.emit('new-notification');
+      }
+    } catch (err) {
+      console.warn('[AUTH] Cannot create notification:', err.message);
+    }
 
     // Che một phần số điện thoại
     const masked = phone.trim().replace(/(\d{3})\d+(\d{3})/, '$1****$2');
 
     return res.json({
       success: true,
-      message: `Đã gửi mã OTP về Zalo số ${masked}. Mã có hiệu lực trong 60 giây.`,
+      message: `Hệ thống đã gửi thông báo đến Admin. Vui lòng liên hệ Admin để nhận mã OTP.`,
       data: { masked, name: user.name }
     });
   } catch (error) {

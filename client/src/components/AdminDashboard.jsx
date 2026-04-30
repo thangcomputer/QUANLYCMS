@@ -1172,6 +1172,34 @@ const AdminDashboard = ({ onNavigate }) => {
   const [otpResult, setOtpResult] = useState(null); // { otp, phone, zalo, name, countdown }
   const [otpCountdown, setOtpCountdown] = useState(0);
   const otpTimerRef = React.useRef(null);
+  
+  const handleOpenResetPw = async (id, name, role) => {
+    setResetPwModal({ id, name, role });
+    setOtpResult(null);
+    setResetPwLoading(true);
+    try {
+      const res = await api.auth.adminGenerateOTP(id, role);
+      if (res.success) {
+        setOtpResult(res.data);
+        setOtpCountdown(120);
+        clearInterval(otpTimerRef.current);
+        otpTimerRef.current = setInterval(() => {
+          setOtpCountdown(prev => {
+            if (prev <= 1) { clearInterval(otpTimerRef.current); return 0; }
+            return prev - 1;
+          });
+        }, 1000);
+        toast.success('Đã sinh OTP thành công!');
+      } else {
+        toast.error(res.message || 'Lỗi sinh OTP');
+      }
+    } catch {
+      toast.error('Lỗi kết nối server');
+    } finally {
+      setResetPwLoading(false);
+    }
+  };
+
   const [editStudent, setEditStudent] = useState(null);
   const [deleteModal, setDeleteModal] = useState(null); // { type: 'teacher'|'student', id, name }
   const [grantModal, setGrantModal] = useState(null); // { id, name, type: 'retry' | 'first' }
@@ -4762,10 +4790,8 @@ const AdminDashboard = ({ onNavigate }) => {
               </button>
               {editTeacher._tab !== 'history' && (
                 <>
-                  <button onClick={() => {
-                    setResetPwInput('');
-                    setResetPwModal({ id: editTeacher.id || editTeacher._id, name: editTeacher.name, role: 'teacher' });
-                  }} className="py-3.5 px-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-amber-100 transition-all whitespace-nowrap">
+                  <button onClick={() => handleOpenResetPw(editTeacher.id || editTeacher._id, editTeacher.name, 'teacher')}
+                    className="py-3.5 px-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-amber-100 transition-all whitespace-nowrap">
                     <KeyRound size={15} /> Cấp lại MK
                   </button>
                   <button onClick={async () => {
@@ -4803,7 +4829,7 @@ const AdminDashboard = ({ onNavigate }) => {
           student={editStudent}
           teachers={globalTeachers}
           onClose={() => setEditStudent(null)}
-          onResetPassword={(id, name) => { setResetPwInput(''); setResetPwModal({ id, name, role: 'student' }); }}
+          onResetPassword={(id, name) => handleOpenResetPw(id, name, 'student')}
           onSave={async (updatedForm) => {
             const payload = {
               name: updatedForm.name,
