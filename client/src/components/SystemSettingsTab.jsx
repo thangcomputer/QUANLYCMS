@@ -12,7 +12,7 @@ import {
   Settings, CreditCard, Bell, Save, Loader2, Eye,
   Upload, Users, GraduationCap, ToggleLeft,
   ToggleRight, AlertCircle, Landmark, X,
-  DollarSign, Building2
+  DollarSign, Building2, Lock, User, KeyRound, EyeOff, CheckCircle2
 } from 'lucide-react';
 import { BankSelect } from './BankSelect';
 import api from '../services/api';
@@ -52,6 +52,16 @@ export default function SystemSettingsTab() {
   const [saving, setSaving]     = useState(false);
   const [uploading, setUploading] = useState(false);
   const imgInputRef = useRef(null);
+
+  // ── Admin Profile State ──
+  const [adminName, setAdminName] = useState('');
+  const [adminOldPw, setAdminOldPw] = useState('');
+  const [adminNewPw, setAdminNewPw] = useState('');
+  const [adminNewPw2, setAdminNewPw2] = useState('');
+  const [showAdminOldPw, setShowAdminOldPw] = useState(false);
+  const [showAdminNewPw, setShowAdminNewPw] = useState(false);
+  const [adminSaving, setAdminSaving] = useState(false);
+  const [adminSuccess, setAdminSuccess] = useState('');
   const toast = useToast();
 
   const [settings, setSettings] = useState({
@@ -136,12 +146,66 @@ export default function SystemSettingsTab() {
     }
   };
 
+  // ── Admin Profile Handler ──
+  const handleAdminProfileSave = async () => {
+    if (adminNewPw && adminNewPw !== adminNewPw2) {
+      toast.error('Mật khẩu mới không khớp nhau');
+      return;
+    }
+    if (adminNewPw && adminNewPw.length < 6) {
+      toast.error('Mật khẩu mới phải ít nhất 6 ký tự');
+      return;
+    }
+    if (adminNewPw && !adminOldPw) {
+      toast.error('Vui lòng nhập mật khẩu hiện tại');
+      return;
+    }
+    setAdminSaving(true);
+    setAdminSuccess('');
+    try {
+      const payload = {};
+      if (adminName.trim()) payload.name = adminName.trim();
+      if (adminNewPw) {
+        payload.oldPassword = adminOldPw;
+        payload.newPassword = adminNewPw;
+      }
+      if (!payload.name && !payload.newPassword) {
+        toast.error('Vui lòng nhập thông tin cần thay đổi');
+        setAdminSaving(false);
+        return;
+      }
+      const res = await api.auth.adminUpdateProfile(payload);
+      if (res.success) {
+        toast.success('✅ Cập nhật thành công!');
+        setAdminSuccess('Thông tin đã được cập nhật thành công!');
+        setAdminOldPw('');
+        setAdminNewPw('');
+        setAdminNewPw2('');
+        // Update session name
+        if (res.data?.name) {
+          try {
+            const session = JSON.parse(localStorage.getItem('admin_user') || '{}');
+            session.name = res.data.name;
+            localStorage.setItem('admin_user', JSON.stringify(session));
+          } catch {}
+        }
+      } else {
+        toast.error(res.message || 'Cập nhật thất bại');
+      }
+    } catch {
+      toast.error('Lỗi kết nối server');
+    } finally {
+      setAdminSaving(false);
+    }
+  };
+
   const TABS = [
     { key: 'bank',     label: 'Tài khoản Thu học phí', icon: CreditCard  },
     { key: 'pricing',  label: 'Học phí Khóa học',       icon: DollarSign  },
     { key: 'branches', label: 'Chi nhánh / Cơ sở',      icon: Building2   },
     { key: 'popup',    label: 'Popup Thông báo',         icon: Bell        },
     { key: 'web',      label: 'Cài đặt Web',             icon: Settings    },
+    { key: 'account',  label: 'Tài khoản Admin',         icon: Lock        },
   ];
 
   if (loading) return (
@@ -420,6 +484,114 @@ export default function SystemSettingsTab() {
       {/* ── TAB 5: CÀI ĐẶT WEB ── WebSettingsTab component ──────────────────── */}
       {activeSubTab === 'web' && (
         <WebSettingsTab />
+      )}
+
+      {/* ── TAB 6: TÀI KHOẢN ADMIN ──────────────────────────────────────────── */}
+      {activeSubTab === 'account' && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-6 max-w-2xl">
+          <div className="flex items-center gap-2 mb-1">
+            <Lock size={16} className="text-violet-600" />
+            <h3 className="font-bold text-gray-800">Thay đổi thông tin Admin</h3>
+          </div>
+          <p className="text-xs text-gray-500 bg-blue-50 border border-blue-100 rounded-xl p-3">
+            🔐 Thay đổi tên hiển thị và mật khẩu đăng nhập của tài khoản Admin.
+          </p>
+
+          {adminSuccess && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex items-center gap-2 text-emerald-700 text-sm font-bold">
+              <CheckCircle2 size={16} /> {adminSuccess}
+            </div>
+          )}
+
+          {/* Tên hiển thị */}
+          <div>
+            <label className="text-xs font-bold text-gray-500 uppercase block mb-1.5">Tên hiển thị mới (tùy chọn)</label>
+            <div className="flex items-center gap-2 bg-white border-2 border-gray-200 rounded-xl px-4 py-3 focus-within:border-violet-400 transition">
+              <User size={15} className="text-violet-500 flex-shrink-0" />
+              <input
+                type="text"
+                value={adminName}
+                onChange={e => setAdminName(e.target.value)}
+                className="flex-1 text-sm font-bold outline-none bg-transparent"
+                placeholder="Nhập tên hiển thị mới..."
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-gray-100 pt-4">
+            <p className="text-xs font-bold text-gray-400 uppercase mb-3 flex items-center gap-1"><KeyRound size={12} /> Đổi mật khẩu (tùy chọn)</p>
+
+            {/* Mật khẩu hiện tại */}
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-gray-500 block mb-1.5">Mật khẩu hiện tại</label>
+                <div className="flex items-center gap-2 bg-white border-2 border-gray-200 rounded-xl px-4 py-3 focus-within:border-violet-400 transition">
+                  <Lock size={15} className="text-gray-400 flex-shrink-0" />
+                  <input
+                    type={showAdminOldPw ? 'text' : 'password'}
+                    value={adminOldPw}
+                    onChange={e => setAdminOldPw(e.target.value)}
+                    className="flex-1 text-sm font-bold outline-none bg-transparent"
+                    placeholder="Nhập mật khẩu hiện tại..."
+                  />
+                  <button type="button" onClick={() => setShowAdminOldPw(!showAdminOldPw)} className="text-gray-400 hover:text-gray-600">
+                    {showAdminOldPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Mật khẩu mới */}
+              <div>
+                <label className="text-xs font-bold text-gray-500 block mb-1.5">Mật khẩu mới (ít nhất 6 ký tự)</label>
+                <div className="flex items-center gap-2 bg-white border-2 border-gray-200 rounded-xl px-4 py-3 focus-within:border-violet-400 transition">
+                  <KeyRound size={15} className="text-violet-500 flex-shrink-0" />
+                  <input
+                    type={showAdminNewPw ? 'text' : 'password'}
+                    value={adminNewPw}
+                    onChange={e => setAdminNewPw(e.target.value)}
+                    className="flex-1 text-sm font-bold outline-none bg-transparent"
+                    placeholder="Nhập mật khẩu mới..."
+                  />
+                  <button type="button" onClick={() => setShowAdminNewPw(!showAdminNewPw)} className="text-gray-400 hover:text-gray-600">
+                    {showAdminNewPw ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Xác nhận mật khẩu mới */}
+              <div>
+                <label className="text-xs font-bold text-gray-500 block mb-1.5">Xác nhận mật khẩu mới</label>
+                <div className={`flex items-center gap-2 bg-white border-2 rounded-xl px-4 py-3 transition ${
+                  adminNewPw2 && adminNewPw !== adminNewPw2 ? 'border-red-300' : 'border-gray-200 focus-within:border-violet-400'
+                }`}>
+                  <KeyRound size={15} className="text-gray-400 flex-shrink-0" />
+                  <input
+                    type="password"
+                    value={adminNewPw2}
+                    onChange={e => setAdminNewPw2(e.target.value)}
+                    className="flex-1 text-sm font-bold outline-none bg-transparent"
+                    placeholder="Nhập lại mật khẩu mới..."
+                  />
+                  {adminNewPw2 && adminNewPw === adminNewPw2 && (
+                    <CheckCircle2 size={15} className="text-emerald-500" />
+                  )}
+                </div>
+                {adminNewPw2 && adminNewPw !== adminNewPw2 && (
+                  <p className="text-xs text-red-500 mt-1 ml-1">Mật khẩu xác nhận không khớp</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={handleAdminProfileSave}
+            disabled={adminSaving || (adminNewPw && adminNewPw !== adminNewPw2)}
+            className="w-full py-3 bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold rounded-xl hover:from-violet-700 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition shadow-lg shadow-violet-100"
+          >
+            {adminSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+            {adminSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
+          </button>
+        </div>
       )}
 
       {/* DANGER ZONE MODAL */}

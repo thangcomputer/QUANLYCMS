@@ -154,7 +154,40 @@ export const authAPI = {
     const res = await apiFetch('/auth/logout', { method: 'POST' });
     clearTokens(role);
     return res;
-  }
+  },
+
+  changePassword: async (oldPassword, newPassword) => {
+    const res = await apiFetch('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ oldPassword, newPassword }),
+    });
+    return res.json();
+  },
+
+  resetPasswordRequest: async (phone, zalo, role) => {
+    const res = await apiFetch('/auth/reset-password-request', {
+      method: 'POST',
+      body: JSON.stringify({ phone, zalo, role }),
+      skipAuth: true,
+    });
+    return res.json();
+  },
+
+  adminResetPassword: async (userId, userRole, newPassword) => {
+    const res = await apiFetch('/auth/admin/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ userId, userRole, newPassword }),
+    });
+    return res.json();
+  },
+
+  adminUpdateProfile: async (data) => {
+    const res = await apiFetch('/auth/admin/profile', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
 };
 
 // ─── STUDENT API ────────────────────────────────────────────────────────────

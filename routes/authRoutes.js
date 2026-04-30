@@ -834,5 +834,165 @@ router.get('/me', async (req, res) => {
   }
 });
 
+// ─── POST /api/auth/reset-password-request ───────────────────────────────────
+/**
+ * @route   POST /api/auth/reset-password-request
+ * @desc    Yêu cầu cấp lại mật khẩu (xác minh SĐT + Zalo)
+ * @access  Public
+ */
+router.post('/reset-password-request', async (req, res) => {
+  try {
+    const { phone, zalo, role } = req.body;
+
+    if (!phone) {
+      return res.status(400).json({ success: false, message: 'Vui lòng nhập số điện thoại' });
+    }
+
+    let user = null;
+
+    if (role === 'student') {
+      user = await Student.findOne({
+        $or: [{ phone: phone.trim() }, { zalo: phone.trim() }]
+      });
+    } else {
+      // teacher
+      user = await Teacher.findOne({ phone: phone.trim(), role: 'teacher' });
+    }
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản với số điện thoại này' });
+    }
+
+    // Xác minh bằng số Zalo
+    const userZalo = (user.zalo || user.phone || '').trim();
+    const inputZalo = (zalo || '').trim();
+
+    if (!inputZalo || userZalo !== inputZalo) {
+      return res.status(400).json({ success: false, message: 'Số Zalo xác minh không khớp với tài khoản' });
+    }
+
+    // Tạo mật khẩu mới ngẫu nhiên (6 số)
+    const newPassword = Math.floor(100000 + Math.random() * 900000).toString();
+    user.password = newPassword;
+    await user.save({ validateModifiedOnly: true });
+
+    return res.json({
+      success: true,
+      message: 'Cấp lại mật khẩu thành công!',
+      data: { newPassword, name: user.name }
+    });
+
+  } catch (error) {
+    console.error('[AUTH] Reset password request error:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
+
+// ─── POST /api/auth/admin/reset-password ─────────────────────────────────────
+/**
+ * @route   POST /api/auth/admin/reset-password
+ * @desc    Admin cấp lại mật khẩu cho giảng viên/học viên
+ * @access  Admin only
+ */
+router.post('/admin/reset-password', authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin' && req.user.role !== 'staff') {
+      return res.status(403).json({ success: false, message: 'Không có quyền thực hiện' });
+    }
+
+    const { userId, userRole, newPassword } = req.body;
+
+    if (!userId || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Thiếu userId hoặc mật khẩu mới' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'Mật khẩu mới phải ít nhất 6 ký tự' });
+    }
+
+    const Model = userRole === 'student' ? Student : Teacher;
+    const user = await Model.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản' });
+    }
+
+    user.password = newPassword;
+    await user.save({ validateModifiedOnly: true });
+
+    return res.json({
+      success: true,
+      message: `Đã cấp lại mật khẩu cho ${user.name}`,
+      data: { name: user.name }
+    });
+
+  } catch (error) {
+    console.error('[AUTH] Admin reset password error:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
+
+// ─── PUT /api/auth/admin/profile ─────────────────────────────────────────────
+/**
+ * @route   PUT /api/auth/admin/profile
+ * @desc    Admin đổi tên hiển thị và/hoặc mật khẩu
+ * @access  Admin only
+ */
+router.put('/admin/profile', authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Chỉ Admin mới được thay đổi' });
+    }
+
+    const { name, oldPassword, newPassword } = req.body;
+    const userId = req.user.id;
+
+    // Hardcoded admin — không có trong DB
+    if (userId === 'admin') {
+      return res.status(400).json({
+        success: false,
+        message: 'Tài khoản admin mặc định không thể đổi qua API. Vui lòng cập nhật trong mã nguồn server.'
+      });
+    }
+
+    const user = await Teacher.findById(userId).select('+password');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản' });
+    }
+
+    // Đổi tên
+    if (name && name.trim()) {
+      user.name = name.trim();
+    }
+
+    // Đổi mật khẩu (yêu cầu mật khẩu cũ)
+    if (newPassword) {
+      if (!oldPassword) {
+        return res.status(400).json({ success: false, message: 'Vui lòng nhập mật khẩu hiện tại' });
+      }
+      if (newPassword.length < 6) {
+        return res.status(400).json({ success: false, message: 'Mật khẩu mới phải ít nhất 6 ký tự' });
+      }
+      const isMatch = await user.comparePassword(oldPassword);
+      if (!isMatch) {
+        return res.status(401).json({ success: false, message: 'Mật khẩu hiện tại không đúng' });
+      }
+      user.password = newPassword;
+    }
+
+    await user.save({ validateModifiedOnly: true });
+
+    return res.json({
+      success: true,
+      message: 'Cập nhật thông tin thành công',
+      data: { name: user.name }
+    });
+
+  } catch (error) {
+    console.error('[AUTH] Admin profile update error:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
+
 module.exports = router;
 
