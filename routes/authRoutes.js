@@ -1078,15 +1078,15 @@ router.put('/admin/profile', authMiddleware, async (req, res) => {
 
     // Hardcoded admin — lưu vào SystemSettings
     if (userId === 'admin') {
-      const sysSettings = await SystemSettings.findOneAndUpdate(
-        { _key: 'main' },
-        {},
-        { upsert: true, new: true }
-      );
+      let sysSettings = await SystemSettings.findOne({ _key: 'main' });
+      if (!sysSettings) sysSettings = new SystemSettings({ _key: 'main' });
+
+      let changed = false;
 
       // Đổi tên
       if (name && name.trim()) {
         sysSettings.adminName = name.trim();
+        changed = true;
       }
 
       // Đổi mật khẩu
@@ -1104,22 +1104,25 @@ router.put('/admin/profile', authMiddleware, async (req, res) => {
         if (dbAdminHash) {
           oldPwMatch = await bcrypt.compare(oldPassword, dbAdminHash);
         } else {
-          oldPwMatch = (oldPassword === 'admin123'); // Default
+          oldPwMatch = (oldPassword === 'admin123'); // Chỉ khi chưa đổi lần nào
         }
 
         if (!oldPwMatch) {
           return res.status(401).json({ success: false, message: 'Mật khẩu hiện tại không đúng' });
         }
 
-        // Hash mật khẩu mới
+        // Hash và lưu mật khẩu mới
         const salt = await bcrypt.genSalt(10);
         sysSettings.adminPasswordHash = await bcrypt.hash(newPassword, salt);
+        changed = true;
       }
 
-      if (!name?.trim() && !newPassword) {
+      if (!changed) {
         return res.status(400).json({ success: false, message: 'Vui lòng nhập thông tin cần thay đổi' });
       }
 
+      sysSettings.markModified('adminPasswordHash');
+      sysSettings.markModified('adminName');
       await sysSettings.save();
 
       return res.json({

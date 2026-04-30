@@ -318,10 +318,19 @@ router.post('/reset-data', authMiddleware, isAdmin, async (req, res) => {
   }
 
   try {
-    // 1. Xác thực Super Admin
+    // 1. Xác thực Super Admin — kiểm tra từ DB (SystemSettings) thay vì hardcode
     if (userId === 'admin') {
-      if (password !== 'admin123') {
-         return res.status(400).json({ success: false, message: 'Mật khẩu Super Admin không đúng' });
+      const bcrypt = require('bcryptjs');
+      const sysSettings = await SystemSettings.findOne({ _key: 'main' });
+      const storedHash = sysSettings?.adminPasswordHash || '';
+      let pwMatch = false;
+      if (storedHash) {
+        pwMatch = await bcrypt.compare(password, storedHash);
+      } else {
+        pwMatch = (password === 'admin123'); // Chỉ dùng khi chưa đổi MK lần nào
+      }
+      if (!pwMatch) {
+        return res.status(400).json({ success: false, message: 'Mật khẩu Super Admin không đúng' });
       }
     } else {
       const adminUser = await Teacher.findById(userId).select('+password');
