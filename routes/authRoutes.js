@@ -869,24 +869,80 @@ router.get('/me', async (req, res) => {
 // ─── OTP Store (in-memory, key = phone+role) ─────────────────────────────────
 const otpStore = new Map(); // "phone:role" → { otp, expiresAt, userId, userName }
 
-async function sendZaloOTP(phoneOrZalo, otp, userName) {
-  // TODO: Kết nối Zalo OA API khi có ZALO_OA_TOKEN trong .env
-  const zaloOAToken = process.env.ZALO_OA_TOKEN || '';
-  console.log(`[OTP] Gửi OTP ${otp} tới ${userName} (SĐT/Zalo: ${phoneOrZalo})`);
-  if (zaloOAToken) {
+// Cache access token trong RAM (tự refresh khi hết hạn)
+let _zaloOATokenCache = { token: '', expiresAt: 0 };
+
+async function getZaloOAToken() {
+  // Nếu token còn hạn (còn > 5 phút) → dùng luôn
+  if (_zaloOATokenCache.token && Date.now() < _zaloOATokenCache.expiresAt - 5 * 60 * 1000) {
+    return _zaloOATokenCache.token;
+  }
+
+  // Thử refresh token
+  const refreshToken = process.env.ZALO_OA_REFRESH_TOKEN || '';
+  const appId       = process.env.ZALO_APP_ID || '';
+  const appSecret   = process.env.ZALO_APP_SECRET || '';
+  const staticToken = process.env.ZALO_OA_TOKEN || '';
+
+  if (refreshToken && appId && appSecret) {
     try {
-      await axios.post('https://openapi.zalo.me/v2.0/oa/message', {
-        recipient: { user_id: phoneOrZalo },
-        message: {
-          text: `[THẮNG TIN HỌC] Mã OTP cấp lại mật khẩu của bạn là: *${otp}*\nMã có hiệu lực trong 60 giây. Không chia sẻ mã này cho bất kỳ ai.`
-        }
-      }, { headers: { access_token: zaloOAToken } });
-      console.log(`[OTP] Đã gửi Zalo OA tới ${phoneOrZalo}`);
+      const resp = await axios.post(
+        'https://oauth.zaloapp.com/v4/oa/access_token',
+        new URLSearchParams({ app_id: appId, app_secret: appSecret, refresh_token: refreshToken, grant_type: 'refresh_token' }),
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+      );
+      const newToken = resp.data?.access_token;
+      const expiresIn = (resp.data?.expires_in || 3600) * 1000;
+      if (newToken) {
+        _zaloOATokenCache = { token: newToken, expiresAt: Date.now() + expiresIn };
+        console.log('[Zalo OA] Token refreshed, expires in', Math.round(expiresIn / 60000), 'phút');
+        return newToken;
+      }
     } catch (e) {
-      console.warn('[OTP] Gửi Zalo OA thất bại:', e.message);
+      console.warn('[Zalo OA] Refresh token thất bại:', e.response?.data || e.message);
     }
   }
+
+  // Fallback: dùng static token từ .env
+  if (staticToken) {
+    _zaloOATokenCache = { token: staticToken, expiresAt: Date.now() + 55 * 60 * 1000 }; // Giả sử còn 55 phút
+    return staticToken;
+  }
+
+  return '';
 }
+
+async function sendZaloOTP(phoneOrZalo, otp, userName) {
+  console.log(`[OTP] Gửi OTP ${otp} tới ${userName} (SĐT/Zalo: ${phoneOrZalo})`);
+  const token = await getZaloOAToken();
+  if (!token) {
+    console.warn('[OTP] Chưa cấu hình Zalo OA Token');
+    return;
+  }
+  try {
+    const resp = await axios.post('https://openapi.zalo.me/v2.0/oa/message', {
+      recipient: { user_id: phoneOrZalo },
+      message: {
+        text: `[THẮNG TIN HỌC] Mã OTP cấp lại mật khẩu của bạn là: *${otp}*\nMã có hiệu lực trong 60 giây. Không chia sẻ mã này cho bất kỳ ai.`
+      }
+    }, { headers: { access_token: token } });
+    if (resp.data?.error === -216) {
+      // Token hết hạn → xóa cache → retry 1 lần
+      _zaloOATokenCache = { token: '', expiresAt: 0 };
+      const newToken = await getZaloOAToken();
+      if (newToken) {
+        await axios.post('https://openapi.zalo.me/v2.0/oa/message', {
+          recipient: { user_id: phoneOrZalo },
+          message: { text: `[THẮNG TIN HỌC] Mã OTP cấp lại mật khẩu của bạn là: *${otp}*\nMã có hiệu lực trong 60 giây. Không chia sẻ mã này cho bất kỳ ai.` }
+        }, { headers: { access_token: newToken } });
+      }
+    }
+    console.log(`[OTP] ✅ Đã gửi Zalo OA tới ${phoneOrZalo}`, resp.data);
+  } catch (e) {
+    console.warn('[OTP] Gửi Zalo OA thất bại:', e.response?.data || e.message);
+  }
+}
+
 
 // ─── POST /api/auth/forgot-password/request ───────────────────────────────────
 /**
