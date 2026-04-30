@@ -197,6 +197,14 @@ export const authAPI = {
     });
     return res.json();
   },
+
+  changePassword: async (oldPassword, newPassword) => {
+    const res = await apiFetch('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ oldPassword, newPassword }),
+    });
+    return res.json();
+  },
 };
 
 // ─── STUDENT API ────────────────────────────────────────────────────────────

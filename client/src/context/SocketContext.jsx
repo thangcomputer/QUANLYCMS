@@ -151,6 +151,24 @@ export const SocketProvider = ({ userId, role, name, children }) => {
       setNotifications(prev => [{ ...data, id: data._id || Date.now(), read: false }, ...prev]);
     });
 
+    newSocket.on('new-notification', () => {
+      playNotifySound();
+      apiFetch('/notifications/unread')
+        .then(res => res.json())
+        .then(data => {
+           if (data.success && data.data) {
+             setNotifications(data.data.map(n => ({ 
+               ...n, 
+               id: n._id, 
+               read: Array.isArray(n.read_by) && n.read_by.includes(String(userId)),
+               message: n.content || n.message,
+               time: n.createdAt || n.time 
+             })));
+           }
+        })
+        .catch(err => void 0);
+    });
+
     // Nhắc lịch tự động
     newSocket.on('class:reminder', (data) => {
       playNotifySound();

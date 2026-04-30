@@ -1200,6 +1200,17 @@ const AdminDashboard = ({ onNavigate }) => {
     }
   };
 
+  useEffect(() => {
+    const handleResetEvent = (e) => {
+      const { userId, userName, role } = e.detail || {};
+      if (userId && role) {
+        handleOpenResetPw(userId, userName || 'Người dùng', role);
+      }
+    };
+    window.addEventListener('open-reset-pw', handleResetEvent);
+    return () => window.removeEventListener('open-reset-pw', handleResetEvent);
+  }, []);
+
   const [editStudent, setEditStudent] = useState(null);
   const [deleteModal, setDeleteModal] = useState(null); // { type: 'teacher'|'student', id, name }
   const [grantModal, setGrantModal] = useState(null); // { id, name, type: 'retry' | 'first' }

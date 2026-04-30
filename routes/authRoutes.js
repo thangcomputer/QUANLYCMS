@@ -973,8 +973,8 @@ router.post('/forgot-password/request', async (req, res) => {
         type: 'SYSTEM',
         title: 'Yêu cầu cấp lại mật khẩu',
         content: `${role === 'teacher' ? 'Giảng viên' : 'Học viên'} ${user.name} (${phone}) đang yêu cầu cấp lại mật khẩu. Vui lòng sinh mã OTP và gửi qua Zalo cho người này.`,
-        receivers: ['GLOBAL'], // Tất cả admin
-        payload: { userId: user._id, role: role, action: 'RESET_PASSWORD' }
+        receivers: ['ALL_ADMIN'], // Chỉ admin nhận được
+        payload: { userId: user._id, role: role, action: 'RESET_PASSWORD', userName: user.name }
       });
       // Phát sự kiện socket nếu cần (tùy thuộc vào implement socket hiện tại, thường frontend sẽ poll hoặc dùng socket io global)
       if (global.io) {

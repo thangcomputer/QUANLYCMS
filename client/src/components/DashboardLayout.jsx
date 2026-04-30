@@ -4,7 +4,7 @@ import AppSidebar from './AppSidebar';
 import BranchFilterDropdown from './BranchFilterDropdown';
 import { useData } from '../context/DataContext';
 import { 
-  Bell, Search, LogOut, CheckCircle2, Clock, X, ChevronRight,
+  Bell, Search, LogOut, CheckCircle2, Clock, X, ChevronRight, Lock,
   Calendar, DollarSign, UserPlus, Zap, BookOpen, Award, Activity
 } from 'lucide-react';
 
@@ -266,8 +266,16 @@ const DashboardLayout = ({ role, session, onLogout }) => {
                             const Icon = style.icon;
                             return (
                               <div 
-                                key={n.id} 
-                                onClick={() => { markNotificationRead(n.id); if(n.path) navigate(n.path); setShowNotif(false); }}
+                                key={n.id || n._id} 
+                                onClick={() => { 
+                                  markNotificationRead(n.id || n._id); 
+                                  if (n.payload?.action === 'RESET_PASSWORD') {
+                                    window.dispatchEvent(new CustomEvent('open-reset-pw', { detail: n.payload }));
+                                  } else if (n.path) {
+                                    navigate(n.path); 
+                                  }
+                                  setShowNotif(false); 
+                                }}
                                 className={`p-5 hover:bg-gray-50 transition-all cursor-pointer flex gap-4 border-l-4 ${!n.read ? `bg-white ${style.border.replace('border-', 'border-l-')}` : 'bg-white border-l-transparent opacity-80'}`}
                               >
                                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 relative ${style.bg} ${style.color}`}>
@@ -299,6 +307,13 @@ const DashboardLayout = ({ role, session, onLogout }) => {
             </div>
 
             <div className="h-10 w-px bg-gray-100 mx-1 hidden sm:block" />
+            
+            {role !== 'admin' && (
+              <button onClick={() => window.dispatchEvent(new CustomEvent('open-change-password-modal'))} className="px-3 md:px-5 py-2 md:py-3 bg-white border border-gray-200 text-gray-600 rounded-xl md:rounded-2xl text-[11px] font-black hover:bg-gray-50 transition shadow-sm active:scale-95 flex items-center gap-2 md:gap-3">
+                <Lock size={16} className="text-gray-400" /> <span className="hidden sm:inline">ĐỔI MK</span>
+              </button>
+            )}
+
             <button onClick={handleLogout} className="px-3 md:px-5 py-2 md:py-3 bg-red-600 text-white rounded-xl md:rounded-2xl text-[11px] font-black hover:bg-red-700 transition shadow-lg shadow-red-200 active:scale-95 flex items-center gap-2 md:gap-3">
               <LogOut size={16} /> <span className="hidden sm:inline">ĐĂNG XUẤT</span>
             </button>
@@ -309,6 +324,102 @@ const DashboardLayout = ({ role, session, onLogout }) => {
           <Outlet />
         </div>
       </main>
+
+      <ChangePasswordModal />
+    </div>
+  );
+};
+
+const ChangePasswordModal = () => {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [oldPassword, setOldPassword] = React.useState('');
+  const [newPassword, setNewPassword] = React.useState('');
+  const [confirmPassword, setConfirmPassword] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState('');
+  const [success, setSuccess] = React.useState(false);
+
+  React.useEffect(() => {
+    const handleOpen = () => {
+      setIsOpen(true);
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setError('');
+      setSuccess(false);
+    };
+    window.addEventListener('open-change-password-modal', handleOpen);
+    return () => window.removeEventListener('open-change-password-modal', handleOpen);
+  }, []);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!oldPassword || !newPassword || !confirmPassword) return setError('Vui lòng nhập đầy đủ thông tin.');
+    if (newPassword !== confirmPassword) return setError('Mật khẩu mới không khớp.');
+    if (newPassword.length < 6) return setError('Mật khẩu mới phải có ít nhất 6 ký tự.');
+
+    setLoading(true); setError('');
+    try {
+      const res = await api.auth.changePassword(oldPassword, newPassword);
+      if (res.success) {
+        setSuccess(true);
+        setTimeout(() => setIsOpen(false), 2000);
+      } else {
+        setError(res.message || 'Lỗi khi đổi mật khẩu.');
+      }
+    } catch {
+      setError('Lỗi kết nối đến máy chủ.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300">
+        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5 flex items-center justify-between">
+          <h3 className="text-white font-black text-lg flex items-center gap-2">
+            <Lock size={20} /> Đổi mật khẩu
+          </h3>
+          <button onClick={() => setIsOpen(false)} className="text-white/70 hover:text-white transition"><X size={20} /></button>
+        </div>
+        <div className="p-6">
+          {success ? (
+            <div className="text-center py-6">
+              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle2 size={32} className="text-emerald-500" />
+              </div>
+              <p className="font-bold text-gray-800 text-lg">Đổi mật khẩu thành công!</p>
+              <p className="text-gray-500 text-sm mt-1">Sử dụng mật khẩu mới cho lần đăng nhập sau.</p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {error && <div className="bg-red-50 text-red-600 text-xs font-bold p-3 rounded-xl border border-red-100">{error}</div>}
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Mật khẩu hiện tại</label>
+                <input type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium outline-none focus:border-blue-500 focus:bg-white transition" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Mật khẩu mới</label>
+                <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium outline-none focus:border-blue-500 focus:bg-white transition" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Nhập lại mật khẩu mới</label>
+                <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium outline-none focus:border-blue-500 focus:bg-white transition" />
+              </div>
+              <button type="submit" disabled={loading}
+                className="w-full bg-blue-600 text-white font-black py-3 rounded-xl hover:bg-blue-700 transition disabled:opacity-50 mt-2">
+                {loading ? 'Đang xử lý...' : 'Xác nhận đổi'}
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
