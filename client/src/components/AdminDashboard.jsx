@@ -906,15 +906,9 @@ const EditStudentModal = ({ student, onSave, onClose, teachers }) => {
                 Hủy bỏ
               </button>
               <button
-                onClick={async () => {
-                  const newPw = window.prompt(`Nhập mật khẩu mới cho HV "${student.name}" (tối thiểu 6 ký tự):`, '');
-                  if (!newPw) return;
-                  if (newPw.length < 6) { toast.error('Mật khẩu phải ít nhất 6 ký tự'); return; }
-                  try {
-                    const res = await api.auth.adminResetPassword(student.id || student._id, 'student', newPw);
-                    if (res.success) toast.success(`✅ Đã đặt lại mật khẩu cho ${student.name}`);
-                    else toast.error(res.message || 'Thất bại');
-                  } catch { toast.error('Lỗi kết nối server'); }
+                onClick={() => {
+                  setResetPwInput('');
+                  setResetPwModal({ id: student.id || student._id, name: student.name, role: 'student' });
                 }}
                 className="flex-1 md:flex-none px-4 py-3.5 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-amber-100 transition-all whitespace-nowrap"
               >
@@ -1173,6 +1167,9 @@ const AdminDashboard = ({ onNavigate }) => {
   }, [actionMenuId]);
 
   const [editTeacher, setEditTeacher] = useState(null);
+  const [resetPwModal, setResetPwModal] = useState(null); // { id, name, role } 
+  const [resetPwInput, setResetPwInput] = useState('');
+  const [resetPwLoading, setResetPwLoading] = useState(false);
   const [editStudent, setEditStudent] = useState(null);
   const [deleteModal, setDeleteModal] = useState(null); // { type: 'teacher'|'student', id, name }
   const [grantModal, setGrantModal] = useState(null); // { id, name, type: 'retry' | 'first' }
@@ -4763,15 +4760,9 @@ const AdminDashboard = ({ onNavigate }) => {
               </button>
               {editTeacher._tab !== 'history' && (
                 <>
-                  <button onClick={async () => {
-                    const newPw = window.prompt(`Nhập mật khẩu mới cho GV "${editTeacher.name}" (tối thiểu 6 ký tự):`, '');
-                    if (!newPw) return;
-                    if (newPw.length < 6) { toast.error('Mật khẩu phải ít nhất 6 ký tự'); return; }
-                    try {
-                      const res = await api.auth.adminResetPassword(editTeacher.id || editTeacher._id, 'teacher', newPw);
-                      if (res.success) toast.success(`✅ Đã đặt lại mật khẩu cho ${editTeacher.name}`);
-                      else toast.error(res.message || 'Thất bại');
-                    } catch { toast.error('Lỗi kết nối server'); }
+                  <button onClick={() => {
+                    setResetPwInput('');
+                    setResetPwModal({ id: editTeacher.id || editTeacher._id, name: editTeacher.name, role: 'teacher' });
                   }} className="py-3.5 px-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-amber-100 transition-all whitespace-nowrap">
                     <KeyRound size={15} /> Cấp lại MK
                   </button>
@@ -4942,6 +4933,74 @@ const AdminDashboard = ({ onNavigate }) => {
           onClose={() => setShowImportModal(false)}
           branchId={selectedBranchId}
         />
+      )}
+
+      {/* ===== MODAL CẤP LẠI MẬT KHẨU ===== */}
+      {resetPwModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[300] p-4" onClick={() => setResetPwModal(null)}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-5 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                  <KeyRound size={20} className="text-white" />
+                </div>
+                <div>
+                  <p className="font-black text-base">Cấp lại mật khẩu</p>
+                  <p className="text-white/80 text-xs">{resetPwModal.role === 'teacher' ? 'Giảng viên' : 'Học viên'}: {resetPwModal.name}</p>
+                </div>
+              </div>
+              <button onClick={() => setResetPwModal(null)} className="hover:bg-white/20 rounded-lg p-1 transition">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-xs font-bold text-gray-500 uppercase block mb-1.5">Mật khẩu mới (tối thiểu 6 ký tự)</label>
+                <input
+                  type="text"
+                  value={resetPwInput}
+                  onChange={e => setResetPwInput(e.target.value)}
+                  autoFocus
+                  className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-lg font-bold font-mono tracking-widest text-center focus:border-amber-400 outline-none transition"
+                  placeholder="Nhập mật khẩu mới..."
+                  onKeyDown={e => { if (e.key === 'Enter' && resetPwInput.length >= 6) document.getElementById('btn-confirm-reset-pw').click(); }}
+                />
+                {resetPwInput && resetPwInput.length < 6 && (
+                  <p className="text-xs text-red-500 mt-1 text-center">Mật khẩu phải ít nhất 6 ký tự</p>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setResetPwModal(null)}
+                  className="flex-1 py-3 border-2 border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-50 transition">
+                  Hủy
+                </button>
+                <button
+                  id="btn-confirm-reset-pw"
+                  disabled={resetPwInput.length < 6 || resetPwLoading}
+                  onClick={async () => {
+                    if (resetPwInput.length < 6) return;
+                    setResetPwLoading(true);
+                    try {
+                      const res = await api.auth.adminResetPassword(resetPwModal.id, resetPwModal.role, resetPwInput);
+                      if (res.success) {
+                        toast.success(`✅ Đã đặt lại mật khẩu cho ${resetPwModal.name}`);
+                        setResetPwModal(null);
+                        setResetPwInput('');
+                      } else {
+                        toast.error(res.message || 'Thất bại');
+                      }
+                    } catch { toast.error('Lỗi kết nối server'); }
+                    finally { setResetPwLoading(false); }
+                  }}
+                  className="flex-[2] py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-xl hover:from-amber-600 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-amber-100 transition"
+                >
+                  {resetPwLoading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <KeyRound size={16} />}
+                  {resetPwLoading ? 'Đang lưu...' : 'Xác nhận đặt lại'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
