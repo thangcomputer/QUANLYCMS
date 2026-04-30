@@ -8,7 +8,7 @@ import {
   FileSpreadsheet, Download, Eye, AlertTriangle, Unlock, Lock, User,
   Phone, CalendarCheck, MessageSquare, Video, FileText, ShieldAlert,
   Edit3, X, PlayCircle, Save, RefreshCw, Trophy, ClipboardList, CreditCard, HelpCircle,
-  MoreHorizontal, AlertCircle, Landmark, Loader2, Settings, RotateCcw, MapPin, Layers, Camera
+  MoreHorizontal, AlertCircle, Landmark, Loader2, Settings, RotateCcw, MapPin, Layers, Camera, KeyRound
 } from 'lucide-react';
 
 
@@ -904,6 +904,21 @@ const EditStudentModal = ({ student, onSave, onClose, teachers }) => {
                 className="flex-1 md:flex-none px-8 py-3.5 bg-white border-2 border-gray-200 rounded-2xl font-bold text-gray-600 hover:bg-gray-100 hover:border-gray-300 transition"
               >
                 Hủy bỏ
+              </button>
+              <button
+                onClick={async () => {
+                  const newPw = window.prompt(`Nhập mật khẩu mới cho HV "${student.name}" (tối thiểu 6 ký tự):`, '');
+                  if (!newPw) return;
+                  if (newPw.length < 6) { toast.error('Mật khẩu phải ít nhất 6 ký tự'); return; }
+                  try {
+                    const res = await api.auth.adminResetPassword(student.id || student._id, 'student', newPw);
+                    if (res.success) toast.success(`✅ Đã đặt lại mật khẩu cho ${student.name}`);
+                    else toast.error(res.message || 'Thất bại');
+                  } catch { toast.error('Lỗi kết nối server'); }
+                }}
+                className="flex-1 md:flex-none px-4 py-3.5 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-amber-100 transition-all whitespace-nowrap"
+              >
+                <KeyRound size={15} /> Cấp lại MK
               </button>
               <button 
                 onClick={handleSubmitForm} 
@@ -4747,29 +4762,43 @@ const AdminDashboard = ({ onNavigate }) => {
                 {editTeacher._tab === 'history' ? 'Đóng' : 'Huỷ bỏ'}
               </button>
               {editTeacher._tab !== 'history' && (
-                <button onClick={async () => {
-                  try {
-                    await ctxUpdateTeacher(editTeacher.id, {
-                      name: editTeacher.name,
-                      phone: editTeacher.phone,
-                      specialty: editTeacher.specialty,
-                      startDate: editTeacher.startDate,
-                      address: editTeacher.address,
-                      status: editTeacher.status,
-                      baseSalaryPerSession: editTeacher.baseSalaryPerSession,
-                      bankAccount: editTeacher.bankAccount || {},
-                      branchId: editTeacher.branchId,
-                      branchCode: editTeacher.branchCode,
-                    });
-                    setEditTeacher(null);
-                    toast.success('Đã cập nhật thông tin giảng viên!');
-                    fetchTeachers();
-                  } catch (err) {
-                    toast.error('Lỗi cập nhật giảng viên: ' + (err.message || 'Không xác định'));
-                  }
-                }} className="flex-[2] py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-wide hover:from-blue-700 hover:to-indigo-700 flex items-center justify-center gap-2 shadow-lg shadow-blue-200 transition-all">
-                  <Save size={18} /> Lưu thay đổi
-                </button>
+                <>
+                  <button onClick={async () => {
+                    const newPw = window.prompt(`Nhập mật khẩu mới cho GV "${editTeacher.name}" (tối thiểu 6 ký tự):`, '');
+                    if (!newPw) return;
+                    if (newPw.length < 6) { toast.error('Mật khẩu phải ít nhất 6 ký tự'); return; }
+                    try {
+                      const res = await api.auth.adminResetPassword(editTeacher.id || editTeacher._id, 'teacher', newPw);
+                      if (res.success) toast.success(`✅ Đã đặt lại mật khẩu cho ${editTeacher.name}`);
+                      else toast.error(res.message || 'Thất bại');
+                    } catch { toast.error('Lỗi kết nối server'); }
+                  }} className="py-3.5 px-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-amber-100 transition-all whitespace-nowrap">
+                    <KeyRound size={15} /> Cấp lại MK
+                  </button>
+                  <button onClick={async () => {
+                    try {
+                      await ctxUpdateTeacher(editTeacher.id, {
+                        name: editTeacher.name,
+                        phone: editTeacher.phone,
+                        specialty: editTeacher.specialty,
+                        startDate: editTeacher.startDate,
+                        address: editTeacher.address,
+                        status: editTeacher.status,
+                        baseSalaryPerSession: editTeacher.baseSalaryPerSession,
+                        bankAccount: editTeacher.bankAccount || {},
+                        branchId: editTeacher.branchId,
+                        branchCode: editTeacher.branchCode,
+                      });
+                      setEditTeacher(null);
+                      toast.success('Đã cập nhật thông tin giảng viên!');
+                      fetchTeachers();
+                    } catch (err) {
+                      toast.error('Lỗi cập nhật giảng viên: ' + (err.message || 'Không xác định'));
+                    }
+                  }} className="flex-[2] py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl font-black text-sm uppercase tracking-wide hover:from-blue-700 hover:to-indigo-700 flex items-center justify-center gap-2 shadow-lg shadow-blue-200 transition-all">
+                    <Save size={18} /> Lưu thay đổi
+                  </button>
+                </>
               )}
             </div>
           </div>

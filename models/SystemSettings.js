@@ -47,6 +47,10 @@ const systemSettingsSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed, 
     default: { videos: [], guides: [], files: [] } 
   },
+
+  // ── Admin Profile (cho tài khoản hardcoded) ─────────────────────────────
+  adminName:         { type: String, default: '' },   // Nếu empty → fallback 'Admin Thắng Tin Học'
+  adminPasswordHash: { type: String, default: '' },   // Nếu empty → fallback 'admin123'
 }, { timestamps: true });
 
 module.exports = mongoose.model('SystemSettings', systemSettingsSchema);

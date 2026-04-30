@@ -7,6 +7,7 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const Teacher  = require('../models/Teacher');
 const Student  = require('../models/Student');
 const blacklist = require('../middleware/tokenBlacklist');
+const SystemSettings = require('../models/SystemSettings');
 
 const router = express.Router();
 
@@ -256,9 +257,24 @@ router.post('/login', async (req, res) => {
     const isEmail = rawId.includes('@');
 
     // ── Hardcoded admin ────────────────────────────────────────────
-    if (rawId === 'admin' && password === 'admin123') {
-      const { accessToken, refreshToken } = generateTokens({ id: 'admin', role: 'admin', name: 'Admin Thắng Tin Học', adminRole: 'SUPER_ADMIN' });
-      return res.json({ success: true, data: { id: 'admin', _id: 'admin', name: 'Admin Thắng Tin Học', phone: 'admin', role: 'admin', adminRole: 'SUPER_ADMIN', accessToken, refreshToken } });
+    if (rawId === 'admin') {
+      // Lấy admin credentials từ DB (nếu đã đổi)
+      const sysSettings = await SystemSettings.findOne({ _key: 'main' });
+      const dbAdminName = sysSettings?.adminName || 'Admin Thắng Tin Học';
+      const dbAdminHash = sysSettings?.adminPasswordHash || '';
+
+      let adminPasswordMatch = false;
+      if (dbAdminHash) {
+        adminPasswordMatch = await bcrypt.compare(password, dbAdminHash);
+      } else {
+        adminPasswordMatch = (password === 'admin123'); // Default fallback
+      }
+
+      if (adminPasswordMatch) {
+        const { accessToken, refreshToken } = generateTokens({ id: 'admin', role: 'admin', name: dbAdminName, adminRole: 'SUPER_ADMIN' });
+        return res.json({ success: true, data: { id: 'admin', _id: 'admin', name: dbAdminName, phone: 'admin', role: 'admin', adminRole: 'SUPER_ADMIN', accessToken, refreshToken } });
+      }
+      return res.status(401).json({ success: false, message: 'Mật khẩu không đúng' });
     }
 
     // ── Tìm user theo identifier ───────────────────────────────────
@@ -500,12 +516,26 @@ router.post('/login/internal', async (req, res) => {
     }
 
     // Bước 2: Hardcoded admin
-    if (rawId === 'admin' && password === 'admin123') {
-      const { accessToken, refreshToken } = generateTokens(
-        { id: 'admin', role: 'admin', name: 'Admin Thắng Tin Học', adminRole: 'SUPER_ADMIN', permissions: [], branchId: null, branchCode: '' },
-        'internal'
-      );
-      return res.json({ success: true, data: { user: { _id: 'admin', id: 'admin', name: 'Admin Thắng Tin Học', role: 'admin', adminRole: 'SUPER_ADMIN', permissions: [], status: 'active' }, accessToken, refreshToken } });
+    if (rawId === 'admin') {
+      const sysSettings = await SystemSettings.findOne({ _key: 'main' });
+      const dbAdminName = sysSettings?.adminName || 'Admin Thắng Tin Học';
+      const dbAdminHash = sysSettings?.adminPasswordHash || '';
+
+      let adminPasswordMatch = false;
+      if (dbAdminHash) {
+        adminPasswordMatch = await bcrypt.compare(password, dbAdminHash);
+      } else {
+        adminPasswordMatch = (password === 'admin123');
+      }
+
+      if (adminPasswordMatch) {
+        const { accessToken, refreshToken } = generateTokens(
+          { id: 'admin', role: 'admin', name: dbAdminName, adminRole: 'SUPER_ADMIN', permissions: [], branchId: null, branchCode: '' },
+          'internal'
+        );
+        return res.json({ success: true, data: { user: { _id: 'admin', id: 'admin', name: dbAdminName, role: 'admin', adminRole: 'SUPER_ADMIN', permissions: [], status: 'active' }, accessToken, refreshToken } });
+      }
+      return res.status(401).json({ success: false, message: 'Mật khẩu không đúng' });
     }
 
     // Bước 3: Tìm user
@@ -773,13 +803,15 @@ router.get('/me', async (req, res) => {
     let user = null;
 
     if (decoded.id === 'admin') {
-      // Hardcoded admin
+      // Hardcoded admin — lấy tên từ DB nếu đã đổi
+      const sysSettings = await SystemSettings.findOne({ _key: 'main' });
+      const dbAdminName = sysSettings?.adminName || 'Admin Thắng Tin Học';
       return res.json({
         success: true,
         data: {
           _id:    'admin',
           id:     'admin',
-          name:   'Admin Thắng Tin Học',
+          name:   dbAdminName,
           phone:  'admin',
           role:   'admin',
           status: 'active',
@@ -947,11 +979,56 @@ router.put('/admin/profile', authMiddleware, async (req, res) => {
     const { name, oldPassword, newPassword } = req.body;
     const userId = req.user.id;
 
-    // Hardcoded admin — không có trong DB
+    // Hardcoded admin — lưu vào SystemSettings
     if (userId === 'admin') {
-      return res.status(400).json({
-        success: false,
-        message: 'Tài khoản admin mặc định không thể đổi qua API. Vui lòng cập nhật trong mã nguồn server.'
+      const sysSettings = await SystemSettings.findOneAndUpdate(
+        { _key: 'main' },
+        {},
+        { upsert: true, new: true }
+      );
+
+      // Đổi tên
+      if (name && name.trim()) {
+        sysSettings.adminName = name.trim();
+      }
+
+      // Đổi mật khẩu
+      if (newPassword) {
+        if (!oldPassword) {
+          return res.status(400).json({ success: false, message: 'Vui lòng nhập mật khẩu hiện tại' });
+        }
+        if (newPassword.length < 6) {
+          return res.status(400).json({ success: false, message: 'Mật khẩu mới phải ít nhất 6 ký tự' });
+        }
+
+        // Xác thực mật khẩu cũ
+        const dbAdminHash = sysSettings.adminPasswordHash || '';
+        let oldPwMatch = false;
+        if (dbAdminHash) {
+          oldPwMatch = await bcrypt.compare(oldPassword, dbAdminHash);
+        } else {
+          oldPwMatch = (oldPassword === 'admin123'); // Default
+        }
+
+        if (!oldPwMatch) {
+          return res.status(401).json({ success: false, message: 'Mật khẩu hiện tại không đúng' });
+        }
+
+        // Hash mật khẩu mới
+        const salt = await bcrypt.genSalt(10);
+        sysSettings.adminPasswordHash = await bcrypt.hash(newPassword, salt);
+      }
+
+      if (!name?.trim() && !newPassword) {
+        return res.status(400).json({ success: false, message: 'Vui lòng nhập thông tin cần thay đổi' });
+      }
+
+      await sysSettings.save();
+
+      return res.json({
+        success: true,
+        message: 'Cập nhật thông tin Admin thành công!',
+        data: { name: sysSettings.adminName || 'Admin Thắng Tin Học' }
       });
     }
 
