@@ -866,45 +866,113 @@ router.get('/me', async (req, res) => {
   }
 });
 
-// ─── POST /api/auth/reset-password-request ───────────────────────────────────
+// ─── OTP Store (in-memory, key = phone+role) ─────────────────────────────────
+const otpStore = new Map(); // "phone:role" → { otp, expiresAt, userId, userName }
+
+async function sendZaloOTP(phoneOrZalo, otp, userName) {
+  // TODO: Kết nối Zalo OA API khi có ZALO_OA_TOKEN trong .env
+  const zaloOAToken = process.env.ZALO_OA_TOKEN || '';
+  console.log(`[OTP] Gửi OTP ${otp} tới ${userName} (SĐT/Zalo: ${phoneOrZalo})`);
+  if (zaloOAToken) {
+    try {
+      await axios.post('https://openapi.zalo.me/v2.0/oa/message', {
+        recipient: { user_id: phoneOrZalo },
+        message: {
+          text: `[THẮNG TIN HỌC] Mã OTP cấp lại mật khẩu của bạn là: *${otp}*\nMã có hiệu lực trong 60 giây. Không chia sẻ mã này cho bất kỳ ai.`
+        }
+      }, { headers: { access_token: zaloOAToken } });
+      console.log(`[OTP] Đã gửi Zalo OA tới ${phoneOrZalo}`);
+    } catch (e) {
+      console.warn('[OTP] Gửi Zalo OA thất bại:', e.message);
+    }
+  }
+}
+
+// ─── POST /api/auth/forgot-password/request ───────────────────────────────────
 /**
- * @route   POST /api/auth/reset-password-request
- * @desc    Yêu cầu cấp lại mật khẩu (xác minh SĐT + Zalo)
+ * @route   POST /api/auth/forgot-password/request
+ * @desc    Bước 1: Gửi OTP về Zalo để cấp lại mật khẩu
  * @access  Public
  */
-router.post('/reset-password-request', async (req, res) => {
+router.post('/forgot-password/request', async (req, res) => {
   try {
-    const { phone, zalo, role } = req.body;
-
-    if (!phone) {
-      return res.status(400).json({ success: false, message: 'Vui lòng nhập số điện thoại' });
-    }
+    const { phone, role } = req.body;
+    if (!phone) return res.status(400).json({ success: false, message: 'Vui lòng nhập số điện thoại' });
 
     let user = null;
-
-    if (role === 'student') {
-      user = await Student.findOne({
-        $or: [{ phone: phone.trim() }, { zalo: phone.trim() }]
-      });
+    if (role === 'teacher') {
+      user = await Teacher.findOne({ $or: [{ phone: phone.trim() }, { zalo: phone.trim() }] });
     } else {
-      // teacher
-      user = await Teacher.findOne({ phone: phone.trim(), role: 'teacher' });
+      user = await Student.findOne({ $or: [{ phone: phone.trim() }, { zalo: phone.trim() }] });
     }
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản với số điện thoại này' });
     }
 
-    // Xác minh bằng số Zalo
-    const userZalo = (user.zalo || user.phone || '').trim();
-    const inputZalo = (zalo || '').trim();
+    // Tạo OTP 6 số
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const key = `${phone.trim()}:${role || 'student'}`;
+    otpStore.set(key, { otp, expiresAt: Date.now() + 60000, userId: user._id.toString(), userName: user.name, role: role || 'student' });
 
-    if (!inputZalo || userZalo !== inputZalo) {
-      return res.status(400).json({ success: false, message: 'Số Zalo xác minh không khớp với tài khoản' });
+    // Tự xóa sau 65s
+    setTimeout(() => otpStore.delete(key), 65000);
+
+    // Gửi OTP qua Zalo
+    const zaloTarget = user.zalo || user.phone || phone.trim();
+    await sendZaloOTP(zaloTarget, otp, user.name);
+
+    // Che một phần số điện thoại
+    const masked = phone.trim().replace(/(\d{3})\d+(\d{3})/, '$1****$2');
+
+    return res.json({
+      success: true,
+      message: `Đã gửi mã OTP về Zalo số ${masked}. Mã có hiệu lực trong 60 giây.`,
+      data: { masked, name: user.name }
+    });
+  } catch (error) {
+    console.error('[AUTH] forgot-password/request error:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
+
+// ─── POST /api/auth/forgot-password/verify ────────────────────────────────────
+/**
+ * @route   POST /api/auth/forgot-password/verify
+ * @desc    Bước 2: Xác minh OTP và cấp mật khẩu mới
+ * @access  Public
+ */
+router.post('/forgot-password/verify', async (req, res) => {
+  try {
+    const { phone, otp, role } = req.body;
+    if (!phone || !otp) return res.status(400).json({ success: false, message: 'Thiếu thông tin' });
+
+    const key = `${phone.trim()}:${role || 'student'}`;
+    const record = otpStore.get(key);
+
+    if (!record) {
+      return res.status(400).json({ success: false, message: 'Mã OTP không hợp lệ hoặc đã hết hạn. Vui lòng yêu cầu lại.' });
+    }
+    if (Date.now() > record.expiresAt) {
+      otpStore.delete(key);
+      return res.status(400).json({ success: false, message: 'Mã OTP đã hết hạn (60 giây). Vui lòng yêu cầu lại.' });
+    }
+    if (record.otp !== otp.trim()) {
+      return res.status(400).json({ success: false, message: 'Mã OTP không đúng. Vui lòng kiểm tra lại.' });
     }
 
-    // Tạo mật khẩu mới ngẫu nhiên (6 số)
+    // OTP đúng → đặt lại mật khẩu
+    otpStore.delete(key);
     const newPassword = Math.floor(100000 + Math.random() * 900000).toString();
+
+    let user = null;
+    if (record.role === 'teacher') {
+      user = await Teacher.findById(record.userId).select('+password');
+    } else {
+      user = await Student.findById(record.userId).select('+password');
+    }
+    if (!user) return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản' });
+
     user.password = newPassword;
     await user.save({ validateModifiedOnly: true });
 
@@ -913,12 +981,41 @@ router.post('/reset-password-request', async (req, res) => {
       message: 'Cấp lại mật khẩu thành công!',
       data: { newPassword, name: user.name }
     });
-
   } catch (error) {
-    console.error('[AUTH] Reset password request error:', error);
+    console.error('[AUTH] forgot-password/verify error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
+
+// ─── POST /api/auth/reset-password-request (backward compat) ─────────────────
+router.post('/reset-password-request', async (req, res) => {
+  try {
+    const { phone, zalo, role } = req.body;
+    if (!phone) return res.status(400).json({ success: false, message: 'Vui lòng nhập số điện thoại' });
+
+    let user = null;
+    if (role === 'student') {
+      user = await Student.findOne({ $or: [{ phone: phone.trim() }, { zalo: phone.trim() }] });
+    } else {
+      user = await Teacher.findOne({ $or: [{ phone: phone.trim() }, { zalo: phone.trim() }] });
+    }
+    if (!user) return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản' });
+
+    const userZalo = (user.zalo || user.phone || '').trim();
+    if (!zalo || userZalo !== (zalo || '').trim()) {
+      return res.status(400).json({ success: false, message: 'Số Zalo xác minh không khớp' });
+    }
+
+    const newPassword = Math.floor(100000 + Math.random() * 900000).toString();
+    user.password = newPassword;
+    await user.save({ validateModifiedOnly: true });
+    return res.json({ success: true, message: 'Cấp lại mật khẩu thành công!', data: { newPassword, name: user.name } });
+  } catch (error) {
+    console.error('[AUTH] reset-password-request error:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
+
 
 // ─── POST /api/auth/admin/reset-password ─────────────────────────────────────
 /**

@@ -681,7 +681,7 @@ const AddStudentModal = ({ onAdd, onClose, teachers }) => {
   );
 };
 // ─── MODAL CHỈNH SỬA HỌC VIÊN ─────────────────────────────────────────────────────
-const EditStudentModal = ({ student, onSave, onClose, teachers }) => {
+const EditStudentModal = ({ student, onSave, onClose, teachers, onResetPassword }) => {
   const toast    = useToast();
   const API      = import.meta.env.VITE_API_URL || 'http://localhost:5000';
   const { isSuperAdmin, branches } = useBranch();
@@ -908,10 +908,7 @@ const EditStudentModal = ({ student, onSave, onClose, teachers }) => {
                 Hủy bỏ
               </button>
               <button
-                onClick={() => {
-                  setResetPwInput('');
-                  setResetPwModal({ id: student.id || student._id, name: student.name, role: 'student' });
-                }}
+                onClick={() => onResetPassword && onResetPassword(student.id || student._id, student.name)}
                 className="flex-1 md:flex-none px-4 py-3.5 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-amber-100 transition-all whitespace-nowrap"
               >
                 <KeyRound size={15} /> Cấp lại MK
@@ -4804,6 +4801,7 @@ const AdminDashboard = ({ onNavigate }) => {
           student={editStudent}
           teachers={globalTeachers}
           onClose={() => setEditStudent(null)}
+          onResetPassword={(id, name) => { setResetPwInput(''); setResetPwModal({ id, name, role: 'student' }); }}
           onSave={async (updatedForm) => {
             const payload = {
               name: updatedForm.name,
