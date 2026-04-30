@@ -4938,7 +4938,7 @@ const AdminDashboard = ({ onNavigate }) => {
 
       {/* ===== MODAL CẤP LẠI MẬT KHẨU ===== */}
       {resetPwModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[300] p-4" onClick={() => setResetPwModal(null)}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[99999] p-4" onClick={() => setResetPwModal(null)}>
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-6 py-5 text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
