@@ -110,7 +110,7 @@ function StudentExamWrapper({ session }) {
   return (
     <ErrorBoundary inline>
       <StudentExamRoom
-        onNavigate={(page) => nav(page === 'register' ? '/' : `/${page}`)}
+        onNavigate={(page) => nav(page === 'register' ? '/dangkykhoahoc' : `/${page}`)}
         onStartExam={(subjectId) => nav(`/student/exam/${subjectId}`)}
       />
     </ErrorBoundary>
@@ -138,7 +138,7 @@ function AppRoutes({ session, onSessionChange, isAuthLoading, onLogin, onLogout 
 
   const go = useCallback((page, data) => {
     const routes = {
-      register: '/',
+      register: '/dangkykhoahoc',
       admin:    '/admin',
       teacher:  '/teacher',
       student:  '/student',
@@ -173,9 +173,10 @@ function AppRoutes({ session, onSessionChange, isAuthLoading, onLogin, onLogout 
   return (
     <Suspense fallback={<LoadingScreen />}><Routes>
       {/* ═══ Public ═══ */}
+      <Route path="/"            element={<LoginPage onLogin={onLogin} />} />
       <Route path="/login"       element={<LoginPage onLogin={onLogin} />} />
       <Route path="/admin/login" element={<AdminLoginPage onLogin={onLogin} />} />
-      <Route path="/"            element={<RegistrationForm onNavigate={go} />} />
+      <Route path="/dangkykhoahoc" element={<RegistrationForm onNavigate={go} />} />
 
       {/* ═══ Admin ═══ */}
       <Route element={
@@ -234,7 +235,7 @@ function AppRoutes({ session, onSessionChange, isAuthLoading, onLogin, onLogout 
       } />
 
       {/* ═══ Fallback ═══ */}
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes></Suspense>
   );
 }
