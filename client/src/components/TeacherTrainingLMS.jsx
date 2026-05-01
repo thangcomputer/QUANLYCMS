@@ -77,7 +77,7 @@ const lmsApiFetch = async (endpoint, options = {}) => {
       try { return JSON.parse(localStorage.getItem('admin_user') || '{}').token; } catch { return null; }
     })();
 
-  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+  const API_BASE = import.meta.env.VITE_API_URL || '${import.meta.env.VITE_API_URL || ""}/api';
   const res = await fetch(`${API_BASE}/training-lms${endpoint}`, {
     ...options,
     headers: {
@@ -641,7 +641,7 @@ const TeacherTrainingLMS = ({ onBack, isAdmin = false }) => {
                     (localStorage.getItem('teacher_user') ? JSON.parse(localStorage.getItem('teacher_user')).token : '') ||
                     localStorage.getItem('admin_access_token');
       
-      const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const API_BASE = import.meta.env.VITE_API_URL || '${import.meta.env.VITE_API_URL || ""}/api';
       await fetch(`${API_BASE}/training-lms/complete-lesson`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -705,7 +705,7 @@ const TeacherTrainingLMS = ({ onBack, isAdmin = false }) => {
                   (localStorage.getItem('teacher_user') ? JSON.parse(localStorage.getItem('teacher_user')).token : '') ||
                   localStorage.getItem('admin_access_token');
                   
-    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    const API_BASE = import.meta.env.VITE_API_URL || '${import.meta.env.VITE_API_URL || ""}/api';
     fetch(`${API_BASE}/training-lms/save-watch-progress`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

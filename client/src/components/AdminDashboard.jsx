@@ -270,7 +270,7 @@ const Avatar = ({ initials, color = 'bg-red-500' }) => (
 // ─── MODAL THÊM HỌC VIÊN ─────────────────────────────────────────────────────
 const AddStudentModal = ({ onAdd, onClose, teachers }) => {
   const toast    = useToast();
-  const API      = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const API      = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || "");
   const TOTAL_PAYMENT_SECS = 300; // 5 phút
 
   const { isSuperAdmin, branches, selectedBranchId } = useBranch();
@@ -683,7 +683,7 @@ const AddStudentModal = ({ onAdd, onClose, teachers }) => {
 // ─── MODAL CHỈNH SỬA HỌC VIÊN ─────────────────────────────────────────────────────
 const EditStudentModal = ({ student, onSave, onClose, teachers, onResetPassword }) => {
   const toast    = useToast();
-  const API      = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const API      = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || "");
   const { isSuperAdmin, branches } = useBranch();
 
   const [dbCourses, setDbCourses] = useState([]);
@@ -3486,7 +3486,7 @@ const AdminDashboard = ({ onNavigate }) => {
                                 <td className="px-4 py-3 text-center">
                                   {r.thucHanh === 'da_nop' ? (
                                     r.essayFile ? (
-                                      <a href={r.essayFile.startsWith('http') ? r.essayFile : `http://localhost:5000${r.essayFile}`} 
+                                      <a href={r.essayFile.startsWith('http') ? r.essayFile : `${import.meta.env.VITE_API_URL || ""}${r.essayFile}`} 
                                          target="_blank" rel="noopener noreferrer"
                                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-[10px] font-black transition border border-blue-200">
                                         <Download size={12} /> Tải bài

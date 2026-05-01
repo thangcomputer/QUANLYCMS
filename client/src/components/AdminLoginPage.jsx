@@ -12,7 +12,7 @@ const AdminLoginPage = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const API = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || "");
   const [dynamicLogo, setDynamicLogo] = useState('');
 
   // Fetch dynamic logo from web settings

@@ -27,7 +27,7 @@ const LoginPage = ({ onLogin }) => {
   const [otpCountdown, setOtpCountdown] = useState(0);
   const countdownRef = useRef(null);
 
-  const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const API = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || "");
 
   useEffect(() => {
     fetch(`${API}/api/settings/web`)

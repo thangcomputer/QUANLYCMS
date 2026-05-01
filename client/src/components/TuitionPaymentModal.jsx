@@ -61,7 +61,7 @@ export default function TuitionPaymentModal({ student, onClose, onPaid }) {
     pollRef.current = setInterval(async () => {
       try {
         const res = await api.settings.getPayment && await fetch(
-          `http://localhost:5000/api/webhooks/payment-status/${studentId}`,
+          `${import.meta.env.VITE_API_URL || ""}/api/webhooks/payment-status/${studentId}`,
           {
             headers: {
               Authorization: `Bearer ${(() => {

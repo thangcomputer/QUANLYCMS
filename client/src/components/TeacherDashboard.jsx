@@ -1220,7 +1220,7 @@ const MonthlyCalendar = ({ schedules, onEditSchedule, onAddSchedule, onCancelSch
     if (!cancelTarget) return;
     setCancelling(true);
     try {
-      const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const API = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || "");
       const token = localStorage.getItem('teacher_access_token') || localStorage.getItem('admin_access_token');
       const res = await fetch(`${API}/api/schedules/${cancelTarget._id || cancelTarget.id}/cancel`, {
         method: 'PATCH',
@@ -2289,7 +2289,7 @@ const TeacherDashboard = ({ onNavigate }) => {
     if (!pendingAttendanceSchedule || !noShowReason.trim()) return;
     try {
       const s = pendingAttendanceSchedule;
-      const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const API = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || "");
       const token = localStorage.getItem('teacher_access_token') || localStorage.getItem('admin_access_token');
       await fetch(`${API}/api/schedules/${s._id || s.id}/cancel`, {
         method: 'PATCH',

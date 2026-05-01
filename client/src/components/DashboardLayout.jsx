@@ -48,7 +48,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { teachers, isRefetching, triggerBackgroundSync, notifications: allNotifications, markNotificationRead } = useData();
-  const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const API = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || "");
 
   useEffect(() => {
     const key = `${role}_user`;

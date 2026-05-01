@@ -447,7 +447,7 @@ export default function SystemSettingsTab() {
                   <img
                     src={settings.popupImageUrl.startsWith('http')
                       ? settings.popupImageUrl
-                      : `http://localhost:5000${settings.popupImageUrl}`}
+                      : `${import.meta.env.VITE_API_URL || ""}${settings.popupImageUrl}`}
                     alt="Banner preview"
                     className="w-full rounded-xl border max-h-48 object-cover"
                   />

@@ -7,7 +7,7 @@
 import { useState, useEffect } from 'react';
 import { X, Bell, AlertCircle } from 'lucide-react';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || "");
 const STORAGE_KEY = 'staff_popup_seen';
 
 export default function StaffPopup({ session }) {

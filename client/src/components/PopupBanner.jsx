@@ -79,7 +79,7 @@ export default function PopupBanner({ role }) {
         {popup.imageUrl && (
           <div className="w-full flex-shrink-0">
             <img
-              src={popup.imageUrl.startsWith('http') ? popup.imageUrl : `http://localhost:5000${popup.imageUrl}`}
+              src={popup.imageUrl.startsWith('http') ? popup.imageUrl : `${import.meta.env.VITE_API_URL || ""}${popup.imageUrl}`}
               alt="Thông báo"
               className="w-full object-cover"
               style={{ maxHeight: '280px' }}

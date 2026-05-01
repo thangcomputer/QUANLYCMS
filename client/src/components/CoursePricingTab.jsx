@@ -12,7 +12,7 @@ import {
 import { useToast } from '../utils/toast';
 import { useModal } from '../utils/Modal.jsx';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || "");
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 const fmt = (n) => Number(n || 0).toLocaleString('vi-VN');

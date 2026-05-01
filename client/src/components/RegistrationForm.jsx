@@ -10,7 +10,7 @@ import exportPDF from '../utils/exportPDF';
 import { generateVietQRUrl } from './BankSelect';
 import { useModal } from '../utils/Modal.jsx';
 
-const API   = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API   = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || "");
 const TOTAL = 5 * 60; // 5 phút = 300 giây
 
 // Helper: tính effective price
