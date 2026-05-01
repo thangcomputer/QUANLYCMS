@@ -239,15 +239,15 @@ const TeacherFinanceAndTraining = () => {
                      <BarChart className="text-blue-600" size={20} />
                      <h3 className="font-extrabold text-slate-800 uppercase tracking-tight">Biểu đồ thu nhập</h3>
                   </div>
-                  <div className="h-[220px] w-full flex items-end justify-center gap-6 md:gap-10 mt-8 pb-4 border-b border-dashed border-slate-200 px-2 overflow-x-auto">
+                  <div className="h-[260px] w-full flex items-end justify-center gap-6 md:gap-10 mt-8 pb-10 border-b border-dashed border-slate-200 px-2 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
                      {chartData.length > 0 ? chartData.map((d, i) => (
                          <div key={i} className="w-16 md:w-20 flex-shrink-0 flex flex-col items-center justify-end h-full gap-2 group relative">
-                             <div className="absolute -top-7 opacity-0 group-hover:opacity-100 transition-opacity bg-blue-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg pointer-events-none whitespace-nowrap">
+                             <div className="absolute -top-7 opacity-0 group-hover:opacity-100 transition-opacity bg-blue-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg pointer-events-none whitespace-nowrap z-20">
                                  {d.amount.toLocaleString('vi-VN')}đ
                              </div>
                              <div className="w-full bg-gradient-to-t from-blue-600 to-indigo-500 rounded-t-xl transition-all duration-700 ease-out hover:from-blue-500 hover:to-indigo-400 cursor-pointer shadow-lg shadow-blue-900/20" 
-                                  style={{ height: `${(d.amount / maxAmount) * 100}%`, minHeight: '10%' }} />
-                             <span className="text-[10px] font-bold text-slate-400 absolute -bottom-6 truncate w-full text-center">{d.month.replace('Tháng ', 'T')}</span>
+                                  style={{ height: `${(d.amount / maxAmount) * 80}%`, minHeight: '10%' }} />
+                             <span className="text-[10px] font-extrabold text-slate-500 absolute -bottom-8 truncate w-full text-center">{d.month.replace('Tháng ', 'T')}</span>
                          </div>
                      )) : (
                          <div className="w-full h-full flex items-center justify-center text-sm text-slate-400 font-bold">Chưa có dữ liệu thống kê</div>
