@@ -415,9 +415,7 @@ const ChangePasswordModal = ({ session, role }) => {
           <h3 className="text-white font-black text-lg flex items-center gap-2">
             <Lock size={20} /> {session?.isFirstLogin === true ? 'Tạo mật khẩu cá nhân' : 'Đổi mật khẩu'}
           </h3>
-          {session?.isFirstLogin !== true && (
-            <button onClick={() => setIsOpen(false)} className="text-white/70 hover:text-white transition"><X size={20} /></button>
-          )}
+          <button onClick={() => setIsOpen(false)} className="text-white/70 hover:text-white transition"><X size={20} /></button>
         </div>
         <div className="p-6">
           {success ? (
