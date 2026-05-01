@@ -117,257 +117,133 @@ const InvoiceTemplate = ({ data = {} }) => {
   return (
     <div
       id="invoice-template"
-      className="relative bg-white"
+      className="relative bg-[#fdfdfd] shadow-inner print:shadow-none"
       style={{
         width: '210mm',
         height: '148mm',
-        fontFamily: "'Plus Jakarta Sans', sans-serif",
-        overflow: 'hidden',
+        fontFamily: "'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+        color: '#1a1a1a',
+        padding: '8mm',
+        boxSizing: 'border-box',
+        border: '1px solid #eee'
       }}
     >
-      {/* ===== VIỀN ĐỎ BAO QUANH ===== */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          border: '4px solid #d32f2f',
-        }}
-      />
+      {/* ===== CLASSIC DOUBLE BORDER ===== */}
+      <div className="absolute inset-[3mm] border-[0.5mm] border-[#d32f2f] pointer-events-none" />
+      <div className="absolute inset-[4.5mm] border-[0.1mm] border-[#d32f2f] opacity-40 pointer-events-none" />
 
-      {/* ===== NỘI DUNG CHÍNH ===== */}
-      <div className="relative h-full flex flex-col" style={{ padding: '10mm 12mm 8mm 12mm' }}>
-
-        {/* ===== HEADER ===== */}
-        <div className="flex items-start justify-between" style={{ marginBottom: '4mm' }}>
-
-          {/* --- Logo bên trái (logo gốc từ thangcomputer.com) --- */}
-          <div className="flex items-center">
+      <div className="relative h-full flex flex-col p-[4mm] border-[0.2mm] border-[#d32f2f] border-opacity-10">
+        
+        {/* ===== HEADER SECTION ===== */}
+        <div className="flex justify-between items-start mb-6">
+          <div className="flex items-start gap-4">
             <img
               src={invoiceSettings.logo || "/logo-thang-tin-hoc.svg"}
-              alt="Thắng Tin Học - Phát Triển Tri Thức Việt"
-              style={{ height: '18mm', maxWidth: '40mm', objectFit: 'contain' }}
+              alt="Logo"
+              style={{ height: '22mm', maxWidth: '45mm', objectFit: 'contain' }}
               crossOrigin="anonymous"
             />
-          </div>
-
-          {/* --- Tên trung tâm bên phải --- */}
-          <div
-            className="text-right flex-shrink-0"
-            style={{
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-              maxWidth: '55%',
-            }}
-          >
-            <div
-              className="font-bold italic leading-tight"
-              style={{
-                fontSize: '17pt',
-                color: '#d32f2f',
-              }}
-            >
-              TRUNG TÂM ĐÀO TẠO TIN HỌC
-            </div>
-            <div
-              className="font-bold italic leading-tight"
-              style={{
-                fontSize: '17pt',
-                color: '#d32f2f',
-              }}
-            >
-              THẮNG TIN HỌC
+            <div className="border-l border-gray-200 pl-4 h-full">
+              <h2 className="font-black italic text-[#d32f2f]" style={{ fontSize: '18pt', lineHeight: '1.1' }}>
+                TRUNG TÂM ĐÀO TẠO TIN HỌC<br />
+                <span style={{ fontSize: '22pt' }}>THẮNG TIN HỌC</span>
+              </h2>
+              <p className="text-[8.5pt] text-gray-500 font-medium mt-1">Phát triển tri thức Việt - Vươn tầm công nghệ</p>
             </div>
           </div>
-        </div>
 
-        {/* ===== THÔNG TIN LIÊN HỆ ===== */}
-        <div style={{ fontSize: '8.5pt', color: '#333', marginBottom: '4mm', lineHeight: '1.7' }}>
-          <div>
-            <span className="font-semibold">Hotline liên hệ:</span>{' '}
-            <span style={{ color: '#d32f2f', fontWeight: 600 }}>093-5758-462</span>{' '}
-            <span>|</span>{' '}
-            <span style={{ color: '#d32f2f', fontWeight: 600 }}>0348-051-379</span>
-          </div>
-          <div>
-            <span className="font-semibold">Website:</span>{' '}
-            <span style={{ color: '#1565c0' }}>thangcomputer.com</span>
-          </div>
-          <div>
-            <span className="font-semibold">Địa chỉ :</span>{' '}
-            13Q Phan Cát Tựu, P. An Lạc, Bình Tân, TP.Hồ Chí Minh
+          <div className="text-right">
+            <div className="text-[#d32f2f] font-black italic mb-1" style={{ fontSize: '24pt' }}>PHIẾU THU</div>
+            <div className="text-[9pt] font-bold text-gray-400">Số: PK_{Date.now().toString().slice(-6)}</div>
           </div>
         </div>
 
-        {/* ===== TIÊU ĐỀ THU HỌC PHÍ ===== */}
-        <div className="text-center" style={{ marginBottom: '5mm' }}>
-          <h1
-            className="inline-block font-bold"
-            style={{
-              fontSize: '20pt',
-              color: '#d32f2f',
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-              textDecoration: 'underline',
-              textUnderlineOffset: '4px',
-              textDecorationThickness: '2px',
-              fontStyle: 'italic',
-            }}
-          >
-            THU HỌC PHÍ
-          </h1>
+        {/* ===== CONTACT INFO ===== */}
+        <div className="grid grid-cols-2 gap-4 mb-6 text-[9pt] border-b border-gray-100 pb-4">
+           <div className="space-y-1">
+              <div><span className="font-bold text-gray-400 uppercase w-20 inline-block text-[7.5pt]">Địa chỉ:</span> 13Q Phan Cát Tựu, An Lạc, Bình Tân, HCM</div>
+              <div><span className="font-bold text-gray-400 uppercase w-20 inline-block text-[7.5pt]">Website:</span> <span className="text-blue-600 font-bold">thangcomputer.com</span></div>
+           </div>
+           <div className="text-right space-y-1">
+              <div><span className="font-bold text-gray-400 uppercase text-[7.5pt]">Hotline:</span> <span className="text-[#d32f2f] font-black ml-2">093-5758-462 | 0348-051-379</span></div>
+              <div><span className="font-bold text-gray-400 uppercase text-[7.5pt]">Email:</span> hotro@thangcomputer.com</div>
+           </div>
         </div>
 
-        {/* ===== WATERMARK THẮNG TIN HỌC ===== */}
-        <div
-          className="absolute pointer-events-none select-none"
-          style={{
-            top: '52%',
-            left: '58%',
-            transform: 'translate(-50%, -50%)',
-            opacity: 0.04,
-            zIndex: 0,
-          }}
-        >
-          <div
-            className="font-bold text-center"
-            style={{
-              fontSize: '32pt',
-              color: '#1565c0',
-              letterSpacing: '2px',
-            }}
-          >
-            THẮNG TIN HỌC
+        {/* ===== CONTENT SECTION ===== */}
+        <div className="flex-grow space-y-5 px-4">
+          <div className="flex items-end gap-3">
+             <span className="font-bold text-gray-500 uppercase text-[9pt] pb-1">Họ tên người nộp:</span>
+             <span className="flex-grow border-b border-dotted border-gray-300 font-bold text-[14pt] text-blue-900 pb-0.5 px-2">
+               {studentName.toUpperCase()}
+             </span>
           </div>
-          <div
-            className="text-center font-semibold"
-            style={{
-              fontSize: '11pt',
-              color: '#1565c0',
-              letterSpacing: '3px',
-            }}
-          >
-            PHÁT TRIỂN TRI THỨC VIỆT
+
+          <div className="flex items-end gap-3">
+             <span className="font-bold text-gray-500 uppercase text-[9pt] pb-1">Nội dung thu:</span>
+             <span className="flex-grow border-b border-dotted border-gray-300 font-bold text-[13pt] pb-0.5 px-2">
+               {courseName}
+             </span>
+          </div>
+
+          <div className="grid grid-cols-12 gap-6">
+            <div className="col-span-5 flex items-end gap-3">
+               <span className="font-bold text-gray-500 uppercase text-[9pt] pb-1">Số tiền:</span>
+               <span className="flex-grow border-b border-dotted border-gray-300 font-black text-[16pt] text-[#d32f2f] pb-0.5 px-2">
+                 {formatCurrency(tuitionFee)} VNĐ
+               </span>
+            </div>
+            <div className="col-span-7 flex items-end gap-3">
+               <span className="font-bold text-gray-500 uppercase text-[9pt] pb-1">Bằng chữ:</span>
+               <span className="flex-grow border-b border-dotted border-gray-300 italic font-bold text-[10.5pt] text-[#d32f2f] pb-0.5 px-2">
+                 {docSoTien(tuitionFee)}
+               </span>
+            </div>
           </div>
         </div>
 
-        {/* ===== NỘI DUNG HÓA ĐƠN ===== */}
-        <div className="relative z-10 flex-grow" style={{ fontSize: '11pt', lineHeight: '2.2' }}>
-          <div>
-            <span className="font-semibold" style={{ marginRight: '2mm' }}>Tên học viên:</span>
-            <span className="font-bold" style={{ color: '#1a1a1a' }}>
-              {studentName}
-            </span>
+        {/* ===== SIGNATURE SECTION ===== */}
+        <div className="mt-8 flex justify-between items-start">
+          <div className="pl-10">
+             <div className="text-[#d32f2f] font-black italic text-[10pt] border-b-2 border-[#d32f2f] inline-block mb-4">Lưu ý: Không hoàn học phí</div>
+             {isPaid && (
+               <div className="relative mt-2">
+                  <div className="absolute top-[-10mm] left-[-5mm] w-[45mm] h-[18mm] border-[1.5mm] border-[#d32f2f] border-double rounded-lg flex items-center justify-center rotate-[-10deg] opacity-80 scale-110">
+                    <span className="font-black text-[#d32f2f] text-[13pt] tracking-[2px]">{invoiceSettings.stamp}</span>
+                  </div>
+               </div>
+             )}
           </div>
-          <div>
-            <span className="font-semibold" style={{ marginRight: '2mm' }}>Nội dung khóa học:</span>
-            <span className="font-bold" style={{ color: '#1a1a1a' }}>
-              {courseName}
-            </span>
-          </div>
-          <div>
-            <span className="font-semibold" style={{ marginRight: '2mm' }}>Học phí :</span>
-            <span className="font-bold" style={{ color: '#d32f2f' }}>
-              {tuitionFee ? formatCurrency(tuitionFee) + ' VNĐ' : ''}
-            </span>
-          </div>
-          <div>
-            <span className="font-semibold" style={{ marginRight: '2mm' }}>Viết bằng chữ :</span>
-            <span className="italic" style={{ color: '#d32f2f' }}>
-              {tuitionFee ? docSoTien(tuitionFee) : ''}
-            </span>
-          </div>
-        </div>
 
-        {/* ===== FOOTER ===== */}
-        <div className="relative z-10" style={{ marginTop: 'auto' }}>
-          {/* Ngày + Người nhận tiền - bên phải */}
-          <div className="flex justify-end" style={{ marginBottom: '2mm' }}>
-            <div className="text-center" style={{ marginRight: '8mm' }}>
-              <div
-                className="italic"
-                style={{
-                  fontSize: '10pt',
-                  fontFamily: "'Plus Jakarta Sans', sans-serif",
-                  marginBottom: '1mm',
-                }}
-              >
-                Ngày &nbsp;{day}&nbsp; tháng {month} năm {year}
-              </div>
-              <div
-                className="font-semibold"
-                style={{ fontSize: '10pt', marginBottom: '3mm' }}
-              >
-                Người nhận tiền
-              </div>
-              {/* Chữ ký */}
-              <div className="h-[20mm] flex items-center justify-center -mb-2 -mt-1">
+          <div className="text-center min-w-[60mm]">
+             <p className="italic text-[9.5pt] mb-1">TP. Hồ Chí Minh, ngày {day} tháng {month} năm {year}</p>
+             <p className="font-black text-[10pt] uppercase mb-1">Người nhận tiền</p>
+             <p className="text-[8pt] text-gray-400 italic mb-2">(Ký và ghi rõ họ tên)</p>
+             
+             <div className="h-[22mm] flex items-center justify-center relative">
                 {invoiceSettings.signature ? (
-                   <img 
-                      src={invoiceSettings.signature} 
-                      alt="Chữ ký" 
-                      style={{ height: '18mm', objectFit: 'contain' }}
-                      crossOrigin="anonymous"
-                   />
+                  <img 
+                    src={invoiceSettings.signature} 
+                    alt="Signature" 
+                    className="max-h-[22mm] object-contain relative z-10" 
+                    crossOrigin="anonymous" 
+                  />
                 ) : (
-                  <div
-                    style={{
-                      fontFamily: '"Dancing Script", cursive',
-                      fontSize: '20pt',
-                      color: '#1565c0',
-                      lineHeight: 1,
-                    }}
-                  >
+                  <div className="font-['Dancing_Script'] text-[24pt] text-blue-800 opacity-50">
                     {receiverName.split(' ').pop()}
                   </div>
                 )}
-              </div>
-              <div className="font-bold" style={{ fontSize: '10pt' }}>
-                {receiverName}
-              </div>
-            </div>
-          </div>
+             </div>
 
-          {/* Lưu ý + Dấu mộc */}
-          <div className="flex justify-between items-end">
-            {/* --- Lưu ý bên trái --- */}
-            <div
-              className="italic font-bold"
-              style={{
-                fontSize: '9.5pt',
-                color: '#d32f2f',
-                maxWidth: '50%',
-              }}
-            >
-              Lưu ý: Không hoàn học phí với bất kỳ lý do gì
-            </div>
-
-            {/* --- Dấu mộc bên phải --- */}
-            {isPaid && (
-              <div
-                className="flex items-center justify-center"
-                style={{
-                  width: '35mm',
-                  height: '12mm',
-                  border: '2.5px solid #d32f2f',
-                  borderRadius: '3px',
-                  transform: 'rotate(-12deg)',
-                  opacity: 0.8,
-                  marginRight: '3mm',
-                  marginBottom: '-2mm',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <span
-                  className="font-bold tracking-wider"
-                  style={{
-                    fontSize: '10pt',
-                    color: '#d32f2f',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  {invoiceSettings.stamp}
-                </span>
-              </div>
-            )}
+             <p className="font-black text-[11pt] text-gray-800 mt-2">{receiverName}</p>
           </div>
         </div>
+
+        {/* ===== WATERMARK SECTION ===== */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03] rotate-[-15deg]">
+           <div className="text-[80pt] font-black whitespace-nowrap">THẮNG TIN HỌC</div>
+        </div>
+
       </div>
     </div>
   );

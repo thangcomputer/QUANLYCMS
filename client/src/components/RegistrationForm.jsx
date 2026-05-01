@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   CreditCard, User, Phone, BookOpen, GraduationCap, CheckCircle,
-  Printer, LayoutDashboard, ArrowLeft, Loader2, AlertCircle,
+  Printer, Download, LayoutDashboard, ArrowLeft, Loader2, AlertCircle,
   Clock, RefreshCw, XCircle
 } from 'lucide-react';
 import { useData } from '../context/DataContext';
@@ -236,34 +236,45 @@ const RegistrationForm = ({ onNavigate }) => {
             showModal({
               title: 'HÓA ĐƠN ĐĂNG KÝ HỌC',
               content: (
-                <div className="flex flex-col items-center">
-                   <div className="scale-75 origin-top mb-[-100px]">
-                      <InvoiceTemplate data={{ 
-                        studentName: formData.name,
-                        courseName: formData.course,
-                        tuitionFee: formData.effectivePrice || formData.price,
-                        date: new Date(),
-                        isPaid: true 
-                      }} />
+                <div className="flex flex-col items-center bg-gray-50 p-6 rounded-2xl overflow-hidden">
+                   <div className="w-full overflow-x-auto pb-4 flex justify-center">
+                      <div className="shadow-2xl origin-top transition-transform duration-500" style={{ transform: 'scale(0.65)', marginBottom: '-180px' }}>
+                        <InvoiceTemplate data={{ 
+                          studentName: formData.name,
+                          courseName: formData.course,
+                          tuitionFee: formData.effectivePrice || formData.price,
+                          date: new Date(),
+                          isPaid: true 
+                        }} />
+                      </div>
                    </div>
-                   <div className="flex gap-4 mt-8 w-full">
+                   <div className="flex flex-wrap justify-center gap-3 mt-12 w-full max-w-lg relative z-20">
+                      <button 
+                        onClick={() => {
+                          const { printInvoice } = require('../utils/exportPDF');
+                          printInvoice();
+                        }}
+                        className="flex-1 min-w-[120px] py-3.5 bg-blue-600 text-white font-bold rounded-xl shadow-lg hover:bg-blue-700 transform hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+                      >
+                        <Printer size={18} /> IN (PRINT)
+                      </button>
                       <button 
                         onClick={() => exportPDF({ studentName: formData.name })}
-                        className="flex-1 py-4 bg-red-600 text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2"
+                        className="flex-1 min-w-[120px] py-3.5 bg-emerald-600 text-white font-bold rounded-xl shadow-lg hover:bg-emerald-700 transform hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
                       >
-                        <Printer size={20} /> IN HÓA ĐƠN
+                        <Download size={18} /> TẢI PDF
                       </button>
                       <button 
                         onClick={() => setStep(3)}
-                        className="flex-1 py-4 bg-gray-100 text-gray-700 font-bold rounded-2xl"
+                        className="flex-1 min-w-[120px] py-3.5 bg-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-300 transition-all flex items-center justify-center"
                       >
-                        XEM CHI TIẾT
+                        ĐÓNG
                       </button>
                    </div>
                 </div>
               ),
               type: 'info',
-              confirmText: 'Đóng',
+              confirmText: null,
               onConfirm: () => setStep(3)
             });
             setTimeout(() => setStep(3), 500);
