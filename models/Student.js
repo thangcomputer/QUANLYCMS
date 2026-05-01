@@ -179,6 +179,10 @@ const StudentSchema = new mongoose.Schema(
       type: String,
       default: 'Chờ xếp lớp',
     },
+    isFirstLogin: {
+      type: Boolean,
+      default: true,
+    },
     tokenVersion: { type: Number, default: 0 },   // ⭐ Anti-sharing: tăng mỗi lần login
   },
   {

@@ -3,6 +3,7 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import AppSidebar from './AppSidebar';
 import BranchFilterDropdown from './BranchFilterDropdown';
 import { useData } from '../context/DataContext';
+import api from '../services/api';
 import { 
   Bell, Search, LogOut, CheckCircle2, Clock, X, ChevronRight, Lock,
   Calendar, DollarSign, UserPlus, Zap, BookOpen, Award, Activity
@@ -125,6 +126,15 @@ const DashboardLayout = ({ role, session, onLogout }) => {
     }
   }, [currentTeacher?.status, session?.status, role, session?.id, navigate, isRefetching]);
 
+  useEffect(() => {
+    if (session?.isFirstLogin) {
+      const timer = setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('open-change-password-modal'));
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [session?.isFirstLogin]);
+
   const handleLogout = () => onLogout?.();
 
   const [showNotif, setShowNotif] = React.useState(false);
@@ -149,10 +159,21 @@ const DashboardLayout = ({ role, session, onLogout }) => {
     };
   }, [showNotif]);
 
-  const myNotifications = allNotifications.filter(n => 
-    (String(n.userId) === String(session?.id) || !n.userId) && 
-    (n.role === role || !n.role)
-  ).sort((a, b) => new Date(b.time || Date.now()) - new Date(a.time || Date.now()));
+  const myNotifications = allNotifications.filter(n => {
+    // Nếu có mảng receivers, kiểm tra quyền
+    if (n.receivers && n.receivers.length > 0) {
+      if (n.receivers.includes('ALL_ADMIN') && role !== 'admin') return false;
+      if (n.receivers.includes('ALL_TEACHER') && role !== 'teacher') return false;
+      if (n.receivers.includes('ALL_STUDENT') && role !== 'student') return false;
+      // Nếu có ID cụ thể trong receivers
+      const isForMe = n.receivers.includes(String(session?.id)) || 
+                      n.receivers.includes(role) || 
+                      (role === 'admin' && n.receivers.includes('ALL_ADMIN'));
+      if (!isForMe && !n.receivers.includes('ALL')) return false;
+    }
+    return (String(n.userId) === String(session?.id) || !n.userId) && 
+           (n.role === role || !n.role);
+  }).sort((a, b) => new Date(b.time || Date.now()) - new Date(a.time || Date.now()));
 
   const unreadCount = myNotifications.filter(n => !n.read).length;
 
@@ -325,12 +346,12 @@ const DashboardLayout = ({ role, session, onLogout }) => {
         </div>
       </main>
 
-      <ChangePasswordModal />
+      <ChangePasswordModal session={session} role={role} />
     </div>
   );
 };
 
-const ChangePasswordModal = () => {
+const ChangePasswordModal = ({ session, role }) => {
   const [isOpen, setIsOpen] = React.useState(false);
   const [oldPassword, setOldPassword] = React.useState('');
   const [newPassword, setNewPassword] = React.useState('');
@@ -365,6 +386,14 @@ const ChangePasswordModal = () => {
       const res = await api.auth.changePassword(oldPassword, newPassword);
       if (res.success) {
         setSuccess(true);
+        // Cập nhật lại session local storage nếu là first login
+        if (session?.isFirstLogin) {
+           const key = `${role}_user`;
+           try {
+             const stored = JSON.parse(localStorage.getItem(key) || '{}');
+             localStorage.setItem(key, JSON.stringify({ ...stored, isFirstLogin: false }));
+           } catch {}
+        }
         setTimeout(() => setIsOpen(false), 2000);
       } else {
         setError(res.message || 'Lỗi khi đổi mật khẩu.');

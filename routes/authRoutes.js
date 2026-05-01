@@ -369,11 +369,13 @@ router.post('/login', async (req, res) => {
             testScore:       user.testScore,
             assignedClasses: user.assignedClasses,
             avatar:          user.avatar,
+            isFirstLogin:    user.isFirstLogin,
           }
         : {
             course:            user.course,
             remainingSessions: user.remainingSessions,
             grade:             user.grade,
+            isFirstLogin:      user.isFirstLogin,
           }),
     };
 
@@ -488,7 +490,7 @@ router.post('/login/public', async (req, res) => {
       success: true,
       message: `Chào mừng ${user.name}!`,
       data: {
-        user: { _id: user._id, name: user.name, role: userRole, phone: user.phone || user.zalo || '', status: user.status, course: user.course, remainingSessions: user.remainingSessions },
+        user: { _id: user._id, name: user.name, role: userRole, phone: user.phone || user.zalo || '', status: user.status, course: user.course, remainingSessions: user.remainingSessions, isFirstLogin: user.isFirstLogin },
         accessToken, refreshToken,
       },
     });
@@ -773,6 +775,9 @@ router.post('/change-password', authMiddleware, async (req, res) => {
     if (!isMatch) return res.status(401).json({ success: false, message: 'Mật khẩu cũ không đúng' });
 
     user.password = newPassword;
+    if (user.isFirstLogin) {
+      user.isFirstLogin = false;
+    }
     await user.save({ validateModifiedOnly: true });
 
     return res.status(200).json({ success: true, message: 'Đổi mật khẩu thành công' });
@@ -844,6 +849,7 @@ router.get('/me', async (req, res) => {
         branchCode:  user.branchCode || '',
         status:      user.status,
         avatar:      user.avatar || '',
+        isFirstLogin: user.isFirstLogin,
         ...(decoded.role === 'teacher' || decoded.role === 'admin' || decoded.role === 'staff' ? {
           testScore:       user.testScore,
           assignedClasses: user.assignedClasses,

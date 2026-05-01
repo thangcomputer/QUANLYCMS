@@ -131,6 +131,7 @@ const TeacherSchema = new mongoose.Schema(
     lockUntil: { type: Date },
     refreshToken: { type: String, select: false },
     tokenVersion: { type: Number, default: 0 },   // ⭐ Anti-sharing: tăng mỗi lần login → vô hiệu token cũ
+    isFirstLogin: { type: Boolean, default: true },
   },
   {
     timestamps: true,
