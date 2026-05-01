@@ -180,11 +180,17 @@ router.post('/', authMiddleware, isAdmin, async (req, res) => {
     // Thông báo real-time cho giảng viên
     const io = req.app.get('io');
     if (io) {
-      io.emit('transaction:new', {
-        teacherId: teacherId.toString(),
-        transaction,
-        message: `💵 Admin đã tạo phiếu chi ${amount.toLocaleString('vi-VN')}đ cho tháng ${month || ''}`,
+      const NotificationService = require('../services/NotificationService');
+      await NotificationService.send(io, {
+        type: 'FINANCE',
+        title: '💵 Phiếu chi lương mới',
+        content: `Admin đã tạo phiếu chi ${amount.toLocaleString('vi-VN')}đ cho tháng ${month || ''}`,
+        receivers: teacherId.toString(),
+        payload: { transactionId: transaction._id },
+        link: '/teacher/finance'
       });
+      
+      io.emit('data:refresh', { type: 'transaction', id: transaction._id });
     }
 
     res.status(201).json({ success: true, data: transaction });
@@ -213,16 +219,17 @@ router.put('/:id/confirm', authMiddleware, isAdmin, async (req, res) => {
     // Thông báo real-time cho giảng viên
     const io = req.app.get('io');
     if (io) {
-      io.emit('transaction:confirmed', {
-        teacherId:   transaction.teacherId._id.toString(),
-        transaction,
-        message: `✅ Đã xác nhận thanh toán ${transaction.amount.toLocaleString('vi-VN')}đ cho ${transaction.month}`,
+      const NotificationService = require('../services/NotificationService');
+      await NotificationService.send(io, {
+        type: 'FINANCE',
+        title: '✅ Lương đã được thanh toán',
+        content: `Đã xác nhận thanh toán ${transaction.amount.toLocaleString('vi-VN')}đ cho ${transaction.month}`,
+        receivers: transaction.teacherId._id.toString(),
+        link: '/teacher/finance'
       });
-      io.emit('revenue:updated', {
-        type:   'teacher_salary',
-        amount: transaction.amount,
-        name:   transaction.teacherName,
-      });
+
+      io.emit('revenue:updated', { amount: transaction.amount, type: 'salary' });
+      io.emit('data:refresh', { type: 'transaction', id: transaction._id });
     }
 
     res.json({ success: true, data: transaction });

@@ -57,6 +57,7 @@ app.use('/uploads', (req, res, next) => {
 
 // Gắn io vào app để dùng trong routes
 app.set('io', io);
+global.io = io; // Đảm bảo global.io luôn khả dụng cho các route
 
 // Log mọi hoạt động thay đổi dữ liệu
 const systemLogger = require('./middleware/systemLogger');
@@ -151,20 +152,29 @@ io.on('connection', (socket) => {
       date: new Date().toISOString()
     };
 
-    // Broadcast tới tất cả Admin
-    for (const [key, val] of onlineUsers.entries()) {
-      if (val.role === 'admin') {
-         io.to(val.socketId).emit('notification', notif);
-      }
-    }
+    // Broadcast tới tất cả Admin & Giảng viên qua NotificationService
+    const NotificationService = require('./services/NotificationService');
+    
+    // 1. Gửi cho tất cả Admin
+    NotificationService.send(io, {
+      type: 'EXAM',
+      title: notif.title,
+      content: notif.message,
+      receivers: 'ALL_ADMIN',
+      payload: data,
+      link: '/admin/students'
+    });
 
-    // Gửi cho Giáo viên phụ trách
+    // 2. Gửi cho Giáo viên phụ trách
     if (data.teacherId) {
-       const teacherKey = `teacher_${data.teacherId}`;
-       const teacher = onlineUsers.get(teacherKey);
-       if (teacher) {
-         io.to(teacher.socketId).emit('notification', notif);
-       }
+      NotificationService.send(io, {
+        type: 'EXAM',
+        title: notif.title,
+        content: notif.message,
+        receivers: data.teacherId.toString(),
+        payload: data,
+        link: '/teacher/dashboard'
+      });
     }
      // (Removed io.emit('exam:locked') to prevent INFINITE LOOP with StudentTest resolving 'exam:locked' by emitting 'exam:violation')
   });

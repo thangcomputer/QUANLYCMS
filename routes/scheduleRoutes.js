@@ -28,11 +28,20 @@ async function checkAndUnlockExam(studentId, io) {
 
       // Thông báo real-time cho học viên
       if (io) {
+        const NotificationService = require('../services/NotificationService');
+        NotificationService.send(io, {
+          type: 'EXAM',
+          title: '🎉 Phòng thi đã được mở khóa!',
+          content: `Chúc mừng! Bạn đã hoàn thành ${completedSessions} buổi học. Phòng thi đã được mở khóa!`,
+          receivers: student._id.toString(),
+          link: '/student/exam'
+        });
+
         io.emit('exam:unlocked', {
           studentId: student._id.toString(),
           studentName: student.name,
-          message: `🎉 Chúc mừng! Bạn đã hoàn thành ${completedSessions} buổi học. Phòng thi đã được mở khóa!`,
         });
+        io.emit('data:refresh', { type: 'student', id: student._id });
       }
 
       console.log(`✅ [SCHEDULE] Unlock thi cho HV: ${student.name} (${completedSessions}/${totalRequired} buổi)`);
@@ -257,29 +266,33 @@ router.post('/', async (req, res) => {
 
     // Thông báo real-time cho học viên
     const io = req.app.get('io');
-    const Notification = require('../models/Notification');
     if (io) {
+      const NotificationService = require('../services/NotificationService');
       if (studentId) {
          const notifDate = new Date(date).toLocaleDateString('vi-VN');
-         const notif = await Notification.create({ type: 'SCHEDULE', title: '📅 Lịch học mới', content: `Lịch học mới vào ngày ${notifDate} lúc ${startTime} đã được thêm.`, receivers: [studentId.toString()] });
-         io.to(studentId.toString()).emit('RECEIVE_NOTIFICATION', { _id: notif._id, type: 'schedule', title: notif.title, message: notif.content, time: new Date(), userId: studentId.toString() });
+         NotificationService.send(io, {
+           type: 'SCHEDULE',
+           title: '📅 Lịch học mới',
+           content: `Lịch học mới vào ngày ${notifDate} lúc ${startTime} đã được thêm.`,
+           receivers: studentId.toString(),
+           link: '/student/schedule'
+         });
       }
+      
       io.emit('schedule:new', {
         studentId: studentId.toString(),
         schedule,
-        message: `📅 Giảng viên ${teacherName} đã đặt lịch học ${course} vào ${startTime} ngày ${new Date(date).toLocaleDateString('vi-VN')}`,
       });
+      io.emit('data:refresh', { type: 'schedule', action: 'create' });
 
       // 🔐 Nếu là điểm danh (status=completed), broadcast lock cho toàn hệ thống
       if (schedule.status === 'completed') {
-        const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
         io.emit('attendance:locked', {
           studentId: studentId.toString(),
           course: courseFinal,
           lockedUntil: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString(),
           attendedAt: new Date().toISOString(),
           can_check_in: false,
-          message: `🔒 Học viên ${studentName} đã được điểm danh. Khóa trong 12 tiếng.`,
         });
       }
     }
@@ -336,20 +349,37 @@ router.put('/:scheduleId', async (req, res) => {
       updates.hasUnreadStudentNote = req.body.hasUnreadStudentNote;
     }
 
-    const Notification = require('../models/Notification');
     const io = req.app.get('io');
     if (schedule.studentId && io) {
+      const NotificationService = require('../services/NotificationService');
+      const notifDate = new Date(schedule.date).toLocaleDateString();
+      
       if (status === 'cancelled' && schedule.status !== 'cancelled') {
-         const notif = await Notification.create({ type: 'SCHEDULE', title: '❌ Lịch học bị hủy', content: `Lịch học ngày ${new Date(schedule.date).toLocaleDateString()} đã bị hủy.`, receivers: [schedule.studentId.toString()] });
-         io.to(schedule.studentId.toString()).emit('RECEIVE_NOTIFICATION', { _id: notif._id, type: 'schedule', title: notif.title, message: notif.content, time: new Date(), userId: schedule.studentId.toString() });
+         NotificationService.send(io, {
+           type: 'SCHEDULE',
+           title: '❌ Lịch học bị hủy',
+           content: `Lịch học ngày ${notifDate} đã bị hủy.`,
+           receivers: schedule.studentId.toString(),
+           link: '/student/schedule'
+         });
       }
       else if (status === 'completed' && schedule.status !== 'completed') {
-         const notif = await Notification.create({ type: 'SCHEDULE', title: '✅ Hệ thống đã điểm danh', content: `Giảng viên đã điểm danh buổi học ngày ${new Date(schedule.date).toLocaleDateString()}.`, receivers: [schedule.studentId.toString()] });
-         io.to(schedule.studentId.toString()).emit('RECEIVE_NOTIFICATION', { _id: notif._id, type: 'schedule', title: notif.title, message: notif.content, time: new Date(), userId: schedule.studentId.toString() });
+         NotificationService.send(io, {
+           type: 'SCHEDULE',
+           title: '✅ Hệ thống đã điểm danh',
+           content: `Giảng viên đã điểm danh buổi học ngày ${notifDate}.`,
+           receivers: schedule.studentId.toString(),
+           link: '/student/schedule'
+         });
       }
       else if ((startTime && startTime !== schedule.startTime) || (date && new Date(date).getTime() !== schedule.date.getTime())) {
-         const notif = await Notification.create({ type: 'SCHEDULE', title: '🔄 Lịch học đã thay đổi', content: `Lịch học của bạn đã được cập nhật thành: ${startTime || schedule.startTime} ngày ${date ? new Date(date).toLocaleDateString() : 'hôm nay'}.`, receivers: [schedule.studentId.toString()] });
-         io.to(schedule.studentId.toString()).emit('RECEIVE_NOTIFICATION', { _id: notif._id, type: 'schedule', title: notif.title, message: notif.content, time: new Date(), userId: schedule.studentId.toString() });
+         NotificationService.send(io, {
+           type: 'SCHEDULE',
+           title: '🔄 Lịch học đã thay đổi',
+           content: `Lịch học đã cập nhật thành: ${startTime || schedule.startTime} ngày ${date ? new Date(date).toLocaleDateString() : notifDate}.`,
+           receivers: schedule.studentId.toString(),
+           link: '/student/schedule'
+         });
       }
     }
 
@@ -361,8 +391,6 @@ router.put('/:scheduleId', async (req, res) => {
       { path: 'teacherId', select: 'name phone' },
       { path: 'studentId', select: 'name course totalSessions studentExamUnlocked' },
     ]);
-
-    // (io was declared above)
 
     // BUSINESS LOGIC: Nếu đánh dấu hoàn thành → kiểm tra unlock thi
     if (status === 'completed' && schedule.studentId) {
@@ -378,28 +406,14 @@ router.put('/:scheduleId', async (req, res) => {
              paymentStatus: 'paid'
            });
         }
-
-        // ✅ Không cần ghi completedSessions vào Student ở đây.
-        // GET /api/students đã tính động từ Schedule.countDocuments() mỗi lần fetch.
-        // Ghi ở đây gây race condition khi triggerBackgroundSync chạy ngay sau.
-      }
-
-      // Thông báo học viên
-      if (io) {
-        io.emit('schedule:completed', {
-          studentId: schedule.studentId.toString(),
-          teacherName: schedule.teacherName,
-          course: schedule.course,
-          date: schedule.date,
-        });
       }
     }
 
     // BUSINESS LOGIC: Gửi thông báo chuông cho Giảng viên nếu Học viên gửi Ghi chú (studentNote)
     if ('studentNote' in req.body && schedule.teacherId && io) {
-      const Notification = require('../models/Notification');
       try {
-         const newNotif = await Notification.create({
+         const NotificationService = require('../services/NotificationService');
+         await NotificationService.send(io, {
            type: 'SYSTEM',
            title: '📝 Ghi chú mới từ học viên',
            content: `Học viên ${schedule.studentName} vừa để lại ghi chú trên lịch học ngày ${new Date(schedule.date).toLocaleDateString('vi-VN')}.`,

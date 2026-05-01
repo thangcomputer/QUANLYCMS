@@ -343,12 +343,15 @@ router.post('/', [authMiddleware, branchFilter], async (req, res) => {
 
     const io = req.app.get('io');
     if (io) {
+      const NotificationService = require('../services/NotificationService');
+      NotificationService.notifyAdmins(io, '🆕 Học viên mới đăng ký', `Học viên ${student.name} đã đăng ký khóa học ${student.course}.`, { studentId: student._id }, '/admin/students');
+      
       io.emit('student:new', {
         studentId: student._id,
         name: student.name,
         course: student.course,
-        message: `Học viên mới đăng ký: ${student.name} - ${student.course}`,
       });
+      io.emit('data:refresh', { type: 'student', action: 'create' });
     }
 
     res.status(201).json({ success: true, data: student });
@@ -502,21 +505,22 @@ router.put('/:id/pay', authMiddleware, isAdmin, async (req, res) => {
     // Thông báo real-time
     const io = req.app.get('io');
     if (io) {
+      const NotificationService = require('../services/NotificationService');
+      
       // Notify Admin: doanh thu mới
-      io.emit('revenue:updated', {
-        studentId: student._id,
-        studentName: student.name,
-        amount: student.price,
-        invoiceId: invoice._id,
-        message: `💰 Thu học phí ${student.price.toLocaleString('vi-VN')}đ từ ${student.name}`,
-      });
+      NotificationService.notifyAdmins(io, '💰 Thu học phí', `Đã thu ${student.price.toLocaleString('vi-VN')}đ từ ${student.name}`, { studentId: student._id }, '/admin/invoices');
+      
       // Notify học viên: xác nhận đã thanh toán
-      io.emit('payment:confirmed', {
-        studentId: student._id.toString(),
-        invoiceId: invoice._id,
-        amount: student.price,
-        message: `✅ Học phí của bạn đã được xác nhận. Mã HĐ: ${maHD}`,
+      NotificationService.send(io, {
+        type: 'FINANCE',
+        title: '✅ Thanh toán thành công',
+        content: `Học phí của bạn đã được xác nhận. Mã HĐ: ${maHD}`,
+        receivers: student._id.toString(),
+        link: '/student#profile'
       });
+
+      io.emit('revenue:updated', { amount: student.price, studentName: student.name });
+      io.emit('data:refresh', { type: 'student', id: student._id });
     }
 
     res.json({
@@ -547,14 +551,20 @@ router.put('/:id/unlock-exam', authMiddleware, isAdmin, async (req, res) => {
     // Thông báo real-time cho học viên
     const io = req.app.get('io');
     if (io) {
-      const Notification = require('../models/Notification');
-      const notif = await Notification.create({ type: 'EXAM', title: '🔓 Phòng thi đã mở', content: 'Giảng viên/Admin đã cấp quyền cho bạn vào thi.', receivers: [student._id.toString()] });
-      io.to(student._id.toString()).emit('RECEIVE_NOTIFICATION', { _id: notif._id, type: 'exam', title: notif.title, message: notif.content, time: new Date(), userId: student._id.toString() });
+      const NotificationService = require('../services/NotificationService');
+      await NotificationService.send(io, {
+        type: 'EXAM',
+        title: '🔓 Phòng thi đã mở',
+        content: 'Giảng viên/Admin đã cấp quyền cho bạn vào thi.',
+        receivers: student._id.toString(),
+        link: '/student/exam'
+      });
+      
       io.emit('exam:unlocked', {
         studentId: student._id.toString(),
         studentName: student.name,
-        message: '🔓 Admin đã mở khóa phòng thi cho bạn!',
       });
+      io.emit('data:refresh', { type: 'student', id: student._id });
     }
 
     res.json({
@@ -633,47 +643,23 @@ router.put('/:id/assign-teacher', authMiddleware, isAdmin, async (req, res) => {
     const io = req.app.get('io');
 
     try {
-      const newNotif = await Notification.create({
-        type: 'COURSE',
-        title: '📚 Học viên mới được giao',
-        content: `Học viên ${student.name} (${student.course}) đã được giao cho bạn.`,
-        receivers: [teacherId.toString()],
-        payload: { studentId: student._id, type: 'student' }
-      });
-
       if (io) {
-        // 🔔 Thông báo bell cho giảng viên
-        io.to(teacherId.toString()).emit('RECEIVE_NOTIFICATION', {
-          _id: newNotif._id,
-          type: 'student',
-          title: newNotif.title,
-          message: newNotif.content,
-          time: new Date(),
-          userId: teacherId.toString()
+        const NotificationService = require('../services/NotificationService');
+        await NotificationService.send(io, {
+          type: 'COURSE',
+          title: '📚 Học viên mới được giao',
+          content: `Học viên ${student.name} (${student.course}) đã được giao cho bạn.`,
+          receivers: teacherId.toString(),
+          payload: { studentId: student._id, type: 'student' },
+          link: '/teacher/dashboard'
         });
 
-        // 📡 REAL-TIME CONTACT SYNC: Cập nhật danh bạ tức thì cho cả 2 bên
-        // Giảng viên: danh bạ của GV cần thêm học viên mới
-        req.app.notifyUser('teacher', teacherId.toString(), 'CONTACT_LIST_UPDATED', {
-          reason: 'student_assigned',
-          studentId: student._id.toString(),
-          studentName: student.name,
-        });
-        // Học viên: danh bạ của HV cần thêm giảng viên mới
-        req.app.notifyUser('student', student._id.toString(), 'CONTACT_LIST_UPDATED', {
-          reason: 'teacher_assigned',
-          teacherId: teacherId.toString(),
-          teacherName: student.teacherId?.name,
-        });
+        // 📡 REAL-TIME CONTACT SYNC
+        io.to(teacherId.toString()).emit('CONTACT_LIST_UPDATED', { studentId: student._id });
+        io.to(student._id.toString()).emit('CONTACT_LIST_UPDATED', { teacherId: teacherId });
 
-        // Backward compatible broadcast
-        io.emit('student:assigned', {
-          teacherId: teacherId.toString(),
-          studentId: student._id.toString(),
-          studentName: student.name,
-          course: student.course,
-          message: `📚 Học viên ${student.name} (${student.course}) đã được giao cho bạn`,
-        });
+        io.emit('student:assigned', { teacherId: teacherId.toString(), studentId: student._id.toString() });
+        io.emit('data:refresh', { type: 'student', id: student._id });
       }
     } catch (notifErr) {
       console.error('[ASSIGN_TEACHER] Notification error:', notifErr);

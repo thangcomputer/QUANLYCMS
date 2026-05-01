@@ -56,24 +56,17 @@ router.post('/', async (req, res) => {
         
         // Notify Teacher
         if (targetTeacherId && targetTeacherId !== 'current') {
-           const newNotif = await Notification.create({
+           const NotificationService = require('../services/NotificationService');
+           await NotificationService.send(io, {
              type: 'EVALUATION',
              title: '⭐ Đánh giá mới từ học viên',
-             content: `Học viên ${studentInfo?.name || 'Vô danh'} vừa gửi một đánh giá chất lượng.`,
-             receivers: [targetTeacherId.toString()],
-             payload: { studentId, evaluationId: newEval._id, type: 'evaluation' }
+             content: `Học viên ${studentInfo?.name || 'Vô danh'} đã đánh giá bạn.`,
+             receivers: targetTeacherId.toString(),
+             payload: { evaluationId: newEval._id },
+             link: '/teacher/dashboard'
            });
            
-           io.to(targetTeacherId.toString()).emit('RECEIVE_NOTIFICATION', {
-             _id: newNotif._id,
-             type: 'evaluation',
-             title: newNotif.title,
-             message: newNotif.content,
-             time: new Date(),
-             userId: targetTeacherId.toString(),
-             read: false,
-             link: '/teacher#reviews'
-           });
+           io.emit('data:refresh', { type: 'evaluation', targetId: targetTeacherId });
         }
       }
     }

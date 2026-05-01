@@ -110,7 +110,7 @@ router.post('/', async (req, res) => {
       io.to(`course_${req.body.courseId}`).emit('assignment:new', newAssignment);
       
       try {
-        const Notification = require('../models/Notification');
+        const NotificationService = require('../services/NotificationService');
         const Student = require('../models/Student');
         
         // Find all students in this course
@@ -118,26 +118,16 @@ router.post('/', async (req, res) => {
         const studentIds = students.map(s => s._id.toString());
         
         if (studentIds.length > 0) {
-          const notif = await Notification.create({
+          await NotificationService.send(io, {
             type: 'COURSE',
             title: '📝 Bài tập mới',
             content: `Giảng viên vừa giao bài tập mới: "${newAssignment.title}"`,
-            receivers: studentIds
-          });
-          
-          studentIds.forEach(id => {
-            io.to(id).emit('RECEIVE_NOTIFICATION', {
-              _id: notif._id,
-              type: 'course',
-              title: notif.title,
-              message: notif.content,
-              time: new Date(),
-              userId: id,
-              read: false,
-              link: '/student#materials'
-            });
+            receivers: studentIds,
+            link: '/student#materials'
           });
         }
+        
+        io.emit('data:refresh', { type: 'assignment', action: 'create' });
       } catch (e) {
         console.error('Error sending notif for new assignment:', e);
       }
@@ -205,19 +195,21 @@ router.post('/:id/submit', async (req, res) => {
       });
 
       if (io) {
+        const NotificationService = require('../services/NotificationService');
         // Broadcast specific event
         io.to(`teacher_${teacherId}`).emit('submission:new', submission);
+        
         // Broadcast general notification
-        io.to(teacherId.toString()).emit('RECEIVE_NOTIFICATION', {
-          _id: newNotif._id,
-          type: 'assignment',
-          title: newNotif.title,
-          message: newNotif.content,
-          time: new Date(),
-          read: false,
-          link: '/teacher#assignments',
-          userId: teacherId.toString()
+        await NotificationService.send(io, {
+          type: 'COURSE',
+          title: '📋 Bài tập mới được nộp',
+          content: `Học viên ${student?.name || 'Vô danh'} vừa nộp bài tập.`,
+          receivers: teacherId.toString(),
+          payload: { studentId, assignmentId: req.params.id },
+          link: '/teacher#assignments'
         });
+
+        io.emit('data:refresh', { type: 'submission', action: 'create' });
       }
     }
     return res.json({ success: true, data: submission });
@@ -260,24 +252,16 @@ router.put('/submissions/:submissionId/grade', async (req, res) => {
       io.to(`student_${submission.studentId}`).emit('submission:graded', submission);
       
       try {
-        const Notification = require('../models/Notification');
-        const notif = await Notification.create({
+        const NotificationService = require('../services/NotificationService');
+        await NotificationService.send(io, {
           type: 'EVALUATION',
           title: '✅ Bài tập đã được chấm',
           content: `Giảng viên đã chấm điểm bài tập "${assignment?.title || 'không tên'}". Điểm: ${grade}/10.`,
-          receivers: [submission.studentId.toString()]
-        });
-
-        io.to(submission.studentId.toString()).emit('RECEIVE_NOTIFICATION', {
-          _id: notif._id,
-          type: 'evaluation',
-          title: notif.title,
-          message: notif.content,
-          time: new Date(),
-          userId: submission.studentId.toString(),
-          read: false,
+          receivers: submission.studentId.toString(),
           link: '/student#materials'
         });
+        
+        io.emit('data:refresh', { type: 'submission', id: submission._id });
       } catch (e) {
         console.error('Error sending notif for grading:', e);
       }
