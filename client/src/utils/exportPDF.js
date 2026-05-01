@@ -119,54 +119,63 @@ const exportPDF = async (data = {}) => {
  * Đảm bảo chọn đúng khổ A5 ngang trong dialog in
  */
 export const printInvoice = () => {
-  // Inject CSS print đặc biệt cho A5 landscape
+  const element = document.getElementById('invoice-template');
+  if (!element) return toast.error('Không tìm thấy mẫu in');
+
+  // Tạo container tạm cho việc in
+  const printContainer = document.createElement('div');
+  printContainer.id = '__invoice-print-container__';
+  
+  // Clone element và gỡ bỏ các style có thể gây nhiễu (scale, transform)
+  const clone = element.cloneNode(true);
+  clone.style.transform = 'none';
+  clone.style.margin = '0 auto';
+  clone.style.display = 'block';
+  clone.style.position = 'relative';
+  clone.style.boxShadow = 'none';
+  clone.style.border = 'none';
+  
+  printContainer.appendChild(clone);
+  document.body.appendChild(printContainer);
+
   const style = document.createElement('style');
-  style.id    = '__invoice-print-style__';
+  style.id = '__invoice-print-style__';
   style.innerHTML = `
     @media print {
-      /* Ẩn tất cả mọi thứ */
-      body * { visibility: hidden !important; }
-      
-      /* Chỉ hiển thị vùng hóa đơn */
-      #invoice-template, #invoice-template * { 
-        visibility: visible !important; 
+      /* Ẩn tất cả ngoại trừ container in */
+      body > *:not(#__invoice-print-container__) {
+        display: none !important;
       }
-      
+      #__invoice-print-container__ {
+        display: block !important;
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
       #invoice-template {
-        position: fixed !important;
-        left: 0 !important;
-        top: 0 !important;
         width: 210mm !important;
         height: 148mm !important;
-        margin: 0 !important;
-        padding: 8mm !important;
         border: none !important;
         box-shadow: none !important;
-        background: white !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
       }
-
-      /* Thiết lập khổ giấy A5 ngang */
       @page {
         size: A5 landscape;
         margin: 0;
       }
     }
   `;
-
-  // Xoá style cũ nếu có
-  const old = document.getElementById('__invoice-print-style__');
-  if (old) old.remove();
   document.head.appendChild(style);
 
-  // Trigger print dialog
+  // Gọi lệnh in
   window.print();
 
-  // Cleanup sau khi print
+  // Dọn dẹp sau khi in
   setTimeout(() => {
-    const s = document.getElementById('__invoice-print-style__');
-    if (s) s.remove();
+    printContainer.remove();
+    style.remove();
   }, 1000);
 };
 

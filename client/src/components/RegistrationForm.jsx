@@ -238,7 +238,7 @@ const RegistrationForm = ({ onNavigate }) => {
               content: (
                 <div className="flex flex-col items-center bg-gray-50 p-6 rounded-2xl overflow-hidden">
                    <div className="w-full overflow-x-auto pb-4 flex justify-center">
-                      <div className="shadow-2xl origin-top transition-transform duration-500" style={{ transform: 'scale(0.65)', marginBottom: '-180px' }}>
+                      <div className="shadow-2xl origin-top transition-transform duration-500" style={{ transform: 'scale(0.85)', marginBottom: '-60px' }}>
                         <InvoiceTemplate data={{ 
                           studentName: formData.name,
                           courseName: formData.course,
@@ -275,6 +275,7 @@ const RegistrationForm = ({ onNavigate }) => {
               ),
               type: 'info',
               confirmText: null,
+              size: '3xl',
               onConfirm: () => setStep(3)
             });
             setTimeout(() => setStep(3), 500);

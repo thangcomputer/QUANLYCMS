@@ -6,8 +6,8 @@ const ModalContext = createContext(null);
 export const ModalProvider = ({ children }) => {
   const [modal, setModal] = useState(null); // { title, content, type, onConfirm, onCancel, confirmText, cancelText }
 
-  const showModal = useCallback(({ title, content, type = 'info', onConfirm, onCancel, confirmText = 'Đóng', cancelText = null }) => {
-    setModal({ title, content, type, onConfirm, onCancel, confirmText, cancelText });
+  const showModal = useCallback(({ title, content, type = 'info', onConfirm, onCancel, confirmText = 'Đóng', cancelText = null, size = 'sm' }) => {
+    setModal({ title, content, type, onConfirm, onCancel, confirmText, cancelText, size });
   }, []);
 
   const closeModal = useCallback(() => {
@@ -44,6 +44,17 @@ const ModalUI = ({ modal, onConfirm, onCancel }) => {
   const config = typeConfigs[modal.type] || typeConfigs.info;
   const Icon = config.icon;
 
+  const sizeClasses = {
+    sm: 'max-w-sm',
+    md: 'max-w-md',
+    lg: 'max-w-lg',
+    xl: 'max-w-xl',
+    '2xl': 'max-w-2xl',
+    '3xl': 'max-w-3xl',
+    'full': 'max-w-[95vw]'
+  };
+  const sizeClass = sizeClasses[modal.size] || sizeClasses.sm;
+
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
       {/* Backdrop */}
@@ -53,7 +64,7 @@ const ModalUI = ({ modal, onConfirm, onCancel }) => {
       />
       
       {/* Modal Card */}
-      <div className="relative bg-white dark:bg-slate-900 w-full max-w-sm rounded-[2rem] shadow-2xl shadow-indigo-500/10 overflow-hidden animate-in zoom-in duration-300">
+      <div className={`relative bg-white dark:bg-slate-900 w-full ${sizeClass} rounded-[2.5rem] shadow-2xl shadow-indigo-500/10 overflow-hidden animate-in zoom-in duration-300`}>
         {/* Top Header/Icon */}
         <div className={`h-24 bg-gradient-to-br ${config.gradient} flex items-center justify-center relative`}>
             <div className="w-16 h-16 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center text-white shadow-xl">
@@ -73,17 +84,19 @@ const ModalUI = ({ modal, onConfirm, onCancel }) => {
           <h3 className="text-xl font-black text-slate-800 dark:text-white mb-3">
             {modal.title || 'Thông báo'}
           </h3>
-          <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed mb-8">
+          <div className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed mb-8">
             {modal.content}
-          </p>
+          </div>
 
           <div className="flex flex-col gap-3">
-            <button
-              onClick={onConfirm}
-              className={`w-full py-4 bg-gradient-to-r ${config.gradient} text-white font-black rounded-2xl shadow-xl shadow-${config.color}-500/20 hover:shadow-${config.color}-500/40 transition-all active:scale-[0.98]`}
-            >
-              {modal.confirmText}
-            </button>
+            {modal.confirmText && (
+              <button
+                onClick={onConfirm}
+                className={`w-full py-4 bg-gradient-to-r ${config.gradient} text-white font-black rounded-2xl shadow-xl shadow-${config.color}-500/20 hover:shadow-${config.color}-500/40 transition-all active:scale-[0.98]`}
+              >
+                {modal.confirmText}
+              </button>
+            )}
             
             {modal.cancelText && (
               <button

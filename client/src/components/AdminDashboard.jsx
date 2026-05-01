@@ -1367,7 +1367,7 @@ const AdminDashboard = ({ onNavigate }) => {
           content: (
             <div className="flex flex-col items-center bg-gray-100 p-6 rounded-2xl overflow-hidden">
               <div className="w-full overflow-x-auto pb-4 flex justify-center">
-                <div className="shadow-2xl origin-top transition-transform duration-500" style={{ transform: 'scale(0.65)', marginBottom: '-180px' }}>
+                <div className="shadow-2xl origin-top transition-transform duration-500" style={{ transform: 'scale(0.85)', marginBottom: '-60px' }}>
                   <InvoiceTemplate data={{ 
                     studentName: student.name,
                     courseName: student.course,
@@ -1409,6 +1409,7 @@ const AdminDashboard = ({ onNavigate }) => {
           ),
           type: 'info',
           confirmText: null, // Hide default button to use our custom ones
+          size: '3xl',
           onConfirm: () => {}
         });
       }
