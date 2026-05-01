@@ -220,7 +220,6 @@ const InvoiceTemplate = ({ data = {} }) => {
               {isPaid && (
                 <div 
                  className="absolute bottom-[2mm] right-[-2mm] border-[1mm] border-[#d32f2f] px-3 py-1.5 rotate-[-12deg] font-black text-[#d32f2f] text-[15pt] opacity-90 shadow-sm"
-                 style={{ background: 'white' }}
                 >
                   {invoiceSettings.stamp}
                 </div>
