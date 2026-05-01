@@ -333,7 +333,17 @@ const LoginPage = ({ onLogin }) => {
                     <p className="text-white font-bold text-lg">Đặt lại mật khẩu thành công!</p>
                     <p className="text-gray-400 text-sm mt-1">Tài khoản: <strong className="text-white">{newPasswordResult.name}</strong></p>
                   </div>
-                  <div className="bg-[#0f172a] border-2 border-emerald-500/30 rounded-2xl p-5">
+                  <style>{`
+                    @keyframes glow-border {
+                      0% { border-color: rgba(16,185,129,0.3); box-shadow: 0 0 5px rgba(16,185,129,0.1); }
+                      50% { border-color: rgba(16,185,129,1); box-shadow: 0 0 30px rgba(16,185,129,0.9), inset 0 0 15px rgba(16,185,129,0.5); }
+                      100% { border-color: rgba(16,185,129,0.3); box-shadow: 0 0 5px rgba(16,185,129,0.1); }
+                    }
+                    .animate-glow-border {
+                      animation: glow-border 1.2s ease-in-out infinite;
+                    }
+                  `}</style>
+                  <div className="bg-[#0f172a] border-2 rounded-2xl p-5 animate-glow-border relative z-10">
                     <p className="text-xs font-bold text-gray-400 uppercase mb-2">Mật khẩu mới</p>
                     <div className="flex items-center justify-center gap-3">
                       <span className="text-3xl font-black text-emerald-400 tracking-[0.3em] font-mono">{newPasswordResult.password}</span>
