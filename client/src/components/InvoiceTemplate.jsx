@@ -146,7 +146,7 @@ const InvoiceTemplate = ({ data = {} }) => {
             />
             <div className="text-[8.5pt] space-y-0.5 font-semibold text-gray-700">
                <p>Hotline liên hệ: 093-5758-462 | 0348-051-379</p>
-               <p>Website: thangcomputer.com</p>
+               <p>Website: thangtinhoc.edu.vn</p>
                <p>Địa chỉ : 13Q Phan Cát Tựu, P. An Lạc, TP.Hồ Chí Minh</p>
             </div>
           </div>
