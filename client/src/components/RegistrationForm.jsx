@@ -265,7 +265,10 @@ const RegistrationForm = ({ onNavigate }) => {
                         <Download size={18} /> TẢI PDF
                       </button>
                       <button 
-                        onClick={() => setStep(3)}
+                        onClick={() => {
+                          closeModal();
+                          setStep(3);
+                        }}
                         className="flex-1 min-w-[120px] py-3.5 bg-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-300 transition-all flex items-center justify-center"
                       >
                         ĐÓNG
@@ -327,7 +330,7 @@ const RegistrationForm = ({ onNavigate }) => {
     }
   };
 
-  const { showModal } = useModal();
+  const { showModal, closeModal } = useModal();
 
   const handleNext = () => {
     if (!formData.name.trim()) { 

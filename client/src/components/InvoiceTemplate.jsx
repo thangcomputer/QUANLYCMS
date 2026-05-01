@@ -123,26 +123,26 @@ const InvoiceTemplate = ({ data = {} }) => {
         height: '148mm',
         fontFamily: "'Inter', sans-serif",
         color: '#1a1a1a',
-        padding: '10mm',
+        padding: '8mm',
         boxSizing: 'border-box',
         overflow: 'hidden'
       }}
     >
       {/* ===== VIỀN ĐỨT ĐOẠN ĐỎ ===== */}
-      <div className="absolute inset-[2mm] border-[1.5mm] border-dashed border-[#d32f2f] pointer-events-none opacity-80" />
+      <div className="absolute inset-[2mm] border-[1mm] border-dashed border-[#d32f2f] pointer-events-none opacity-80" />
 
-      <div className="relative h-full flex flex-col p-2">
+      <div className="relative h-full flex flex-col">
         
         {/* ===== HEADER SECTION ===== */}
-        <div className="flex justify-between items-start mb-6">
+        <div className="flex justify-between items-start mb-4">
           <div className="w-[50%]">
             <img
               src={invoiceSettings.logo || "/logo-thang-tin-hoc.svg"}
               alt="Logo"
-              style={{ height: '22mm', maxWidth: '100%', objectFit: 'contain', marginBottom: '4mm' }}
+              style={{ height: '18mm', maxWidth: '100%', objectFit: 'contain', marginBottom: '2mm' }}
               crossOrigin="anonymous"
             />
-            <div className="text-[9.5pt] space-y-1 font-medium text-gray-700">
+            <div className="text-[8.5pt] space-y-0.5 font-medium text-gray-700">
                <p>Hotline liên hệ: 093-5758-462 | 0348-051-379</p>
                <p>Website: thangcomputer.com</p>
                <p>Địa chỉ : 13Q Phan Cát Tựu, P. An Lạc, TP.Hồ Chí Minh</p>
@@ -150,27 +150,27 @@ const InvoiceTemplate = ({ data = {} }) => {
           </div>
 
           <div className="w-[50%] text-center">
-            <h1 className="font-black leading-tight text-[#d32f2f]" style={{ fontSize: '24pt', marginTop: '4mm' }}>
+            <h1 className="font-black leading-tight text-[#d32f2f]" style={{ fontSize: '18pt', marginTop: '2mm' }}>
               TRUNG TÂM ĐÀO TẠO TIN HỌC<br />THẮNG TIN HỌC
             </h1>
           </div>
         </div>
 
         {/* ===== TIÊU ĐỀ ===== */}
-        <div className="text-center mb-8">
-           <h2 className="text-[#d32f2f] font-bold underline inline-block" style={{ fontSize: '22pt' }}>
+        <div className="text-center mb-4">
+           <h2 className="text-[#d32f2f] font-bold underline inline-block" style={{ fontSize: '18pt' }}>
              THU HỌC PHÍ
            </h2>
         </div>
 
         {/* ===== NỘI DUNG FIELDS ===== */}
-        <div className="flex-grow space-y-4 px-10 relative">
+        <div className="space-y-3 px-12 relative">
            {/* Watermark chìm */}
-           <div className="absolute inset-0 flex items-center justify-center opacity-[0.05] pointer-events-none">
-              <img src={invoiceSettings.logo || "/logo-thang-tin-hoc.svg"} className="w-80 h-auto grayscale" alt="watermark" />
+           <div className="absolute inset-0 flex items-center justify-center opacity-[0.04] pointer-events-none">
+              <img src={invoiceSettings.logo || "/logo-thang-tin-hoc.svg"} className="w-64 h-auto grayscale" alt="watermark" />
            </div>
 
-           <div className="relative z-10 space-y-3" style={{ fontSize: '14pt' }}>
+           <div className="relative z-10 space-y-2.5" style={{ fontSize: '12pt' }}>
               <div className="flex items-center gap-2">
                  <span className="text-gray-700">Tên học viên:</span>
                  <span className="font-bold text-[#1e1e2e] uppercase">{studentName}</span>
@@ -185,44 +185,44 @@ const InvoiceTemplate = ({ data = {} }) => {
               </div>
               <div className="flex items-center gap-2">
                  <span className="text-gray-700">Viết bằng chữ :</span>
-                 <span className="italic text-[#2a2a4a]">{docSoTien(tuitionFee)}</span>
+                 <span className="italic text-[#2a2a4a] text-[11pt]">{docSoTien(tuitionFee)}</span>
               </div>
            </div>
         </div>
 
         {/* ===== FOOTER SECTION ===== */}
-        <div className="mt-auto relative z-10">
-           <div className="flex justify-between items-end px-4 pb-4">
-              {/* Note bên trái */}
-              <div className="text-[#d32f2f] font-bold italic text-[13pt] mb-10">
+        <div className="mt-auto relative z-10 h-[45mm]">
+           {/* Note bên trái */}
+           <div className="absolute left-6 bottom-12 w-[60%]">
+              <div className="text-[#d32f2f] font-bold italic text-[11pt] leading-tight">
                  Lưu ý: Không hoàn học phí với bất kỳ lý do gì
               </div>
+           </div>
 
-              {/* Chữ ký & Stamp bên phải */}
-              <div className="text-right min-w-[70mm]">
-                 <p className="font-bold italic text-[12pt] mb-2">Ngày {day} tháng {month} năm {year}</p>
-                 <p className="font-bold text-[12pt] mr-12 mb-2">Người nhận tiền</p>
-                 
-                 <div className="h-[20mm] flex items-center justify-center mr-10 relative">
-                    {invoiceSettings.signature ? (
-                      <img src={invoiceSettings.signature} className="max-h-[20mm] object-contain" alt="sig" crossOrigin="anonymous" />
-                    ) : (
-                      <div className="font-['Dancing_Script'] text-[32pt] opacity-30">{receiverName.split(' ').pop()}</div>
-                    )}
-                 </div>
-
-                 <p className="font-bold text-[13pt] mr-12">{receiverName}</p>
-
-                 {/* Stamp tilted */}
-                 {isPaid && (
-                   <div 
-                    className="absolute bottom-[-2mm] right-[-2mm] border-[1mm] border-[#d32f2f] px-4 py-2 rotate-[-15deg] font-black text-[#d32f2f] text-[16pt] opacity-80"
-                    style={{ background: 'white' }}
-                   >
-                     {invoiceSettings.stamp}
-                   </div>
+           {/* Chữ ký & Stamp bên phải */}
+           <div className="absolute right-6 bottom-4 text-right min-w-[70mm]">
+              <p className="font-bold italic text-[10.5pt] mb-1">Ngày {day} tháng {month} năm {year}</p>
+              <p className="font-bold text-[10.5pt] mr-12 mb-1">Người nhận tiền</p>
+              
+              <div className="h-[18mm] flex items-center justify-center mr-10 relative">
+                 {invoiceSettings.signature ? (
+                   <img src={invoiceSettings.signature} className="max-h-[18mm] object-contain" alt="sig" crossOrigin="anonymous" />
+                 ) : (
+                   <div className="font-['Dancing_Script'] text-[28pt] opacity-30">{receiverName.split(' ').pop()}</div>
                  )}
               </div>
+
+              <p className="font-bold text-[11pt] mr-12">{receiverName}</p>
+
+              {/* Stamp tilted */}
+              {isPaid && (
+                <div 
+                 className="absolute bottom-[-1mm] right-[-1mm] border-[0.8mm] border-[#d32f2f] px-3 py-1.5 rotate-[-15deg] font-black text-[#d32f2f] text-[14pt] opacity-90 shadow-sm"
+                 style={{ background: 'white' }}
+                >
+                  {invoiceSettings.stamp}
+                </div>
+              )}
            </div>
         </div>
 

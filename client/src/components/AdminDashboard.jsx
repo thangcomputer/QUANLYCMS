@@ -962,7 +962,7 @@ const AdminDashboard = ({ onNavigate }) => {
 
   const { socket } = useSocket();
   const toast = useToast();
-  const { showModal: showGlobalModal } = useModal();
+  const { showModal: showGlobalModal, closeModal } = useModal();
   const { selectedBranchId, branches } = useBranch();  // Global branch filter
   const [isExportingExcel, setIsExportingExcel] = useState(false);
 
@@ -1394,12 +1394,7 @@ const AdminDashboard = ({ onNavigate }) => {
                   <Download size={18} /> TẢI PDF
                 </button>
                 <button 
-                  onClick={() => {
-                    // Close logic is handled by the global modal's confirm/cancel or we can just trigger it if needed.
-                    // But usually globalModal has its own close. I'll use a local close if I had one, 
-                    // but showGlobalModal just needs the onConfirm to be called or the user to click the built-in close.
-                    // I'll just add a "ĐÓNG" button that does nothing (letting the user click the standard close) or just provide a way to close.
-                  }}
+                  onClick={() => closeModal()}
                   className="flex-1 min-w-[120px] py-3.5 bg-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-300 transition-all"
                 >
                   ĐÓNG
