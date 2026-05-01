@@ -124,31 +124,33 @@ export const printInvoice = () => {
   style.id    = '__invoice-print-style__';
   style.innerHTML = `
     @media print {
-      /* Ẩn tất cả ngoại trừ hóa đơn */
-      body > *:not(#__invoice-print-root__) { display: none !important; }
+      /* Ẩn tất cả mọi thứ */
+      body * { visibility: hidden !important; }
+      
+      /* Chỉ hiển thị vùng hóa đơn */
+      #invoice-template, #invoice-template * { 
+        visibility: visible !important; 
+      }
+      
+      #invoice-template {
+        position: fixed !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 210mm !important;
+        height: 148mm !important;
+        margin: 0 !important;
+        padding: 8mm !important;
+        border: none !important;
+        box-shadow: none !important;
+        background: white !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
 
       /* Thiết lập khổ giấy A5 ngang */
       @page {
-        size: A5 landscape;   /* 210mm × 148mm */
-        margin: 0mm;          /* Không margin để hóa đơn full-bleed */
-      }
-
-      /* Đảm bảo hóa đơn full page */
-      #invoice-template {
-        width:    210mm !important;
-        height:   148mm !important;
-        margin:   0 !important;
-        padding:  0 !important;
-        border:   none !important;
-        box-shadow: none !important;
-        -webkit-print-color-adjust: exact !important;
-        print-color-adjust: exact !important;
-        color-adjust: exact !important;
-      }
-
-      /* Ẩn các element không cần in */
-      .no-print, button, nav, header {
-        display: none !important;
+        size: A5 landscape;
+        margin: 0;
       }
     }
   `;
