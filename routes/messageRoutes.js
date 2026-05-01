@@ -37,10 +37,14 @@ router.get('/contacts', async (req, res) => {
     });
 
     // ────── [1] SuperAdmin luon được lay truoc (mọi role đèu tháy) ──────
+    console.log('[CONTACTS] Request from:', userId, 'Role:', userRole);
+
     const superAdmins = await Teacher.find(
       { $or: [{ adminRole: 'SUPER_ADMIN' }, { role: 'admin', adminRole: { $ne: 'STAFF' } }] },
       'name phone branchId branchCode'
     ).lean();
+    console.log('[CONTACTS] superAdmins found in DB:', superAdmins.length);
+
     const superAdminContacts = superAdmins.map(a => ({
       id:     a._id.toString(),
       name:   a.name || 'Admin Thắng Tin Học',
@@ -63,6 +67,7 @@ router.get('/contacts', async (req, res) => {
         branchCode: 'HỆ THỐNG'
       });
     }
+    console.log('[CONTACTS] Total superAdminContacts:', superAdminContacts.length);
 
     let staffContacts    = [];
     let teacherContacts  = [];
