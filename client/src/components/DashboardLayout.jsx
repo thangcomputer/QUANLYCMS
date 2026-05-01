@@ -375,6 +375,8 @@ const ChangePasswordModal = ({ session, role }) => {
 
   if (!isOpen) return null;
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     const isFirst = session?.isFirstLogin === true;
     if ((!isFirst && !oldPassword) || !newPassword || !confirmPassword) return setError('Vui lòng nhập đầy đủ thông tin.');
     if (newPassword !== confirmPassword) return setError('Mật khẩu mới không khớp.');
