@@ -17,9 +17,10 @@ const server = http.createServer(app);
 
 // Cấu hình các domain được phép truy cập (CORS)
 const allowedOrigins = [
+  process.env.CLIENT_URL,
+  process.env.FRONTEND_URL,
   'http://localhost:5173',
   'http://localhost:3000',
-  process.env.FRONTEND_URL, // Thêm domain server từ .env
 ].filter(Boolean);
 
 const io = new Server(server, {

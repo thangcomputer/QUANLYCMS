@@ -16,7 +16,7 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
   passport.use(new GoogleStrategy({
     clientID:     process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL:  process.env.GOOGLE_CALLBACK_URL || 'http://localhost:5000/api/auth/google/callback',
+    callbackURL:  process.env.GOOGLE_CALLBACK_URL || '/api/auth/google/callback',
   }, async (accessToken, refreshToken, profile, done) => {
     try {
       const email  = profile.emails?.[0]?.value || '';
@@ -165,7 +165,7 @@ router.get('/google',
 
 // ─── GET /api/auth/google/callback ───────────────────────────────────────────
 router.get('/google/callback',
-  passport.authenticate('google', { session: false, failureRedirect: `${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=google_failed` }),
+  passport.authenticate('google', { session: false, failureRedirect: `${process.env.CLIENT_URL || ''}/login?error=google_failed` }),
   (req, res) => {
     try {
       const user = req.user;
@@ -174,10 +174,10 @@ router.get('/google/callback',
         adminRole: user.adminRole || null, permissions: user.permissions || [],
       });
       // Redirect về frontend với token trong query (frontend đọc và lưu vào localStorage)
-      const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+      const clientUrl = process.env.CLIENT_URL || '';
       res.redirect(`${clientUrl}/login?socialToken=${accessToken}&socialRefresh=${refreshToken}&socialRole=${user.role || 'student'}&socialName=${encodeURIComponent(user.name)}&socialId=${user._id}`);
     } catch (err) {
-      res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=token_failed`);
+      res.redirect(`${process.env.CLIENT_URL || ''}/login?error=token_failed`);
     }
   }
 );
@@ -186,14 +186,14 @@ router.get('/google/callback',
 // Redirect về Zalo OAuth dialog
 router.get('/zalo', (req, res) => {
   const appId    = process.env.ZALO_APP_ID || '';
-  const callback = encodeURIComponent(process.env.ZALO_CALLBACK_URL || 'http://localhost:5000/api/auth/zalo/callback');
-  if (!appId) return res.redirect(`${process.env.CLIENT_URL || 'http://localhost:5173'}/login?error=zalo_not_configured`);
+  const callback = encodeURIComponent(process.env.ZALO_CALLBACK_URL || '');
+  if (!appId) return res.redirect(`${process.env.CLIENT_URL || ''}/login?error=zalo_not_configured`);
   res.redirect(`https://oauth.zaloapp.com/v4/permission?app_id=${appId}&redirect_uri=${callback}&state=login`);
 });
 
 // ─── GET /api/auth/zalo/callback ──────────────────────────────────────────────
 router.get('/zalo/callback', async (req, res) => {
-  const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+  const clientUrl = process.env.CLIENT_URL || '';
   try {
     const { code } = req.query;
     if (!code) return res.redirect(`${clientUrl}/login?error=zalo_no_code`);
