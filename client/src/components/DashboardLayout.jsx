@@ -209,7 +209,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
       />
 
       <main className="flex-1 min-w-0 flex flex-col h-screen">
-        <header className="h-16 md:h-20 bg-white/80 border-b border-gray-100 flex items-center justify-between px-3 md:px-8 pl-20 md:pl-8 flex-shrink-0 z-40 backdrop-blur-xl">
+        <header className="h-16 md:h-20 bg-white/80 border-b border-gray-100 flex items-center justify-between px-3 md:px-8 pl-20 lg:pl-8 flex-shrink-0 z-40 backdrop-blur-xl">
           <div className="flex items-center gap-2 md:gap-4 overflow-hidden flex-1">
             <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
               <nav className="flex items-center gap-1 md:gap-2 text-[10px] md:text-[11px] font-black uppercase tracking-widest text-gray-400">
