@@ -168,7 +168,7 @@ const ScheduleModal = ({ schedule, students, onClose, onSubmit }) => {
 };
 
 // ─── STUDENT CARD ─────────────────────────────────────────────────────────
-const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdateNotes, onLockExam, isDetailed }) => {
+const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdateNotes, onLockExam, isDetailed, attendanceGate }) => {
   const { showModal } = useModal();
   const [linkInput, setLinkInput] = useState(student.linkHoc);
   const [gradeInput, setGradeInput] = useState(student.lastGrade);
@@ -471,32 +471,47 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
                  {/* === 2-COLUMN LAYOUT: Điểm danh | Hủy điểm danh === */}
                  <div className="grid grid-cols-2 gap-4">
                    {/* CỘT TRÁI: Nút ĐIỂM DANH */}
-                   <button 
-                     onClick={() => {
-                       if (!canCheckIn && !isCompleted) return;
-                       const tGrade = (student.grades || []).find(g => g.date === todayStr);
-                       setAttForm({ note: tGrade?.note || 'Đã điểm danh hoàn thành buổi học', grade: tGrade?.grade ?? (student.lastGrade || 0) });
-                       setShowAttendanceModal(true);
-                     }} 
-                     disabled={isCompleted || !canCheckIn}
-                     title={!canCheckIn ? `Đã điểm danh. Mở khóa sau ${cooldownHours} tiếng.` : 'Bấm để điểm danh buổi học hôm nay'}
-                     className={`py-5 rounded-3xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl ${
-                       isCompleted 
-                         ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-2 border-gray-200'
-                       : !canCheckIn
-                         ? 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50 border-2 border-gray-200 pointer-events-none select-none'
-                         : 'bg-gradient-to-br from-emerald-500 to-green-600 text-white hover:shadow-green-200 shadow-green-100 active:scale-[0.97]'
-                     }`}
-                   >
-                     <CheckCircle size={20} />
-                     <span className="text-xs leading-tight text-center">
-                       {isCompleted 
-                         ? 'HOÀN THÀNH'
+                   {attendanceGate?.status === 'not_yet' ? (
+                     <div className="flex items-center justify-center py-5 text-[10px] font-black text-gray-300 uppercase tracking-widest border-2 border-dashed border-gray-100 rounded-3xl opacity-50">
+                        Chưa đến giờ dạy
+                     </div>
+                   ) : (
+                     <button 
+                       onClick={() => {
+                         if (!canCheckIn && !isCompleted) return;
+                         const tGrade = (student.grades || []).find(g => g.date === todayStr);
+                         setAttForm({ note: tGrade?.note || 'Đã điểm danh hoàn thành buổi học', grade: tGrade?.grade ?? (student.lastGrade || 0) });
+                         setShowAttendanceModal(true);
+                       }} 
+                       disabled={isCompleted || !canCheckIn || attendanceGate?.status === 'no_schedule'}
+                       title={
+                         isCompleted ? 'Khóa học đã hoàn thành' :
+                         attendanceGate?.status === 'no_schedule' ? 'Hôm nay chưa có lịch dạy' :
+                         !canCheckIn ? `Đã điểm danh. Mở khóa sau ${cooldownHours} tiếng.` : 
+                         'Bấm để điểm danh buổi học hôm nay'
+                       }
+                       className={`py-5 rounded-3xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl ${
+                         isCompleted 
+                           ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-2 border-gray-200'
+                         : attendanceGate?.status === 'no_schedule'
+                           ? 'bg-gray-100 text-gray-300 cursor-not-allowed opacity-40 border-2 border-gray-100 grayscale scale-[0.98]'
                          : !canCheckIn
-                           ? (cooldownHours > 0 ? `CHỜ ${cooldownHours}H` : 'ĐÃ ĐIỂM DANH')
-                           : 'ĐIỂM DANH'}
-                     </span>
-                   </button>
+                           ? 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50 border-2 border-gray-200 pointer-events-none select-none'
+                           : 'bg-gradient-to-br from-emerald-500 to-green-600 text-white hover:shadow-green-200 shadow-green-100 active:scale-[0.97]'
+                       }`}
+                     >
+                       <CheckCircle size={20} />
+                       <span className="text-xs leading-tight text-center">
+                         {isCompleted 
+                           ? 'HOÀN THÀNH'
+                           : attendanceGate?.status === 'no_schedule'
+                             ? 'CHƯA CÓ LỊCH'
+                             : !canCheckIn
+                               ? (cooldownHours > 0 ? `CHỜ ${cooldownHours}H` : 'ĐÃ ĐIỂM DANH')
+                               : 'ĐIỂM DANH'}
+                       </span>
+                     </button>
+                   )}
 
                    {/* CỘT PHẢI: Nút HỦY ĐIỂM DANH — giới hạn 1 tiếng */}
                    <button
@@ -947,29 +962,45 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
             {/* === 2-COLUMN LAYOUT: Điểm danh | Hủy điểm danh === */}
             <div className="grid grid-cols-2 gap-3">
               {/* CỘT TRÁI: Nút ĐIỂM DANH */}
-              <button onClick={() => {
-                  if (!canCheckIn && !isCompleted) return;
-                  const tGrade = (student.grades || []).find(g => g.date === todayStr);
-                  setAttForm({ note: tGrade?.note || 'Đã điểm danh hoàn thành buổi học', grade: tGrade?.grade ?? (student.lastGrade || 0) });
-                  setShowAttendanceModal(true);
-                }} disabled={isCompleted || !canCheckIn}
-                title={!canCheckIn ? `Đã điểm danh. Mở khóa sau ${cooldownHours} tiếng.` : 'Bấm để điểm danh'}
-                className={`py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md ${
-                  isCompleted 
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : !canCheckIn
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50 pointer-events-none select-none border-2 border-gray-200'
-                    : 'bg-gradient-to-br from-green-500 to-emerald-600 text-white hover:shadow-green-200 shadow-green-100 active:scale-[0.97]'
-                }`}>
-                <CheckCircle size={18} />
-                <span className="text-xs text-center leading-tight">
-                  {isCompleted 
-                    ? 'HOÀN THÀNH'
+              {attendanceGate?.status === 'not_yet' ? (
+                <div className="flex items-center justify-center py-4 text-[10px] font-black text-gray-300 uppercase tracking-widest border-2 border-dashed border-gray-100 rounded-2xl opacity-50">
+                  Chưa đến giờ
+                </div>
+              ) : (
+                <button onClick={() => {
+                    if (!canCheckIn && !isCompleted) return;
+                    const tGrade = (student.grades || []).find(g => g.date === todayStr);
+                    setAttForm({ note: tGrade?.note || 'Đã điểm danh hoàn thành buổi học', grade: tGrade?.grade ?? (student.lastGrade || 0) });
+                    setShowAttendanceModal(true);
+                  }} 
+                  disabled={isCompleted || !canCheckIn || attendanceGate?.status === 'no_schedule'}
+                  title={
+                    isCompleted ? 'Hoàn thành' :
+                    attendanceGate?.status === 'no_schedule' ? 'Chưa có lịch dạy' :
+                    !canCheckIn ? `Đã điểm danh. Mở khóa sau ${cooldownHours} tiếng.` : 
+                    'Bấm để điểm danh'
+                  }
+                  className={`py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md ${
+                    isCompleted 
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : attendanceGate?.status === 'no_schedule'
+                      ? 'bg-gray-100 text-gray-300 cursor-not-allowed opacity-40 border-2 border-gray-100'
                     : !canCheckIn
-                      ? (cooldownHours > 0 ? `CHỜ ${cooldownHours}H` : 'ĐÃ ĐIỂM DANH')
-                      : 'ĐIỂM DANH'}
-                </span>
-              </button>
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50 pointer-events-none select-none border-2 border-gray-200'
+                      : 'bg-gradient-to-br from-green-500 to-emerald-600 text-white hover:shadow-green-200 shadow-green-100 active:scale-[0.97]'
+                  }`}>
+                  <CheckCircle size={18} />
+                  <span className="text-xs text-center leading-tight">
+                    {isCompleted 
+                      ? 'HOÀN THÀNH'
+                      : attendanceGate?.status === 'no_schedule'
+                        ? 'KHÔNG CÓ LỊCH'
+                        : !canCheckIn
+                          ? (cooldownHours > 0 ? `CHỜ ${cooldownHours}H` : 'ĐÃ ĐIỂM DANH')
+                          : 'ĐIỂM DANH'}
+                  </span>
+                </button>
+              )}
 
               {/* CỘT PHẢI: Nút HỦY */}
               <button
@@ -2607,6 +2638,32 @@ const TeacherDashboard = ({ onNavigate }) => {
                 (() => {
                   const student = students.find(s => String(s.id) === String(selectedStudentId) || String(s._id) === String(selectedStudentId));
                   if (!student) return <div className="p-20 text-center text-gray-400">Không tìm thấy thông tin</div>;
+
+                  // ─── TÍNH TOÁN CỔNG ĐIỂM DANH (THEO LỊCH) ───
+                  const now = new Date();
+                  const y = now.getFullYear();
+                  const m = String(now.getMonth() + 1).padStart(2, '0');
+                  const d = String(now.getDate()).padStart(2, '0');
+                  const todayStr = `${y}-${m}-${d}`;
+                  
+                  const studentId = student._id || student.id;
+                  const todaySchedules = mySchedules.filter(s => 
+                    String(s.studentId) === String(studentId) &&
+                    s.date.startsWith(todayStr) &&
+                    s.status === 'scheduled'
+                  );
+                  
+                  let attendanceGate = { status: 'no_schedule' };
+                  if (todaySchedules.length > 0) {
+                    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                    const readySch = todaySchedules.find(s => currentTime >= s.startTime);
+                    if (readySch) {
+                      attendanceGate = { status: 'ready' };
+                    } else {
+                      attendanceGate = { status: 'not_yet' };
+                    }
+                  }
+
                   return (
                     <StudentCard 
                       key={student._id || student.id} student={student}
@@ -2614,6 +2671,7 @@ const TeacherDashboard = ({ onNavigate }) => {
                       onSaveGrade={saveGrade} onUpdateNotes={updateNotes}
                       onLockExam={lockStudentExam} 
                       isDetailed={true}
+                      attendanceGate={attendanceGate}
                     />
                   );
                 })()
