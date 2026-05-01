@@ -35,6 +35,7 @@ const MENU_CONFIG = {
     ],
     bottomItems: [
       { key: 'profile',   icon: User,    label: 'Hồ sơ',      path: '/student', hash: 'profile' },
+      { key: 'changepassword', icon: Lock, label: 'Đổi mật khẩu', isChangePassword: true },
       { key: 'logout',    icon: LogOut,  label: 'Đăng xuất',  isLogout: true },
     ],
     accentColor: 'bg-indigo-600',
@@ -53,6 +54,7 @@ const MENU_CONFIG = {
     ],
     bottomItems: [
       { key: 'profile', icon: User,   label: 'Hồ sơ cá nhân', path: '/teacher', hash: 'profile' },
+      { key: 'changepassword', icon: Lock, label: 'Đổi mật khẩu', isChangePassword: true },
       { key: 'logout',  icon: LogOut, label: 'Đăng xuất',      isLogout: true },
     ],
     accentColor: 'bg-indigo-600',
@@ -76,6 +78,7 @@ const MENU_CONFIG = {
       { key: 'inbox',            icon: MessageSquare, label: 'Hộp thư',             path: '/admin/inbox'                                                                     },
     ],
     bottomItems: [
+      { key: 'changepassword', icon: Lock, label: 'Đổi mật khẩu', isChangePassword: true },
       { key: 'logout', icon: LogOut, label: 'Đăng xuất', isLogout: true },
     ],
     accentColor: 'bg-indigo-600',
@@ -172,6 +175,11 @@ const AppSidebar = ({
 
   const handleClick = (item) => {
     if (item.isLogout) { onLogout?.(); return; }
+    if (item.isChangePassword) { 
+      window.dispatchEvent(new CustomEvent('open-change-password-modal'));
+      setMobileOpen(false);
+      return; 
+    }
     if (onNavigateItem) { onNavigateItem(item); setMobileOpen(false); return; }
     // Navigate with hash if present (e.g. /teacher#students)
     const target = item.hash ? `${item.path}#${item.hash}` : item.path;

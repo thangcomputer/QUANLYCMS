@@ -330,12 +330,6 @@ const DashboardLayout = ({ role, session, onLogout }) => {
             </div>
 
             <div className="h-10 w-px bg-gray-100 mx-1 hidden sm:block" />
-            
-            {role !== 'admin' && (
-              <button onClick={() => window.dispatchEvent(new CustomEvent('open-change-password-modal'))} className="px-3 md:px-5 py-2 md:py-3 bg-white border border-gray-200 text-gray-600 rounded-xl md:rounded-2xl text-[11px] font-black hover:bg-gray-50 transition shadow-sm active:scale-95 flex items-center gap-2 md:gap-3">
-                <Lock size={16} className="text-gray-400" /> <span className="hidden sm:inline">ĐỔI MK</span>
-              </button>
-            )}
 
             <button onClick={handleLogout} className="px-3 md:px-5 py-2 md:py-3 bg-red-600 text-white rounded-xl md:rounded-2xl text-[11px] font-black hover:bg-red-700 transition shadow-lg shadow-red-200 active:scale-95 flex items-center gap-2 md:gap-3">
               <LogOut size={16} /> <span className="hidden sm:inline">ĐĂNG XUẤT</span>
