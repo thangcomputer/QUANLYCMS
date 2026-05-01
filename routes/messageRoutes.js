@@ -38,7 +38,7 @@ router.get('/contacts', async (req, res) => {
 
     // ────── [1] SuperAdmin luon được lay truoc (mọi role đèu tháy) ──────
     const superAdmins = await Teacher.find(
-      { role: 'admin', adminRole: { $ne: 'STAFF' } },
+      { $or: [{ adminRole: 'SUPER_ADMIN' }, { role: 'admin', adminRole: { $ne: 'STAFF' } }] },
       'name phone branchId branchCode'
     ).lean();
     const superAdminContacts = superAdmins.map(a => ({
