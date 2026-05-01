@@ -236,7 +236,7 @@ const AppSidebar = ({
 
       {/* ── User info ── */}
       {(!collapsed || mobileOpen) && (
-        <div className="px-4 py-4 border-b border-white/10">
+        <div className="px-5 pt-8 pb-6 border-b border-white/10">
           <div className="flex items-center gap-3">
             <div className={`w-9 h-9 rounded-full ${config.accentColor} flex items-center justify-center text-white text-sm font-bold flex-shrink-0`}>
               {initials}
