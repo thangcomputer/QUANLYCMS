@@ -42,7 +42,7 @@ router.get('/contacts', async (req, res) => {
       'name phone branchId branchCode'
     ).lean();
     const superAdminContacts = superAdmins.map(a => ({
-      id:     'admin',          // ID cố định để route tin nhắn về một đầu mối
+      id:     a._id.toString(),
       name:   a.name || 'Admin Thắng Tin Học',
       role:   'admin',
       phone:  a.phone || '',
@@ -191,6 +191,8 @@ router.get('/conversations/:userId', async (req, res) => {
       { $match: { $or: [
         { senderId: userId },
         { receiverId: userId },
+        // Fallback cho legacy Admin messages
+        ...(req.user.role === 'admin' ? [{ senderId: 'admin' }, { receiverId: 'admin' }] : [])
       ]}},
       { $sort: { createdAt: -1 }},
       { $group: {
@@ -241,9 +243,13 @@ router.get('/search/:userId', async (req, res) => {
 
     if (!q) return res.json({ success: true, data: [] });
 
-    // Query toàn bộ dữ liệu thật, bỏ qua trường hiddenFor như yêu cầu đê tìm kiếm không bị miss
+    // Query toàn bộ dữ liệu thật
     const messages = await Message.find({
-      $or: [{ senderId: userId }, { receiverId: userId }],
+      $or: [
+        { senderId: userId }, 
+        { receiverId: userId },
+        ...(req.user.role === 'admin' ? [{ senderId: 'admin' }, { receiverId: 'admin' }] : [])
+      ],
       content: { $regex: q, $options: 'i' }
     }).sort({ createdAt: -1 }).limit(50);
 
@@ -293,6 +299,7 @@ router.get('/sync/:userId', async (req, res) => {
       $or: [
         { senderId: userId },
         { receiverId: userId },
+        ...(req.user.role === 'admin' ? [{ senderId: 'admin' }, { receiverId: 'admin' }] : []),
         // Tin nhắn nhóm: conversationId bắt đầu bằng "group_" và thuộc nhóm của user
         ...(groupIds.length > 0 ? [{ conversationId: { $in: groupIds.map(id => `group_${id}`) } }] : [])
       ],
