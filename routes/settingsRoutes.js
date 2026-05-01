@@ -69,8 +69,8 @@ router.get('/', authMiddleware, isAdmin, async (req, res) => {
 router.put('/', authMiddleware, isAdmin, async (req, res) => {
   try {
     const allowed = [
-      'centerBankCode', 'centerBankName', 'centerBankAccountNumber', 'centerBankAccountName',
       'popupIsActive', 'popupTitle', 'popupContent', 'popupImageUrl', 'popupTargetRole',
+      'invoiceLogoUrl', 'invoiceSignatureUrl', 'invoiceStampText',
     ];
     const updates = {};
     for (const key of allowed) {
@@ -103,6 +103,43 @@ router.post('/upload-popup-image', authMiddleware, isAdmin, upload.single('image
     );
 
     return res.json({ success: true, imageUrl, message: 'Upload thành công' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── POST /api/settings/upload-invoice-signature ── Upload chữ ký hóa đơn ─────────
+const sigDir = path.join(__dirname, '..', 'uploads', 'signature');
+if (!fs.existsSync(sigDir)) fs.mkdirSync(sigDir, { recursive: true });
+
+const sigStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, sigDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `signature_${Date.now()}${ext}`);
+  },
+});
+const uploadSig = multer({
+  storage: sigStorage,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Chỉ cho phép file ảnh'));
+  },
+});
+
+router.post('/upload-invoice-signature', authMiddleware, isAdmin, uploadSig.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: 'Không có file ảnh' });
+    const signatureUrl = `/uploads/signature/${req.file.filename}`;
+
+    await SystemSettings.findOneAndUpdate(
+      { _key: 'main' },
+      { $set: { invoiceSignatureUrl: signatureUrl } },
+      { upsert: true }
+    );
+
+    return res.json({ success: true, signatureUrl, message: 'Upload chữ ký thành công' });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -162,6 +199,9 @@ router.get('/web', async (req, res) => {
           content:   settings.staffPopup?.content   || '',
           updatedAt: settings.staffPopup?.updatedAt || null,
         },
+        invoiceLogoUrl:      settings.invoiceLogoUrl      || '',
+        invoiceSignatureUrl: settings.invoiceSignatureUrl || '',
+        invoiceStampText:    settings.invoiceStampText    || 'ĐÃ THANH TOÁN',
       },
     });
   } catch (err) {
@@ -285,6 +325,41 @@ router.post('/upload-logo', authMiddleware, isAdmin, uploadLogo.single('logo'), 
       { upsert: true }
     );
     return res.json({ success: true, logoUrl, message: 'Upload logo thành công' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── POST /api/settings/upload-invoice-logo ── Upload logo dành riêng cho hóa đơn ──
+const invLogoDir = path.join(__dirname, '..', 'uploads', 'invoice_logo');
+if (!fs.existsSync(invLogoDir)) fs.mkdirSync(invLogoDir, { recursive: true });
+
+const invLogoStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, invLogoDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `inv_logo_${Date.now()}${ext}`);
+  },
+});
+const uploadInvLogo = multer({
+  storage: invLogoStorage,
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Chỉ cho phép file ảnh'));
+  },
+});
+
+router.post('/upload-invoice-logo', authMiddleware, isAdmin, uploadInvLogo.single('logo'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, message: 'Không có file ảnh' });
+    const logoUrl = `/uploads/invoice_logo/${req.file.filename}`;
+    await SystemSettings.findOneAndUpdate(
+      { _key: 'main' },
+      { $set: { invoiceLogoUrl: logoUrl } },
+      { upsert: true }
+    );
+    return res.json({ success: true, logoUrl, message: 'Upload logo hóa đơn thành công' });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

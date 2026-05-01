@@ -86,15 +86,24 @@ const InvoiceTemplate = ({ data = {} }) => {
   } = data;
 
   const API = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || "");
-  const [dynamicLogo, setDynamicLogo] = React.useState('');
+  const [invoiceSettings, setInvoiceSettings] = React.useState({
+    logo: '',
+    signature: '',
+    stamp: 'ĐÃ THANH TOÁN'
+  });
 
   React.useEffect(() => {
     fetch(`${API}/api/settings/web`)
       .then(r => r.json())
       .then(res => {
-        if (res.success && res.data?.logoUrl) {
-          const url = res.data.logoUrl;
-          setDynamicLogo(url.startsWith('http') ? url : `${API}${url}`);
+        if (res.success && res.data) {
+          const { invoiceLogoUrl, invoiceSignatureUrl, invoiceStampText, logoUrl } = res.data;
+          const logo = invoiceLogoUrl || logoUrl || '';
+          setInvoiceSettings({
+            logo: logo.startsWith('http') ? logo : (logo ? `${API}${logo}` : ''),
+            signature: invoiceSignatureUrl ? (invoiceSignatureUrl.startsWith('http') ? invoiceSignatureUrl : `${API}${invoiceSignatureUrl}`) : '',
+            stamp: invoiceStampText || 'ĐÃ THANH TOÁN'
+          });
         }
       })
       .catch(() => {});
@@ -133,9 +142,9 @@ const InvoiceTemplate = ({ data = {} }) => {
           {/* --- Logo bên trái (logo gốc từ thangcomputer.com) --- */}
           <div className="flex items-center">
             <img
-              src={dynamicLogo || "/logo-thang-tin-hoc.svg"}
+              src={invoiceSettings.logo || "/logo-thang-tin-hoc.svg"}
               alt="Thắng Tin Học - Phát Triển Tri Thức Việt"
-              style={{ height: '18mm', objectFit: 'contain' }}
+              style={{ height: '18mm', maxWidth: '40mm', objectFit: 'contain' }}
               crossOrigin="anonymous"
             />
           </div>
@@ -288,16 +297,26 @@ const InvoiceTemplate = ({ data = {} }) => {
                 Người nhận tiền
               </div>
               {/* Chữ ký */}
-              <div
-                style={{
-                  fontFamily: '"Dancing Script", cursive',
-                  fontSize: '20pt',
-                  color: '#1565c0',
-                  marginBottom: '1mm',
-                  lineHeight: 1,
-                }}
-              >
-                {receiverName.split(' ').pop()}
+              <div className="h-[20mm] flex items-center justify-center -mb-2 -mt-1">
+                {invoiceSettings.signature ? (
+                   <img 
+                      src={invoiceSettings.signature} 
+                      alt="Chữ ký" 
+                      style={{ height: '18mm', objectFit: 'contain' }}
+                      crossOrigin="anonymous"
+                   />
+                ) : (
+                  <div
+                    style={{
+                      fontFamily: '"Dancing Script", cursive',
+                      fontSize: '20pt',
+                      color: '#1565c0',
+                      lineHeight: 1,
+                    }}
+                  >
+                    {receiverName.split(' ').pop()}
+                  </div>
+                )}
               </div>
               <div className="font-bold" style={{ fontSize: '10pt' }}>
                 {receiverName}
@@ -343,7 +362,7 @@ const InvoiceTemplate = ({ data = {} }) => {
                     textTransform: 'uppercase',
                   }}
                 >
-                  ĐÃ THANH TOÁN
+                  {invoiceSettings.stamp}
                 </span>
               </div>
             )}

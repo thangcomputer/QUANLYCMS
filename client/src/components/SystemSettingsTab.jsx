@@ -12,7 +12,7 @@ import {
   Settings, CreditCard, Bell, Save, Loader2, Eye,
   Upload, Users, GraduationCap, ToggleLeft,
   ToggleRight, AlertCircle, Landmark, X,
-  DollarSign, Building2, Lock, User, KeyRound, EyeOff, CheckCircle2
+  DollarSign, Building2, Lock, User, KeyRound, EyeOff, CheckCircle2, FileText
 } from 'lucide-react';
 import { BankSelect } from './BankSelect';
 import api from '../services/api';
@@ -76,6 +76,10 @@ export default function SystemSettingsTab() {
     popupContent: '',
     popupImageUrl: '',
     popupTargetRole: 'all',
+    // Invoice
+    invoiceLogoUrl: '',
+    invoiceSignatureUrl: '',
+    invoiceStampText: 'ĐÃ THANH TOÁN',
   });
 
   // Fetch current settings
@@ -146,6 +150,42 @@ export default function SystemSettingsTab() {
     }
   };
 
+  const handleSignatureUpload = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const res = await api.settings.uploadInvoiceSignature(file);
+      if (res.success) {
+        setSettings(prev => ({ ...prev, invoiceSignatureUrl: res.signatureUrl }));
+        toast.success('✅ Cập nhật chữ ký thành công');
+      } else {
+        toast.error(res.message || 'Upload thất bại');
+      }
+    } catch {
+      toast.error('Lỗi upload chữ ký');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleInvoiceLogoUpload = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const res = await api.settings.uploadInvoiceLogo(file);
+      if (res.success) {
+        setSettings(prev => ({ ...prev, invoiceLogoUrl: res.logoUrl }));
+        toast.success('✅ Cập nhật logo hóa đơn thành công');
+      } else {
+        toast.error(res.message || 'Upload thất bại');
+      }
+    } catch {
+      toast.error('Lỗi upload logo');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   // ── Admin Profile Handler ──
   const handleAdminProfileSave = async () => {
     if (adminNewPw && adminNewPw !== adminNewPw2) {
@@ -204,6 +244,7 @@ export default function SystemSettingsTab() {
     { key: 'pricing',  label: 'Học phí Khóa học',       icon: DollarSign  },
     { key: 'branches', label: 'Chi nhánh / Cơ sở',      icon: Building2   },
     { key: 'popup',    label: 'Popup Thông báo',         icon: Bell        },
+    { key: 'invoice',  label: 'Hóa đơn (Invoice)',       icon: FileText    },
     { key: 'web',      label: 'Cài đặt Web',             icon: Settings    },
     { key: 'account',  label: 'Tài khoản Admin',         icon: Lock        },
   ];
@@ -478,6 +519,94 @@ export default function SystemSettingsTab() {
           >
             {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
             {saving ? 'Đang lưu...' : 'Lưu cấu hình Popup'}
+          </button>
+        </div>
+      )}
+
+      {/* ── TAB: HÓA ĐƠN (INVOICE) ────────────────────────────────────────── */}
+      {activeSubTab === 'invoice' && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-6 max-w-2xl">
+          <div className="flex items-center gap-2">
+            <FileText size={16} className="text-blue-600" />
+            <h3 className="font-bold text-gray-800">Cấu hình Hóa đơn (Phiếu thu)</h3>
+          </div>
+          
+          <p className="text-xs text-gray-500 bg-blue-50 border border-blue-100 rounded-xl p-3">
+            💡 Tùy chỉnh Logo, Chữ ký và dấu mộc hiển thị trên hóa đơn (khổ A5) của Trung tâm.
+          </p>
+
+          {/* Logo Hóa đơn */}
+          <div className="space-y-3">
+             <label className="text-xs font-bold text-gray-500 uppercase block">Logo trên hóa đơn</label>
+             <div className="flex items-center gap-4">
+               {settings.invoiceLogoUrl && (
+                 <img 
+                    src={settings.invoiceLogoUrl.startsWith('http') ? settings.invoiceLogoUrl : `${import.meta.env.VITE_API_URL || ""}${settings.invoiceLogoUrl}`} 
+                    className="h-16 w-16 object-contain border rounded-lg bg-gray-50" 
+                    alt="Logo Invoice"
+                 />
+               )}
+               <button 
+                  onClick={() => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*';
+                    input.onchange = (e) => handleInvoiceLogoUpload(e.target.files[0]);
+                    input.click();
+                  }}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-bold transition flex items-center gap-2"
+               >
+                 <Upload size={14} /> {settings.invoiceLogoUrl ? 'Thay đổi Logo' : 'Tải lên Logo'}
+               </button>
+             </div>
+          </div>
+
+          {/* Chữ ký */}
+          <div className="space-y-3">
+             <label className="text-xs font-bold text-gray-500 uppercase block">Chữ ký người nhận tiền</label>
+             <div className="flex items-center gap-4">
+               {settings.invoiceSignatureUrl && (
+                 <img 
+                    src={settings.invoiceSignatureUrl.startsWith('http') ? settings.invoiceSignatureUrl : `${import.meta.env.VITE_API_URL || ""}${settings.invoiceSignatureUrl}`} 
+                    className="h-16 w-32 object-contain border rounded-lg bg-gray-50" 
+                    alt="Chữ ký"
+                 />
+               )}
+               <button 
+                  onClick={() => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*';
+                    input.onchange = (e) => handleSignatureUpload(e.target.files[0]);
+                    input.click();
+                  }}
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-bold transition flex items-center gap-2"
+               >
+                 <Upload size={14} /> {settings.invoiceSignatureUrl ? 'Thay đổi Chữ ký' : 'Tải lên Chữ ký'}
+               </button>
+             </div>
+             <p className="text-[10px] text-gray-400 italic">Gợi ý: Sử dụng ảnh nền trong suốt (PNG) để hiển thị đẹp nhất.</p>
+          </div>
+
+          {/* Dấu mộc (Stamp) */}
+          <div>
+            <label className="text-xs font-bold text-gray-500 uppercase block mb-1.5">Nội dung dấu mộc (Stamp)</label>
+            <input
+              type="text"
+              value={settings.invoiceStampText}
+              onChange={e => setSettings(prev => ({ ...prev, invoiceStampText: e.target.value.toUpperCase() }))}
+              className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-sm font-bold text-red-600 focus:border-red-400 outline-none transition"
+              placeholder="VD: ĐÃ THANH TOÁN"
+            />
+          </div>
+
+          <button
+            onClick={() => handleSave(['invoiceLogoUrl', 'invoiceSignatureUrl', 'invoiceStampText'])}
+            disabled={saving}
+            className="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold rounded-xl hover:from-blue-700 flex items-center justify-center gap-2 disabled:opacity-40 transition shadow-lg shadow-blue-100"
+          >
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+            {saving ? 'Đang lưu...' : 'Lưu cấu hình Hóa đơn'}
           </button>
         </div>
       )}

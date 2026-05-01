@@ -107,7 +107,14 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
   // Tự động khôi phục phase nếu đã có kết quả trong DB
   useEffect(() => {
     if (phase === 'test') return; // Đang thi thì không ghi đè
+    
     if (currentTeacher?.testStatus === 'passed') {
+      // Nếu đã hoàn tất cả 2 phần và cố tình load lại -> Logout (Yêu cầu khách hàng)
+      if (currentTeacher?.practicalFile && phase === 'intro') {
+         localStorage.clear();
+         window.location.href = '/login';
+         return;
+      }
       setGrade({ total: currentTeacher.testScore, pass: true });
       setPhase('result');
     } else if (currentTeacher?.status === 'Locked') {
@@ -115,6 +122,17 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
       setPhase('banned');
     }
   }, [currentTeacher, phase]);
+
+  // Kiểm tra trừng phạt khi load lại trang
+  useEffect(() => {
+    const punished = localStorage.getItem('punish_teacher_exam');
+    if (punished === 'true') {
+        localStorage.removeItem('punish_teacher_exam');
+        setTimeout(() => {
+            handleViolate("Hệ thống phát hiện bạn đã cố tình tải lại trang hoặc thoát trình duyệt trong khi đang làm bài. Tài khoản đã bị khóa.");
+        }, 1000);
+    }
+  }, [handleViolate]);
 
   const handleViolate = useCallback((reason) => {
     if (timerRef.current) clearInterval(timerRef.current);

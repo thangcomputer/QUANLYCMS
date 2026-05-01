@@ -605,6 +605,30 @@ export const settingsAPI = {
     });
     return res.json();
   },
+  uploadInvoiceSignature: async (file) => {
+    const fd = new FormData();
+    fd.append('image', file);
+    const res = await fetch(`${API_BASE}/settings/upload-invoice-signature`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getAccessToken()}` },
+      body: fd,
+    });
+    return res.json();
+  },
+  uploadInvoiceLogo: async (file) => {
+    const fd = new FormData();
+    fd.append('logo', file); // Note: reusing logo endpoint or adding new one? I'll use the specific one if I create it, but for now reuse logic. Actually let's just use uploadLogo logic but specific for invoice.
+    // Actually the user wants flexible logos. 
+    // I'll reuse the uploadLogo but maybe add a new route if needed. 
+    // For now I'll just use uploadLogo but I added invoiceLogoUrl to allowed fields.
+    // Wait, uploadLogo saves to logoUrl. I should create upload-invoice-logo.
+    const res = await fetch(`${API_BASE}/settings/upload-invoice-logo`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getAccessToken()}` },
+      body: fd,
+    });
+    return res.json();
+  },
   getPopup: async () => {
     const res = await apiFetch('/settings/popup');
     return res.json();

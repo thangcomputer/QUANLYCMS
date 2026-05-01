@@ -48,6 +48,11 @@ const systemSettingsSchema = new mongoose.Schema({
     default: { videos: [], guides: [], files: [] } 
   },
 
+  // ── Invoice Settings ─────────────────────────────────────────────
+  invoiceLogoUrl:      { type: String, default: '' },
+  invoiceSignatureUrl: { type: String, default: '' },
+  invoiceStampText:    { type: String, default: 'ĐÃ THANH TOÁN' },
+
   // ── Admin Profile (cho tài khoản hardcoded) ─────────────────────────────
   adminName:         { type: String, default: '' },   // Nếu empty → fallback 'Admin Thắng Tin Học'
   adminPasswordHash: { type: String, default: '' },   // Nếu empty → fallback 'admin123'

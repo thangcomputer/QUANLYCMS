@@ -232,6 +232,40 @@ const RegistrationForm = ({ onNavigate }) => {
               branchCode: formData.branchCode || '',
               paid: true,
             });
+            // Show invoice automatically
+            showModal({
+              title: 'HÓA ĐƠN ĐĂNG KÝ HỌC',
+              content: (
+                <div className="flex flex-col items-center">
+                   <div className="scale-75 origin-top mb-[-100px]">
+                      <InvoiceTemplate data={{ 
+                        studentName: formData.name,
+                        courseName: formData.course,
+                        tuitionFee: formData.effectivePrice || formData.price,
+                        date: new Date(),
+                        isPaid: true 
+                      }} />
+                   </div>
+                   <div className="flex gap-4 mt-8 w-full">
+                      <button 
+                        onClick={() => exportPDF({ studentName: formData.name })}
+                        className="flex-1 py-4 bg-red-600 text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2"
+                      >
+                        <Printer size={20} /> IN HÓA ĐƠN
+                      </button>
+                      <button 
+                        onClick={() => setStep(3)}
+                        className="flex-1 py-4 bg-gray-100 text-gray-700 font-bold rounded-2xl"
+                      >
+                        XEM CHI TIẾT
+                      </button>
+                   </div>
+                </div>
+              ),
+              type: 'info',
+              confirmText: 'Đóng',
+              onConfirm: () => setStep(3)
+            });
             setTimeout(() => setStep(3), 500);
           } else if (res.status === 'expired') {
             clearInterval(countdownRef.current);

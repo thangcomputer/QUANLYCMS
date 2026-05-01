@@ -1359,6 +1359,38 @@ const AdminDashboard = ({ onNavigate }) => {
         branchId: student.branchId,
       });
       toast.success('Đã thêm học viên thành công!');
+      
+      // Hiển thị hóa đơn tự động
+      if (student.paid) {
+        showGlobalModal({
+          title: 'HÓA ĐƠN THU HỌC PHÍ',
+          content: (
+            <div className="flex flex-col items-center">
+              <div className="scale-75 origin-top mb-[-120px]">
+                <InvoiceTemplate data={{ 
+                  studentName: student.name,
+                  courseName: student.course,
+                  tuitionFee: student.price,
+                  date: new Date(),
+                  isPaid: true
+                }} />
+              </div>
+              <div className="flex gap-4 mt-8 w-full">
+                <button 
+                  onClick={() => exportPDF({ studentName: student.name })}
+                  className="flex-1 py-4 bg-red-600 text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2"
+                >
+                  <Printer size={20} /> IN HÓA ĐƠN (PDF)
+                </button>
+              </div>
+            </div>
+          ),
+          type: 'info',
+          confirmText: 'Đóng',
+          onConfirm: () => {}
+        });
+      }
+
       mutate(['admin_stats', selectedBranchId]);
       mutate(['admin_finance', selectedBranchId]);
       // Refresh paginated data
