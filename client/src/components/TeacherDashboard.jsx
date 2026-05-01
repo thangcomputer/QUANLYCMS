@@ -2519,10 +2519,10 @@ const TeacherDashboard = ({ onNavigate }) => {
            <TeacherTrainingLMS onBack={() => window.location.hash = ''} />
         ) : currentHash === 'students' ? (
           /* ═══ QUẢN LÝ HỌC VIÊN 2 CỘT ═══ */
-          <div className="px-4 md:px-8 py-6 h-[calc(100vh-120px)] flex flex-col lg:flex-row gap-6 overflow-hidden">
+          <div className="px-4 md:px-8 py-6 min-h-[calc(100vh-120px)] xl:h-[calc(100vh-120px)] flex flex-col xl:flex-row gap-6 xl:overflow-hidden">
             
             {/* CỘT 1: DANH SÁCH HỌC VIÊN (Sidebar) */}
-            <div className="w-full lg:w-80 flex flex-col bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex-shrink-0">
+            <div className="w-full xl:w-80 h-[500px] xl:h-full flex flex-col bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden flex-shrink-0">
                <div className="p-4 border-b border-gray-50 bg-gray-50/30">
                   <div className="relative">
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -2602,7 +2602,7 @@ const TeacherDashboard = ({ onNavigate }) => {
             </div>
 
             {/* CỘT 2: CHI TIẾT HỌC VIÊN (Main Content) */}
-            <div className="flex-1 overflow-y-auto pr-1">
+            <div className="flex-1 xl:overflow-y-auto pr-1">
               {selectedStudentId ? (
                 (() => {
                   const student = students.find(s => String(s.id) === String(selectedStudentId) || String(s._id) === String(selectedStudentId));

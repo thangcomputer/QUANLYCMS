@@ -247,10 +247,12 @@ const DashboardLayout = ({ role, session, onLogout }) => {
           <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
             {role === 'admin' && <BranchFilterDropdown />}
 
-            <div className="relative hidden lg:block group">
-              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-red-500 transition-colors" />
-              <input type="text" placeholder="Tìm tên, SĐT..." className="pl-11 pr-4 py-3 bg-gray-50 border-2 border-transparent rounded-2xl text-xs outline-none focus:border-red-600 focus:bg-white transition-all w-32 xl:w-48 xl:focus:w-72 shadow-sm font-medium" />
-            </div>
+            {role === 'admin' && (
+              <div className="relative hidden lg:block group">
+                <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-red-500 transition-colors" />
+                <input type="text" placeholder="Tìm tên, SĐT..." className="pl-11 pr-4 py-3 bg-gray-50 border-2 border-transparent rounded-2xl text-xs outline-none focus:border-red-600 focus:bg-white transition-all w-32 xl:w-48 xl:focus:w-72 shadow-sm font-medium" />
+              </div>
+            )}
 
             <div className="relative">
               <button 
