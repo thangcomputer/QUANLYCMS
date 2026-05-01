@@ -1365,9 +1365,9 @@ const AdminDashboard = ({ onNavigate }) => {
         showGlobalModal({
           title: 'HÓA ĐƠN THU HỌC PHÍ',
           content: (
-            <div className="flex flex-col items-center bg-gray-100 p-6 rounded-2xl overflow-hidden">
-              <div className="w-full overflow-x-auto pb-4 flex justify-center">
-                <div className="shadow-2xl origin-top transition-transform duration-500" style={{ transform: 'scale(0.85)', marginBottom: '-60px' }}>
+            <div className="flex flex-col items-center bg-gray-100 p-6 rounded-2xl w-full overflow-x-hidden">
+              <div className="w-full flex justify-center overflow-x-auto pb-4">
+                <div className="shadow-2xl transition-transform duration-500" style={{ transform: 'scale(0.8)', transformOrigin: 'top center', marginBottom: '-60px' }}>
                   <InvoiceTemplate data={{ 
                     studentName: student.name,
                     courseName: student.course,

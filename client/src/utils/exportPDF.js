@@ -122,11 +122,15 @@ export const printInvoice = () => {
   const element = document.getElementById('invoice-template');
   if (!element) return toast.error('Không tìm thấy mẫu in');
 
+  // Xóa container cũ nếu còn tồn tại
+  const oldContainer = document.getElementById('__invoice-print-container__');
+  if (oldContainer) oldContainer.remove();
+
   // Tạo container tạm cho việc in
   const printContainer = document.createElement('div');
   printContainer.id = '__invoice-print-container__';
   
-  // Clone element và gỡ bỏ các style có thể gây nhiễu (scale, transform)
+  // Clone element
   const clone = element.cloneNode(true);
   clone.style.transform = 'none';
   clone.style.margin = '0 auto';
@@ -142,7 +146,6 @@ export const printInvoice = () => {
   style.id = '__invoice-print-style__';
   style.innerHTML = `
     @media print {
-      /* Ẩn tất cả ngoại trừ container in */
       body > *:not(#__invoice-print-container__) {
         display: none !important;
       }
@@ -152,10 +155,12 @@ export const printInvoice = () => {
         height: 100% !important;
         margin: 0 !important;
         padding: 0 !important;
+        background: white !important;
       }
       #invoice-template {
         width: 210mm !important;
         height: 148mm !important;
+        margin: 0 auto !important;
         border: none !important;
         box-shadow: none !important;
         -webkit-print-color-adjust: exact !important;
@@ -169,14 +174,34 @@ export const printInvoice = () => {
   `;
   document.head.appendChild(style);
 
-  // Gọi lệnh in
-  window.print();
+  // Hàm thực hiện in
+  const runPrint = () => {
+    window.print();
+    // Dọn dẹp sau khi in
+    setTimeout(() => {
+      printContainer.remove();
+      style.remove();
+    }, 1000);
+  };
 
-  // Dọn dẹp sau khi in
-  setTimeout(() => {
-    printContainer.remove();
-    style.remove();
-  }, 1000);
+  // Đợi hình ảnh tải xong trước khi in
+  const images = clone.getElementsByTagName('img');
+  const imagePromises = Array.from(images).map(img => {
+    if (img.complete) return Promise.resolve();
+    return new Promise(resolve => {
+      img.onload = resolve;
+      img.onerror = resolve;
+    });
+  });
+
+  if (imagePromises.length > 0) {
+    Promise.all(imagePromises).then(() => {
+      // Đợi thêm một chút để chắc chắn render xong
+      setTimeout(runPrint, 500);
+    });
+  } else {
+    runPrint();
+  }
 };
 
 export default exportPDF;
