@@ -1,7 +1,8 @@
 // ─── API Service - Hệ thống CMS Thắng Tin Học ───────────────────────────────
 
-export const API_BASE = import.meta.env.VITE_API_URL ? (import.meta.env.VITE_API_URL + '/api') : '/api';
 export const SOCKET_BASE = import.meta.env.VITE_API_URL || '';
+export const BASE_URL = SOCKET_BASE;
+export const API_BASE = BASE_URL ? (BASE_URL + '/api') : '/api';
 
 /**
  * Xác định Role dựa trên dữ liệu đang có trong LocalStorage hoặc URL.
@@ -312,11 +313,8 @@ export const teachersAPI = {
   uploadPractical: async (file) => {
     const formData = new FormData();
     formData.append('file', file);
-    // Since apiFetch might automatically set headers['Content-Type'] to 'application/json' if not using FormData, 
-    // we need to be careful. Wait, apiFetch logic in api.js handles FormData by removing Content-Type.
-    const API = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    const token = localStorage.getItem('teacher_access_token') || localStorage.getItem('admin_access_token');
-    const res = await fetch(`${API}/teachers/upload-practical`, {
+    const token = getAccessToken('teacher') || getAccessToken('admin');
+    const res = await fetch(`${API_BASE}/teachers/upload-practical`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       body: formData
@@ -532,9 +530,8 @@ export const assignmentsAPI = {
     const formData = new FormData();
     formData.append('file', file);
     const options = { method: 'POST', body: formData };
-    // Khong send Content-Type ngam dinh de fetch auto sinh multipart content-type boundary
-    const token = localStorage.getItem('token');
-    const res = await fetch(`http://localhost:5000/api/assignments/upload`, {
+    const token = getAccessToken();
+    const res = await fetch(`${API_BASE}/assignments/upload`, {
       ...options,
       headers: {
         'Authorization': `Bearer ${token}`
