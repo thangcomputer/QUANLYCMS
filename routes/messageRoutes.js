@@ -47,9 +47,22 @@ router.get('/contacts', async (req, res) => {
       role:   'admin',
       phone:  a.phone || '',
       avatar: 'AD',
-      branchId: null,
-      branchCode: ''
+      branchId: a.branchId || null,
+      branchCode: a.branchCode || ''
     }));
+
+    // Luôn đảm bảo có ít nhất 1 tài khoản Admin hệ thống (hardcoded 'admin')
+    if (!superAdminContacts.some(c => c.id === 'admin')) {
+      superAdminContacts.unshift({
+        id: 'admin',
+        name: 'Admin Thắng Tin Học',
+        role: 'admin',
+        phone: '0935758462',
+        avatar: 'AD',
+        branchId: null,
+        branchCode: 'HỆ THỐNG'
+      });
+    }
 
     let staffContacts    = [];
     let teacherContacts  = [];
