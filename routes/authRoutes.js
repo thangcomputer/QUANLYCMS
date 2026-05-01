@@ -758,8 +758,8 @@ router.post('/change-password', authMiddleware, async (req, res) => {
     const { oldPassword, newPassword } = req.body;
     const { id: userId, role } = req.user;
 
-    if (!oldPassword || !newPassword) {
-      return res.status(400).json({ success: false, message: 'Vui lòng nhập mật khẩu cũ và mới' });
+    if (!newPassword) {
+      return res.status(400).json({ success: false, message: 'Vui lòng nhập mật khẩu mới' });
     }
 
     if (newPassword.length < 6) {
@@ -771,8 +771,13 @@ router.post('/change-password', authMiddleware, async (req, res) => {
 
     if (!user) return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản' });
 
-    const isMatch = await user.comparePassword(oldPassword);
-    if (!isMatch) return res.status(401).json({ success: false, message: 'Mật khẩu cũ không đúng' });
+    if (!user.isFirstLogin) {
+      if (!oldPassword) {
+        return res.status(400).json({ success: false, message: 'Vui lòng nhập mật khẩu cũ' });
+      }
+      const isMatch = await user.comparePassword(oldPassword);
+      if (!isMatch) return res.status(401).json({ success: false, message: 'Mật khẩu cũ không đúng' });
+    }
 
     user.password = newPassword;
     if (user.isFirstLogin) {
@@ -1042,6 +1047,7 @@ router.post('/forgot-password/verify', async (req, res) => {
     if (!user) return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản' });
 
     user.password = newPassword;
+    user.isFirstLogin = true;
     await user.save({ validateModifiedOnly: true });
 
     return res.json({
@@ -1123,6 +1129,7 @@ router.post('/reset-password-request', async (req, res) => {
 
     const newPassword = Math.floor(100000 + Math.random() * 900000).toString();
     user.password = newPassword;
+    user.isFirstLogin = true;
     await user.save({ validateModifiedOnly: true });
     return res.json({ success: true, message: 'Cấp lại mật khẩu thành công!', data: { newPassword, name: user.name } });
   } catch (error) {
@@ -1162,6 +1169,7 @@ router.post('/admin/reset-password', authMiddleware, async (req, res) => {
     }
 
     user.password = newPassword;
+    user.isFirstLogin = true;
     await user.save({ validateModifiedOnly: true });
 
     return res.json({

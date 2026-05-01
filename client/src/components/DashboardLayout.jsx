@@ -377,7 +377,7 @@ const ChangePasswordModal = ({ session, role }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!oldPassword || !newPassword || !confirmPassword) return setError('Vui lòng nhập đầy đủ thông tin.');
+    if ((!session?.isFirstLogin && !oldPassword) || !newPassword || !confirmPassword) return setError('Vui lòng nhập đầy đủ thông tin.');
     if (newPassword !== confirmPassword) return setError('Mật khẩu mới không khớp.');
     if (newPassword.length < 6) return setError('Mật khẩu mới phải có ít nhất 6 ký tự.');
 
@@ -410,9 +410,11 @@ const ChangePasswordModal = ({ session, role }) => {
       <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300">
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5 flex items-center justify-between">
           <h3 className="text-white font-black text-lg flex items-center gap-2">
-            <Lock size={20} /> Đổi mật khẩu
+            <Lock size={20} /> {session?.isFirstLogin ? 'Tạo mật khẩu cá nhân' : 'Đổi mật khẩu'}
           </h3>
-          <button onClick={() => setIsOpen(false)} className="text-white/70 hover:text-white transition"><X size={20} /></button>
+          {!session?.isFirstLogin && (
+            <button onClick={() => setIsOpen(false)} className="text-white/70 hover:text-white transition"><X size={20} /></button>
+          )}
         </div>
         <div className="p-6">
           {success ? (
@@ -426,11 +428,13 @@ const ChangePasswordModal = ({ session, role }) => {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && <div className="bg-red-50 text-red-600 text-xs font-bold p-3 rounded-xl border border-red-100">{error}</div>}
-              <div>
-                <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Mật khẩu hiện tại</label>
-                <input type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium outline-none focus:border-blue-500 focus:bg-white transition" />
-              </div>
+              {!session?.isFirstLogin && (
+                <div>
+                  <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Mật khẩu hiện tại</label>
+                  <input type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium outline-none focus:border-blue-500 focus:bg-white transition" />
+                </div>
+              )}
               <div>
                 <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Mật khẩu mới</label>
                 <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}

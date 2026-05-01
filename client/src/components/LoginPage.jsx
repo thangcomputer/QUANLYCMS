@@ -354,7 +354,7 @@ const LoginPage = ({ onLogin }) => {
                     </div>
                   </div>
                   <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3">
-                    <p className="text-amber-400 text-xs font-bold">⚠️ Vui lòng ghi nhớ mật khẩu mới và đăng nhập lại.</p>
+                    <p className="text-amber-400 text-xs font-bold">⚠️ Hãy copy mã code này và đăng nhập cũng như đổi mật khẩu.</p>
                   </div>
                   <button onClick={closeForgotModal} className="w-full py-3 bg-white/5 border border-white/10 text-white font-bold rounded-xl hover:bg-white/10 transition">Đóng & Đăng nhập</button>
                 </div>
