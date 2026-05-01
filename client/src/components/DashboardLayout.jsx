@@ -229,9 +229,8 @@ const DashboardLayout = ({ role, session, onLogout }) => {
               </nav>
             </div>
             <div className="w-px h-6 bg-gray-100 mx-2 hidden xl:block"></div>
-            <h1 className="text-sm font-black text-gray-800 lg:block hidden animate-in fade-in slide-in-from-left-4 duration-500 truncate max-w-[150px] xl:max-w-none">
-              Chào {getGreetingTime()}, 
-              <span className={`ml-3 px-2 py-0.5 rounded-lg text-[9px] uppercase tracking-widest font-black text-white shadow-sm ${
+            <h1 className="text-sm font-black text-gray-800 lg:block hidden animate-in fade-in slide-in-from-left-4 duration-500 truncate max-w-[250px] xl:max-w-none">
+              <span className={`px-2 py-0.5 rounded-lg text-[9px] uppercase tracking-widest font-black text-white shadow-sm ${
                 role === 'admin' ? 'bg-slate-900' : role === 'teacher' ? 'bg-red-600' : 'bg-blue-600'
               }`}>
                 {role === 'admin' ? 'Hệ thống' : role === 'teacher' ? 'Giảng viên' : 'Học viên'}
@@ -240,7 +239,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
                 {role === 'teacher' 
                   ? (currentTeacher?.name && !/^\d+$/.test(currentTeacher.name) ? currentTeacher.name : currentTeacher?.email || currentTeacher?.phone || session?.name || 'Giảng viên') 
                   : session?.name || 'Admin'}
-              </span> 👋
+              </span>
             </h1>
           </div>
 
