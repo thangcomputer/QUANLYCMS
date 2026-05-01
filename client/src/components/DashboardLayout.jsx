@@ -127,7 +127,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
   }, [currentTeacher?.status, session?.status, role, session?.id, navigate, isRefetching]);
 
   useEffect(() => {
-    if (session?.isFirstLogin) {
+    if (session?.isFirstLogin === true) {
       const timer = setTimeout(() => {
         window.dispatchEvent(new CustomEvent('open-change-password-modal'));
       }, 500);
@@ -375,9 +375,8 @@ const ChangePasswordModal = ({ session, role }) => {
 
   if (!isOpen) return null;
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if ((!session?.isFirstLogin && !oldPassword) || !newPassword || !confirmPassword) return setError('Vui lòng nhập đầy đủ thông tin.');
+    const isFirst = session?.isFirstLogin === true;
+    if ((!isFirst && !oldPassword) || !newPassword || !confirmPassword) return setError('Vui lòng nhập đầy đủ thông tin.');
     if (newPassword !== confirmPassword) return setError('Mật khẩu mới không khớp.');
     if (newPassword.length < 6) return setError('Mật khẩu mới phải có ít nhất 6 ký tự.');
 
@@ -387,11 +386,13 @@ const ChangePasswordModal = ({ session, role }) => {
       if (res.success) {
         setSuccess(true);
         // Cập nhật lại session local storage nếu là first login
-        if (session?.isFirstLogin) {
+        if (session?.isFirstLogin === true) {
            const key = `${role}_user`;
            try {
              const stored = JSON.parse(localStorage.getItem(key) || '{}');
              localStorage.setItem(key, JSON.stringify({ ...stored, isFirstLogin: false }));
+             // Dispatch event để App.jsx biết session đã thay đổi (nếu cần)
+             window.dispatchEvent(new Event('storage'));
            } catch {}
         }
         setTimeout(() => setIsOpen(false), 2000);
@@ -410,9 +411,9 @@ const ChangePasswordModal = ({ session, role }) => {
       <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300">
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5 flex items-center justify-between">
           <h3 className="text-white font-black text-lg flex items-center gap-2">
-            <Lock size={20} /> {session?.isFirstLogin ? 'Tạo mật khẩu cá nhân' : 'Đổi mật khẩu'}
+            <Lock size={20} /> {session?.isFirstLogin === true ? 'Tạo mật khẩu cá nhân' : 'Đổi mật khẩu'}
           </h3>
-          {!session?.isFirstLogin && (
+          {session?.isFirstLogin !== true && (
             <button onClick={() => setIsOpen(false)} className="text-white/70 hover:text-white transition"><X size={20} /></button>
           )}
         </div>
@@ -428,7 +429,7 @@ const ChangePasswordModal = ({ session, role }) => {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && <div className="bg-red-50 text-red-600 text-xs font-bold p-3 rounded-xl border border-red-100">{error}</div>}
-              {!session?.isFirstLogin && (
+              {session?.isFirstLogin !== true && (
                 <div>
                   <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Mật khẩu hiện tại</label>
                   <input type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)}
