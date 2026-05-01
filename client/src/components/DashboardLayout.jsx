@@ -209,12 +209,12 @@ const DashboardLayout = ({ role, session, onLogout }) => {
       />
 
       <main className="flex-1 min-w-0 flex flex-col h-screen">
-        <header className="h-16 md:h-20 bg-white/80 border-b border-gray-100 flex items-center justify-between px-4 pl-14 md:px-8 md:pl-8 flex-shrink-0 z-40 backdrop-blur-xl">
-          <div className="flex items-center gap-2 md:gap-4">
-            <div className="flex items-center gap-1 md:gap-3">
+        <header className="h-16 md:h-20 bg-white/80 border-b border-gray-100 flex items-center justify-between px-3 md:px-8 pl-14 md:pl-8 flex-shrink-0 z-40 backdrop-blur-xl">
+          <div className="flex items-center gap-2 md:gap-4 overflow-hidden flex-1">
+            <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
               <nav className="flex items-center gap-1 md:gap-2 text-[10px] md:text-[11px] font-black uppercase tracking-widest text-gray-400">
-                 <span className="hidden sm:inline hover:text-red-600 transition-colors cursor-pointer">Dashboard</span>
-                 <ChevronRight size={12} className="hidden sm:block opacity-50" />
+                 <span className="hidden lg:inline hover:text-red-600 transition-colors cursor-pointer">Dashboard</span>
+                 <ChevronRight size={12} className="hidden lg:block opacity-50" />
                  <span className="text-red-600">
                     {role === 'admin' ? 'Hệ thống' : role === 'teacher' ? 'Giảng dạy' : 'Học tập'}
                  </span>
@@ -228,8 +228,8 @@ const DashboardLayout = ({ role, session, onLogout }) => {
                  )}
               </nav>
             </div>
-            <div className="w-px h-6 bg-gray-100 mx-2 hidden md:block"></div>
-            <h1 className="text-sm font-black text-gray-800 md:block hidden animate-in fade-in slide-in-from-left-4 duration-500">
+            <div className="w-px h-6 bg-gray-100 mx-2 hidden xl:block"></div>
+            <h1 className="text-sm font-black text-gray-800 lg:block hidden animate-in fade-in slide-in-from-left-4 duration-500 truncate max-w-[150px] xl:max-w-none">
               Chào {getGreetingTime()}, 
               <span className={`ml-3 px-2 py-0.5 rounded-lg text-[9px] uppercase tracking-widest font-black text-white shadow-sm ${
                 role === 'admin' ? 'bg-slate-900' : role === 'teacher' ? 'bg-red-600' : 'bg-blue-600'
@@ -244,12 +244,12 @@ const DashboardLayout = ({ role, session, onLogout }) => {
             </h1>
           </div>
 
-          <div className="flex items-center gap-2 md:gap-4">
+          <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
             {role === 'admin' && <BranchFilterDropdown />}
 
-            <div className="relative hidden sm:block group">
+            <div className="relative hidden lg:block group">
               <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-red-500 transition-colors" />
-              <input type="text" placeholder="Tìm tên, SĐT..." className="pl-11 pr-4 py-3 bg-gray-50 border-2 border-transparent rounded-2xl text-xs outline-none focus:border-red-600 focus:bg-white transition-all w-48 focus:w-72 shadow-sm font-medium" />
+              <input type="text" placeholder="Tìm tên, SĐT..." className="pl-11 pr-4 py-3 bg-gray-50 border-2 border-transparent rounded-2xl text-xs outline-none focus:border-red-600 focus:bg-white transition-all w-32 xl:w-48 xl:focus:w-72 shadow-sm font-medium" />
             </div>
 
             <div className="relative">
