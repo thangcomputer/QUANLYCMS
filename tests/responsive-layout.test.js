@@ -38,3 +38,12 @@ test('TeacherDashboard StudentCard: header không ép một flex-row cứng', as
   );
   assert.ok(src.includes('min-[440px]:flex-row'), 'Card HV GV: chồng layout rồi ngang >=440px');
 });
+
+test('StudentDashboard: lịch học, profile và modal nộp bài co giãn tốt', async () => {
+  const src = await fs.readFile(
+    path.resolve(__dirname, '../client/src/components/StudentDashboard.jsx'),
+    'utf8'
+  );
+  assert.ok(src.includes('sm:flex-row sm:items-center sm:justify-between'), 'Các header section có breakpoint sm');
+  assert.ok(src.includes('flex flex-col sm:flex-row items-stretch sm:items-center'), 'Form nộp bài không ép ngang');
+});

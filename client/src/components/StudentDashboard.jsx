@@ -58,7 +58,7 @@ const MilestoneEvaluationModal = ({ milestone, studentId, teacherId, courseName,
            </p>
 
            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl border border-gray-100">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-3 bg-gray-50 rounded-2xl border border-gray-100">
                 <span className="text-xs font-bold text-gray-700">Bạn hài lòng với Thầy?</span>
                 <div className="flex gap-2">
                   {['yes', 'no'].map(v => (
@@ -70,7 +70,7 @@ const MilestoneEvaluationModal = ({ milestone, studentId, teacherId, courseName,
                 </div>
               </div>
 
-              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl border border-gray-100">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-3 bg-gray-50 rounded-2xl border border-gray-100">
                 <span className="text-xs font-bold text-gray-700">Giảng bài dễ hiểu?</span>
                 <div className="flex gap-2">
                   {['yes', 'no'].map(v => (
@@ -1215,17 +1215,17 @@ const StudentDashboard = ({ onNavigate }) => {
 
       {/* Modal Nộp bài tập */}
       {activeAssignment && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-              <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+            <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 flex items-center justify-between gap-3 bg-slate-50/50 min-w-0">
+              <h3 className="font-bold text-base sm:text-lg text-slate-800 flex items-center gap-2 min-w-0">
                 <FileUp size={20} className="text-blue-600" /> Nộp bài tập
               </h3>
               <button onClick={() => setActiveAssignment(null)} className="text-slate-400 hover:text-red-500 transition-colors p-1 bg-white hover:bg-red-50 rounded-xl">
                 <XCircle size={24} />
               </button>
             </div>
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               <div className="mb-6">
                 <p className="text-xs text-slate-500 uppercase font-black tracking-widest mb-1">Tên bài tập</p>
                 <p className="font-bold text-slate-800 text-lg">{activeAssignment.title}</p>
@@ -1233,7 +1233,7 @@ const StudentDashboard = ({ onNavigate }) => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-bold text-slate-700 mb-2">Link bài làm hoặc Tải file lên</label>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                     <input 
                       type="url"
                       placeholder="https://drive.google.com/... hoặc link file" 
@@ -1241,7 +1241,7 @@ const StudentDashboard = ({ onNavigate }) => {
                       value={submissionLink}
                       onChange={(e) => setSubmissionLink(e.target.value)}
                     />
-                    <label className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-3 rounded-xl cursor-pointer transition flex items-center justify-center font-bold" title="Tải file trực tiếp (Tối đa 3MB)">
+                    <label className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-4 py-3 rounded-xl cursor-pointer transition flex items-center justify-center font-bold sm:w-auto w-full" title="Tải file trực tiếp (Tối đa 3MB)">
                       {isSubmitting ? <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /> : <FileUp size={20} />}
                       <input type="file" className="hidden" onChange={handleStudentUpload} accept=".pdf,.doc,.docx,.xls,.xlsx,.zip,.rar" disabled={isSubmitting} />
                     </label>
@@ -1289,11 +1289,11 @@ const StudentDashboard = ({ onNavigate }) => {
         {currentHash === 'schedule' ? (
           /* ═══ LỊCH HỌC ═══ */
           <div className="max-w-5xl mx-auto px-4 md:px-8 py-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-black text-gray-800 flex items-center gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between min-w-0">
+              <h2 className="text-lg font-black text-gray-800 flex items-center gap-2 min-w-0">
                 <Calendar size={20} className="text-blue-500" /> Lịch học của tôi
               </h2>
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-gray-400 sm:text-right">
                 {mySchedules?.filter(s => s.status === 'completed').length || 0}/{studentData.totalSessions} buổi hoàn thành
               </span>
             </div>
@@ -1314,8 +1314,8 @@ const StudentDashboard = ({ onNavigate }) => {
                         parsedDate = new Date(parsedDate).toLocaleDateString('vi-VN');
                       }
                       return (
-                      <div key={idx} className="p-4 hover:bg-gray-50 flex items-start justify-between transition-colors">
-                        <div>
+                      <div key={idx} className="p-4 hover:bg-gray-50 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between transition-colors">
+                        <div className="min-w-0">
                           <p className="font-bold text-gray-800 flex items-center gap-2">
                             {g.time ? `${g.time} - ${parsedDate}` : parsedDate}
                             {g.note && g.note.toLowerCase().includes('bài nộp') ? (
@@ -1324,7 +1324,7 @@ const StudentDashboard = ({ onNavigate }) => {
                               <span className="text-[10px] bg-blue-100 text-blue-700 font-bold px-2 py-0.5 rounded-full uppercase">Điểm danh</span>
                             )}
                           </p>
-                          <p className="text-sm text-gray-600 mt-1">{g.note}</p>
+                          <p className="text-sm text-gray-600 mt-1 break-words">{g.note}</p>
                         </div>
                         <div className="text-right">
                           <span className={`text-lg font-black ${g.grade >= 5 ? 'text-green-600' : 'text-red-500'}`}>
@@ -1479,8 +1479,8 @@ const StudentDashboard = ({ onNavigate }) => {
                   ))}
 
                   {/* Trạng thái thanh toán + nút đóng học phí */}
-                  <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pt-2 border-t border-gray-100">
+                    <div className="flex items-center gap-2 min-w-0">
                       <span className="text-lg">{studentData.paid ? '✅' : '⏳'}</span>
                       <div>
                         <p className="text-[10px] text-gray-400 uppercase font-bold">Thanh toán</p>
@@ -1492,7 +1492,7 @@ const StudentDashboard = ({ onNavigate }) => {
                     {!studentData.paid && (
                       <button
                         onClick={() => setShowTuitionModal(true)}
-                        className="text-xs font-bold px-3 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition shadow-sm shadow-blue-100"
+                        className="text-xs font-bold px-3 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition shadow-sm shadow-blue-100 w-full sm:w-auto"
                       >
                         Đóng ngay
                       </button>
@@ -1505,15 +1505,15 @@ const StudentDashboard = ({ onNavigate }) => {
             {/* Lịch sử khóa học chi tiết */}
             {studentData.courses && studentData.courses.length > 0 && (
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                  <h3 className="font-bold text-gray-700 flex items-center gap-2">
+                <div className="px-4 sm:px-6 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2 min-w-0">
+                  <h3 className="font-bold text-gray-700 flex items-center gap-2 min-w-0">
                     <BookOpen size={18} className="text-blue-500" /> Danh sách khóa học
                   </h3>
                   <span className="text-xs bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full font-black">
                     {studentData.courses.length} KHÓA
                   </span>
                 </div>
-                <div className="p-6 space-y-4">
+                <div className="p-4 sm:p-6 space-y-4">
                   {studentData.courses.map(c => {
                     const isCompleted = c.status === 'completed';
                     const pct = Math.round((c.completedSessions / c.totalSessions) * 100);
@@ -1522,10 +1522,10 @@ const StudentDashboard = ({ onNavigate }) => {
                       <div key={c.id} className={`border-2 rounded-2xl p-5 transition-all ${
                         isCompleted ? 'border-green-100 bg-green-50/20' : 'border-blue-100 bg-blue-50/10'
                       }`}>
-                        <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <h4 className="font-black text-slate-800 uppercase tracking-tight">{c.name}</h4>
-                            <p className="text-[10px] text-slate-400 font-bold">GV: {c.teacherName} • {new Date(c.registeredAt).toLocaleDateString('vi-VN')}</p>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-start mb-4 min-w-0">
+                          <div className="min-w-0">
+                            <h4 className="font-black text-slate-800 uppercase tracking-tight break-words">{c.name}</h4>
+                            <p className="text-[10px] text-slate-400 font-bold break-words">GV: {c.teacherName} • {new Date(c.registeredAt).toLocaleDateString('vi-VN')}</p>
                           </div>
                           <span className={`text-[9px] font-black px-2 py-1 rounded-lg uppercase ${
                             isCompleted ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
@@ -1534,7 +1534,7 @@ const StudentDashboard = ({ onNavigate }) => {
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-6">
+                        <div className="flex items-center gap-4 sm:gap-6">
                           <div className="flex-1">
                             <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
                               <div className={`h-full rounded-full ${isCompleted ? 'bg-green-500' : 'bg-blue-500'}`} style={{ width: `${pct}%` }} />
@@ -1544,7 +1544,7 @@ const StudentDashboard = ({ onNavigate }) => {
                               <p className="text-[9px] font-bold text-slate-400">{pct}%</p>
                             </div>
                           </div>
-                          <div className="text-right">
+                          <div className="text-right shrink-0">
                              <p className="text-lg font-black text-slate-800">{c.avgGrade}</p>
                              <p className="text-[8px] font-bold text-slate-400 uppercase">Điểm TB</p>
                           </div>
@@ -1565,7 +1565,7 @@ const StudentDashboard = ({ onNavigate }) => {
                 </div>
                 <div className="p-6">
                   <div className="mb-6">
-                    <div className="flex justify-between items-center mb-2">
+                    <div className="flex flex-wrap justify-between items-center gap-2 mb-2">
                       <span className="text-xs font-black text-slate-600 uppercase">Hoàn thành chương trình</span>
                       <span className="text-sm font-black text-emerald-600">{progressPct}%</span>
                     </div>
