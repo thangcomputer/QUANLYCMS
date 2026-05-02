@@ -1,8 +1,16 @@
 const { NodeSSH } = require('node-ssh');
 const ssh = new NodeSSH();
 
+function getVpsConnection() {
+  const password = process.env.VPS_PASSWORD;
+  if (!password) {
+    throw new Error('Missing VPS_PASSWORD environment variable.');
+  }
+  return { host: '103.124.92.238', username: 'root', password };
+}
+
 async function sync() {
-  await ssh.connect({ host: '103.124.92.238', username: 'root', password: 'YOUR_VPS_PASSWORD' });
+  await ssh.connect(getVpsConnection());
 
   // 1. Pull source code from GitHub to VPS
   console.log('=== 1. GIT PULL ON VPS ===');

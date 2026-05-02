@@ -2,8 +2,16 @@ const { NodeSSH } = require('node-ssh');
 const ssh = new NodeSSH();
 const path = require('path');
 
+function getVpsConnection() {
+  const password = process.env.VPS_PASSWORD;
+  if (!password) {
+    throw new Error('Missing VPS_PASSWORD environment variable.');
+  }
+  return { host: '103.124.92.238', username: 'root', password };
+}
+
 async function upload() {
-  await ssh.connect({ host: '103.124.92.238', username: 'root', password: 'YOUR_VPS_PASSWORD' });
+  await ssh.connect(getVpsConnection());
 
   const localDist = path.join(__dirname, 'QUANLYCMS', 'client', 'dist');
 
