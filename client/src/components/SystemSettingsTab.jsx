@@ -259,13 +259,13 @@ export default function SystemSettingsTab() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3 min-w-0">
           <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-700 flex items-center justify-center shadow-lg shadow-violet-200">
             <Settings size={20} className="text-white" />
           </div>
-          <div>
-            <h2 className="text-xl font-black text-gray-900">Cài đặt hệ thống</h2>
+          <div className="min-w-0">
+            <h2 className="text-lg sm:text-xl font-black text-gray-900">Cài đặt hệ thống</h2>
             <p className="text-xs text-gray-400">Cấu hình ngân hàng trung tâm và thông báo hiển thị</p>
           </div>
         </div>
@@ -273,7 +273,7 @@ export default function SystemSettingsTab() {
         {/* DANGER ZONE BUTTON */}
         <button 
           onClick={() => setShowResetModal(true)}
-          className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white transition font-bold px-4 py-2.5 rounded-xl text-xs uppercase tracking-widest flex items-center gap-2 shadow-sm relative group overflow-hidden"
+          className="bg-red-50 text-red-600 border border-red-200 hover:bg-red-600 hover:text-white transition font-bold px-4 py-2.5 rounded-xl text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-sm relative group overflow-hidden w-full sm:w-auto"
         >
            <span className="absolute inset-0 bg-red-600 translate-y-[100%] group-hover:translate-y-0 transition-transform duration-300"></span>
            <AlertOctagon size={16} className="relative z-10" /> 
@@ -282,20 +282,22 @@ export default function SystemSettingsTab() {
       </div>
 
       {/* Sub-tabs */}
-      <div className="flex gap-2 border-b border-gray-100 pb-0">
-        {TABS.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setActiveSubTab(t.key)}
-            className={`flex items-center gap-2 px-5 py-3 text-sm font-bold rounded-t-xl transition border-b-2 ${
-              activeSubTab === t.key
-                ? 'text-violet-700 border-violet-600 bg-violet-50'
-                : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            <t.icon size={15} /> {t.label}
-          </button>
-        ))}
+      <div className="border-b border-gray-100 pb-0 overflow-x-auto">
+        <div className="flex gap-2 min-w-max">
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setActiveSubTab(t.key)}
+              className={`flex items-center gap-2 px-4 sm:px-5 py-3 text-sm font-bold rounded-t-xl transition border-b-2 whitespace-nowrap ${
+                activeSubTab === t.key
+                  ? 'text-violet-700 border-violet-600 bg-violet-50'
+                  : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <t.icon size={15} /> {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── TAB 1: NGÂN HÀNG ───────────────────────────────────────────── */}

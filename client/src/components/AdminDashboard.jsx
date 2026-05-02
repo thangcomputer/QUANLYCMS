@@ -2550,7 +2550,7 @@ const AdminDashboard = ({ onNavigate }) => {
                       <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start">
                         <div className="min-w-0">
                           <p className="text-blue-100 text-xs font-bold uppercase tracking-wider">Tổng doanh thu thực tế (Đã thu)</p>
-                          <p className="text-3xl sm:text-4xl font-black mt-2 break-words">{(financeStudents.filter(s => s.paid).reduce((sum, s) => sum + (s.price || 0), 0)).toLocaleString('vi-VN')}đ</p>
+                          <p className="text-2xl sm:text-4xl font-black mt-2 whitespace-nowrap">{(financeStudents.filter(s => s.paid).reduce((sum, s) => sum + (s.price || 0), 0)).toLocaleString('vi-VN')}đ</p>
                         </div>
                         <div className="bg-white/20 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/20 flex items-center gap-1.5 animate-pulse shrink-0 self-start">
                           <TrendingUp size={14} className="text-emerald-300" />
@@ -2596,7 +2596,7 @@ const AdminDashboard = ({ onNavigate }) => {
                         </div>
                         <div className="flex flex-wrap items-center gap-3 sm:justify-end sm:gap-4">
                           <div className="text-left sm:text-right min-w-[7rem]">
-                            <p className="text-sm font-black text-gray-800 break-all">{(s.price || 0).toLocaleString('vi-VN')}đ</p>
+                            <p className="text-sm font-black text-gray-800 whitespace-nowrap">{(s.price || 0).toLocaleString('vi-VN')}đ</p>
                             <span className={`text-[10px] font-bold ${s.paid ? 'text-green-600' : 'text-red-500'}`}>
                               {s.paid ? 'Đã nộp' : 'Chưa nộp'}
                             </span>
@@ -2654,7 +2654,7 @@ const AdminDashboard = ({ onNavigate }) => {
                     <div className="bg-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 text-white shadow-lg relative overflow-hidden">
                       {isLoadingFinance ? <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center"><RefreshCw className="animate-spin text-white" size={24}/></div> : null}
                       <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Tổng thù lao đã chi</p>
-                      <p className="text-3xl sm:text-4xl font-black mt-2 break-words">{(financialData.reduce((s, p) => s + (p.amount || 0), 0)).toLocaleString('vi-VN')}đ</p>
+                      <p className="text-2xl sm:text-4xl font-black mt-2 whitespace-nowrap">{(financialData.reduce((s, p) => s + (p.amount || 0), 0)).toLocaleString('vi-VN')}đ</p>
                       <p className="text-[10px] text-slate-500 mt-2 font-bold uppercase italic tracking-widest">Giai đoạn: 01/01 - Hiện tại</p>
                     </div>
                   </div>
@@ -2674,7 +2674,7 @@ const AdminDashboard = ({ onNavigate }) => {
                             </div>
                           </div>
                           <div className="text-left sm:text-right shrink-0">
-                            <p className="text-sm font-black text-blue-600 break-all">-{t.amount ? t.amount.toLocaleString('vi-VN') : 0}đ</p>
+                            <p className="text-sm font-black text-blue-600 whitespace-nowrap">-{t.amount ? t.amount.toLocaleString('vi-VN') : 0}đ</p>
                             <p className="text-[10px] text-gray-400 font-medium">{t.date || new Date(t.createdAt).toLocaleDateString('vi-VN')}</p>
                           </div>
                         </div>
@@ -2718,8 +2718,8 @@ const AdminDashboard = ({ onNavigate }) => {
           {/* ===== ĐÀO TẠO GIẢNG VIÊN ===== */}
           {activeTab === 'training' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2 min-w-0">
                   <BookOpen size={20} className="text-purple-600" /> Quản lý Đào tạo Giảng viên
                 </h2>
               </div>
@@ -2732,7 +2732,8 @@ const AdminDashboard = ({ onNavigate }) => {
               ) : (
                 <>
               {/* Sub-tabs */}
-              <div className="flex flex-wrap gap-2 bg-white rounded-2xl p-1.5 shadow-sm border border-gray-100 w-fit">
+              <div className="bg-white rounded-2xl p-1.5 shadow-sm border border-gray-100 overflow-x-auto">
+                <div className="flex gap-2 min-w-max">
                 {[
                   { key: 'videos', icon: Video, label: 'Quản lý Khóa học', count: trainingData?.videos?.length || 0 },
                   { key: 'guides', icon: FileText, label: 'Quy trình', count: trainingData?.guides?.length || 0 },
@@ -2741,7 +2742,7 @@ const AdminDashboard = ({ onNavigate }) => {
                   { key: 'exam-results-gv', icon: Trophy, label: 'Kết quả thi', count: (teachers || []).filter(t => t.testDate || t.testScore > 0 || t.status === 'Locked').length },
                 ].map(t => (
                   <button key={t.key} onClick={() => { setTrainingTab(t.key); setTrainingForm(null); }}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${
                       trainingTab === t.key
                         ? t.key === 'exam-results-gv' ? 'bg-amber-600 text-white shadow-md' : 'bg-purple-600 text-white shadow-md'
                         : 'text-gray-500 hover:bg-gray-100'
@@ -2749,6 +2750,7 @@ const AdminDashboard = ({ onNavigate }) => {
                     <t.icon size={15} /> {t.label} <span className="text-[10px] opacity-70">({t.count})</span>
                   </button>
                 ))}
+                </div>
               </div>
 
               {/* Add button */}
