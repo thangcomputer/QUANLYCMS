@@ -531,8 +531,8 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
                 <div className="grid grid-cols-2 gap-4 relative z-10">
                     {[
                         { text: 'Camera BẬT suốt thời gian', icon: Camera, color: 'text-blue-400' },
-                        { text: 'Face ID mỗi 3s', icon: UserCheck, color: 'text-green-400' },
-                        { text: 'Rời Face 5 lần = HỦY', icon: AlertTriangle, color: 'text-red-400' },
+                        { text: 'Face ID mỗi 5s', icon: UserCheck, color: 'text-green-400' },
+                        { text: 'Rời Face 10 lần = HỦY', icon: AlertTriangle, color: 'text-red-400' },
                         { text: 'Lưu log toàn màn hình', icon: Video, color: 'text-orange-400' },
                     ].map((item, i) => (
                         <div key={i} className="bg-white/5 border border-white/10 p-4 rounded-2xl flex flex-col items-center text-center gap-2 hover:bg-white/10 transition">

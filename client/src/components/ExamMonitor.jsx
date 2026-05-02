@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef, us
 import { AlertTriangle, ShieldCheck, Camera } from 'lucide-react';
 
 const CONFIG = {
-  MAX_CONSECUTIVE_NO_FACE: 5,      // 5 lần liên tiếp không thấy mặt
+  MAX_CONSECUTIVE_NO_FACE: 10,     // 10 lần liên tiếp không thấy mặt
   CAMERA_CHECK_INTERVAL: 5000,     // Check mỗi 5 giây cho nhạy
 };
 
@@ -144,12 +144,12 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, requireWebcam = true }, r
               consecutiveNoFaceRef.current += 1;
               const consecutive = consecutiveNoFaceRef.current;
               
-              if (consecutive === 2 || consecutive === 4) {
+              if (consecutive === 3 || consecutive === 6 || consecutive === 9) {
                 playWarningBeep();
                 setWarningOverlay({
                   type: 'camera',
                   message: '📸 KIỂM TRA CAMERA!',
-                  sub: `Hệ thống không nhận diện được khuôn mặt. Vui lòng ngồi đúng vị trí. Vi phạm lần ${consecutive}/5. Đạt 5/5 bài thi sẽ bị HỦY ngay lập tức!`,
+                  sub: `Hệ thống không nhận diện được khuôn mặt. Vui lòng ngồi đúng vị trí. Vi phạm lần ${consecutive}/10. Đạt 10/10 bài thi sẽ bị HỦY ngay lập tức!`,
                   count: consecutive,
                   max: CONFIG.MAX_CONSECUTIVE_NO_FACE
                 });
@@ -157,7 +157,7 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, requireWebcam = true }, r
 
               if (consecutive >= CONFIG.MAX_CONSECUTIVE_NO_FACE) {
                 playWarningBeep();
-                terminateExam('Không phát hiện khuôn mặt 5 lần liên tiếp. Bài thi bị hủy tự động theo quy định!');
+                terminateExam('Không phát hiện khuôn mặt 10 lần liên tiếp. Bài thi bị hủy tự động theo quy định!');
               }
             } else {
               consecutiveNoFaceRef.current = 0;
@@ -305,7 +305,7 @@ export const CameraHeaderPanel = ({ monitorRef }) => {
            <span className="text-xs text-white/50 uppercase font-black tracking-wider">Giám sát bài thi</span>
         </div>
         <div className="flex items-center gap-5 mt-1.5 font-mono">
-           <span className="text-sm font-bold text-white">Cam: <span className={(stats.consecutiveNoFace || 0) > 0 ? 'text-red-400' : 'text-green-400'}>{stats.consecutiveNoFace || 0}/{5}</span></span>
+           <span className="text-sm font-bold text-white">Cam: <span className={(stats.consecutiveNoFace || 0) > 0 ? 'text-red-400' : 'text-green-400'}>{stats.consecutiveNoFace || 0}/{10}</span></span>
            <span className="text-sm font-bold text-white">Tab: <span className={stats.tabWarnings > 0 ? 'text-orange-400' : 'text-green-400'}>{stats.tabWarnings}/2</span></span>
         </div>
       </div>
