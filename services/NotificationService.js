@@ -26,6 +26,7 @@ class NotificationService {
         sender_id,
         receivers: receiversArr,
         payload,
+        path: link, // Save link as path
       });
 
       // Fire Socket.io event based on receivers
@@ -38,7 +39,7 @@ class NotificationService {
           message: content,
           time: new Date(),
           payload,
-          link,
+          path: link, // Send as path for frontend navigate(n.path)
           read: false
         };
 

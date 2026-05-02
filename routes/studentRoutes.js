@@ -393,7 +393,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
       if (req.user.id !== req.params.id) {
         return res.status(403).json({ success: false, message: 'Bạn chỉ có thể cập nhật hồ sơ của chính mình' });
       }
-      const allowedKeys = ['name', 'email', 'phone', 'zalo', 'address', 'password', 'avatar', 'examProgress'];
+      const allowedKeys = ['email', 'zalo', 'address', 'password', 'avatar', 'examProgress'];
       Object.keys(safeBody).forEach(key => {
         if (!allowedKeys.includes(key)) {
           delete safeBody[key];
@@ -651,7 +651,7 @@ router.put('/:id/assign-teacher', authMiddleware, isAdmin, async (req, res) => {
           content: `Học viên ${student.name} (${student.course}) đã được giao cho bạn.`,
           receivers: teacherId.toString(),
           payload: { studentId: student._id, type: 'student' },
-          link: '/teacher/dashboard'
+          link: `/teacher#students?studentId=${student._id}`
         });
 
         // 📡 REAL-TIME CONTACT SYNC

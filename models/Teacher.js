@@ -19,6 +19,11 @@ const TeacherSchema = new mongoose.Schema(
       unique: true,
       trim: true,
     },
+    zalo: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     email: {
       type: String,
       trim: true,

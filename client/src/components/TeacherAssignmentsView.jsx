@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Clipboard, FileText, Download, CheckCircle, Clock, XCircle, Search } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
 import api from '../services/api';
 import { useModal } from '../utils/Modal.jsx';
 
 const TeacherAssignmentsView = ({ teacherId, myStudents }) => {
+  const location = useLocation();
   const { showModal } = useModal();
   // Compute unique courses from students
   const uniqueCourses = [...new Set((myStudents || []).map(s => s.course).filter(Boolean))];
@@ -19,10 +21,33 @@ const TeacherAssignmentsView = ({ teacherId, myStudents }) => {
 
   const [gradingSubmission, setGradingSubmission] = useState(null);
   const [gradeData, setGradeData] = useState({ grade: '', teacherFeedback: '' });
+  const [highlightStudentId, setHighlightStudentId] = useState(null);
 
   useEffect(() => {
     fetchAssignments();
   }, [selectedCourse]);
+
+  // ⭐ Auto-scroll/Auto-select logic for Notifications
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.includes('?')) {
+      const params = new URLSearchParams(hash.split('?')[1]);
+      const courseId = params.get('courseId');
+      const assignmentId = params.get('assignmentId');
+      
+      if (courseId && courseId !== selectedCourse) {
+        setSelectedCourse(courseId);
+      }
+      
+      if (assignmentId && assignments.length > 0) {
+        const target = assignments.find(a => a._id === assignmentId);
+        if (target && (!activeSubmissions || activeSubmissions._id !== assignmentId)) {
+          setActiveSubmissions(target);
+          setHighlightStudentId(params.get('studentId'));
+        }
+      }
+    }
+  }, [assignments, selectedCourse, location.hash]);
 
   const fetchAssignments = () => {
     if (!selectedCourse) return;
@@ -232,9 +257,13 @@ const TeacherAssignmentsView = ({ teacherId, myStudents }) => {
                     <tbody>
                       {activeSubmissions.submissions.map(sub => {
                         const isGraded = sub.status === 'graded';
+                        const isHighlighted = highlightStudentId && (sub.studentId?._id === highlightStudentId || sub.studentId === highlightStudentId);
                         return (
-                          <tr key={sub._id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
-                            <td className="p-3 font-bold text-slate-700 text-sm whitespace-nowrap">{sub.studentId?.name || 'Không xác định'}</td>
+                          <tr key={sub._id} className={`border-b border-slate-50 hover:bg-slate-50/50 transition-colors ${isHighlighted ? 'bg-blue-50 ring-2 ring-blue-500 ring-inset ring-opacity-50' : ''}`}>
+                            <td className="p-3 font-bold text-slate-700 text-sm whitespace-nowrap">
+                              {isHighlighted && <span className="inline-block w-2 h-2 bg-blue-500 rounded-full mr-2 animate-pulse"></span>}
+                              {sub.studentId?.name || 'Không xác định'}
+                            </td>
                             <td className="p-3 text-xs font-semibold text-slate-500 whitespace-nowrap">{new Date(sub.submittedAt || sub.createdAt).toLocaleString('vi-VN')}</td>
                             <td className="p-3 whitespace-nowrap">
                               {isGraded ? <span className="bg-green-100 text-green-700 text-[10px] uppercase font-black px-2 py-1 rounded-md">Đã chấm</span> : <span className="bg-blue-100 text-blue-700 text-[10px] uppercase font-black px-2 py-1 rounded-md">Đã nộp</span>}

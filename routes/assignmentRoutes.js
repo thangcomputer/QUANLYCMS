@@ -186,12 +186,15 @@ router.post('/:id/submit', async (req, res) => {
     const student = await Student.findById(studentId);
     
     if (teacherId && teacherId !== 'current') {
+      const assignment = await Assignment.findById(req.params.id);
+      
       const newNotif = await Notification.create({
         type: 'COURSE',
         title: '📋 Bài tập mới được nộp',
         content: `Học viên ${student?.name || 'Vô danh'} vừa nộp bài tập.`,
         receivers: [teacherId.toString()],
-        payload: { studentId, assignmentId: req.params.id, type: 'assignment' }
+        payload: { studentId, assignmentId: req.params.id, type: 'assignment' },
+        path: `/teacher#assignments?courseId=${assignment?.courseId || ''}&assignmentId=${req.params.id}&studentId=${studentId}`
       });
 
       if (io) {
@@ -206,7 +209,7 @@ router.post('/:id/submit', async (req, res) => {
           content: `Học viên ${student?.name || 'Vô danh'} vừa nộp bài tập.`,
           receivers: teacherId.toString(),
           payload: { studentId, assignmentId: req.params.id },
-          link: '/teacher#assignments'
+          link: `/teacher#assignments?courseId=${assignment?.courseId || ''}&assignmentId=${req.params.id}&studentId=${studentId}`
         });
 
         io.emit('data:refresh', { type: 'submission', action: 'create' });

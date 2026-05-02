@@ -30,6 +30,10 @@ const notificationSchema = new mongoose.Schema({
   payload: {
     type: mongoose.Schema.Types.Mixed,
     default: {}
+  },
+  path: {
+    type: String,
+    default: ''
   }
 }, {
   timestamps: true

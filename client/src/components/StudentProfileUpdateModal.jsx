@@ -62,10 +62,12 @@ const StudentProfileUpdateModal = ({ student, onClose }) => {
                   type="text" 
                   value={formData.phone}
                   onChange={e => setFormData({ ...formData, phone: e.target.value })}
-                  className="w-full bg-white border border-gray-200 rounded-xl pl-9 pr-4 py-3 text-sm font-medium focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-4 py-3 text-sm font-medium focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition"
+                  readOnly
                 />
                 <Phone size={14} className="absolute left-3 top-3.5 text-gray-400" />
               </div>
+              <p className="text-[9px] text-red-500 mt-1 pl-1 italic">* Liên hệ Admin để đổi SĐT.</p>
             </div>
             <div>
               <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest pl-1 mb-1 block">Zalo</label>

@@ -267,7 +267,7 @@ router.put('/:id', [authMiddleware, branchFilter], async (req, res) => {
     const isAdminRole = (req.user.role === 'admin' || req.user.role === 'staff');
     const allowedFields = isAdminRole 
       ? [
-          'name', 'phone', 'email', 'specialty', 'bio', 'startDate', 'address',
+          'name', 'phone', 'zalo', 'email', 'specialty', 'bio', 'startDate', 'address',
           'bankAccount', 'avatar', 'status', 'baseSalaryPerSession',
           'assignedClasses', 'assignedStudents',
           'testScore', 'testStatus', 'testDate', 'testNotes',
@@ -275,7 +275,7 @@ router.put('/:id', [authMiddleware, branchFilter], async (req, res) => {
           'branchId', 'branchCode',
         ]
       : [
-          'name', 'phone', 'email', 'specialty', 'bio', 'bankAccount', 'avatar', 'address',
+          'zalo', 'email', 'specialty', 'bio', 'bankAccount', 'avatar', 'address',
           'testScore', 'testStatus', 'testDate', 'status', 'lockReason',
           'practicalFile', 'practicalStatus'
         ];

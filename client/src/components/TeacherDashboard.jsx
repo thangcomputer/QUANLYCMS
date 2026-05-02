@@ -1689,6 +1689,7 @@ const TeacherProfileSection = ({ teacherId, currentTeacher }) => {
     bio: '',
     specialty: '',
     address: '',
+    zalo: '',
   });
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
@@ -1711,6 +1712,7 @@ const TeacherProfileSection = ({ teacherId, currentTeacher }) => {
         bio: currentTeacher.bio || '',
         specialty: currentTeacher.specialty || '',
         address: currentTeacher.address || '',
+        zalo: currentTeacher.zalo || '',
       });
     }
   }, [currentTeacher]);
@@ -1830,12 +1832,35 @@ const TeacherProfileSection = ({ teacherId, currentTeacher }) => {
 
             {/* Phone - Read only */}
             <div>
-              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Số điện thoại / Zalo</label>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Số điện thoại</label>
               <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
                 <Phone size={16} className="text-gray-400 flex-shrink-0" />
                 <span className="text-sm font-bold text-gray-800">{currentTeacher?.phone || '—'}</span>
                 <Shield size={12} className="text-blue-400 ml-auto flex-shrink-0" title="Chỉ Admin có thể thay đổi" />
               </div>
+              <p className="text-[9px] text-red-500 mt-1 pl-1 italic">* Liên hệ Admin để đổi SĐT.</p>
+            </div>
+
+            {/* Zalo - Editable */}
+            <div>
+              <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Zalo</label>
+              {editingProfile ? (
+                <div className="flex items-center gap-2 bg-white rounded-xl px-4 py-3 border-2 border-blue-200 focus-within:border-blue-400 transition">
+                  <Phone size={16} className="text-blue-400 flex-shrink-0" />
+                  <input
+                    type="text"
+                    value={profileForm.zalo}
+                    onChange={e => setProfileForm({...profileForm, zalo: e.target.value})}
+                    placeholder="Nhập số Zalo của bạn..."
+                    className="flex-1 text-sm outline-none bg-transparent"
+                  />
+                </div>
+              ) : (
+                <div className="flex items-center gap-3 bg-gray-50 rounded-xl px-4 py-3 border border-gray-100">
+                  <Phone size={16} className="text-gray-400 flex-shrink-0" />
+                  <span className="text-sm text-gray-700">{profileForm.zalo || '—'}</span>
+                </div>
+              )}
             </div>
 
             {/* Start Date - Read only */}
@@ -2342,12 +2367,22 @@ const TeacherDashboard = ({ onNavigate }) => {
   const toast = useToast();
   const [selectedStudentId, setSelectedStudentId] = useState(null);
 
-  // Auto-select first student if none selected
+  // Auto-select first student if none selected OR from URL params (Notifications)
   useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.includes('studentId=')) {
+      const params = new URLSearchParams(hash.split('?')[1]);
+      const studentId = params.get('studentId');
+      if (studentId && String(selectedStudentId) !== String(studentId)) {
+        setSelectedStudentId(studentId);
+        return;
+      }
+    }
+    
     if (!selectedStudentId && students.length > 0) {
       setSelectedStudentId(students[0]._id || students[0].id);
     }
-  }, [students, selectedStudentId]);
+  }, [students, selectedStudentId, location.hash]);
 
   const markAttendance = async (id, noteParam, gradeParam) => {
     const note = noteParam || noteInputs[id] || 'Đã điểm danh';
