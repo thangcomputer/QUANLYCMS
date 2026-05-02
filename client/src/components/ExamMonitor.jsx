@@ -87,9 +87,9 @@ function frameLooksLikeLensBlocked(imageData, w, h) {
   if (avgL < 12 && darkRatio > 0.72) return true;
   if (avgL < 22 && darkRatio > 0.88) return true;
 
-  /** Khung quá đồng nhất + ít màu → lens cap / tay che / khăn đen đồng đều */
-  if (avgL < 48 && stdL < 5.8 && avgChroma < 5.2) return true;
-  if (avgL >= 48 && avgL < 118 && stdL < 5 && avgChroma < 5.8) return true;
+  /** Khung quá đồng nhất + ít màu → lens cap / tay che (chỉ khi rất “phẳng” để tránh báo che cam nhầm) */
+  if (avgL < 48 && stdL < 4.0 && avgChroma < 4.6) return true;
+  if (avgL >= 48 && avgL < 118 && stdL < 3.8 && avgChroma < 5.0) return true;
 
   /** Đen / xám nhưng có nhiễu nhẹ — vẫn coi là che ống kính */
   if (avgL < 32 && stdL < 9 && avgChroma < 7 && darkRatio > 0.42) return true;
@@ -153,7 +153,7 @@ function heuristicStrictUpperFaceZone(imageData, w, h) {
   const skinRatio = skin / n;
 
   if (darkRatio > 0.88 || avgLum < 4) return false;
-  return skinRatio >= 0.038;
+  return skinRatio >= 0.026;
 }
 
 const ExamMonitor = forwardRef(({ isActive, onViolate, requireWebcam = true }, ref) => {
@@ -232,6 +232,34 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, requireWebcam = true }, r
       }
     }
 
+    const waitForVideoFrames = (video, timeoutMs = 10000) =>
+      new Promise((resolve) => {
+        if (!video) {
+          resolve();
+          return;
+        }
+        const done = () => {
+          clearTimeout(tid);
+          video.removeEventListener('loadeddata', tick);
+          video.removeEventListener('playing', tick);
+          video.removeEventListener('canplay', tick);
+          resolve();
+        };
+        const tick = () => {
+          if (video.readyState >= 2 && video.videoWidth > 0) done();
+        };
+        const tid = setTimeout(done, timeoutMs);
+        if (video.readyState >= 2 && video.videoWidth > 0) {
+          clearTimeout(tid);
+          resolve();
+          return;
+        }
+        video.addEventListener('loadeddata', tick, { passive: true });
+        video.addEventListener('playing', tick, { passive: true });
+        video.addEventListener('canplay', tick, { passive: true });
+        tick();
+      });
+
     const setupCamera = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -240,6 +268,7 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, requireWebcam = true }, r
             width: { ideal: 640 },
             height: { ideal: 480 },
           },
+          audio: false,
         });
         
         if (!isMounted) {
@@ -250,8 +279,13 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, requireWebcam = true }, r
         streamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          videoRef.current.muted = true;
+          videoRef.current.setAttribute('playsinline', '');
           videoRef.current.play().catch(() => {});
         }
+        await waitForVideoFrames(videoRef.current);
+        if (!isMounted) return;
+
         setCameraStatus('active');
 
         const runFaceCheck = async () => {
@@ -289,6 +323,9 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, requireWebcam = true }, r
             let heuristicOk = false;
             if (!lensBlocked && !anyRawFace) {
               heuristicOk = heuristicStrictUpperFaceZone(frame, CONFIG.DETECT_W, CONFIG.DETECT_H);
+            } else if (!lensBlocked && anyRawFace && !apiOk) {
+              /** API thấy mặt nhưng khung không đạt — vẫn thử heuristic để tránh “treo” đỏ */
+              heuristicOk = heuristicStrictUpperFaceZone(frame, CONFIG.DETECT_W, CONFIG.DETECT_H);
             }
 
             const hasFace = !lensBlocked && (apiOk || heuristicOk);
@@ -321,7 +358,7 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, requireWebcam = true }, r
           }
         };
 
-        await new Promise((r) => setTimeout(r, 450));
+        await new Promise((r) => setTimeout(r, 200));
         await runFaceCheck();
         intervalRef.current = setInterval(runFaceCheck, CONFIG.CAMERA_CHECK_INTERVAL);
       } catch (err) {
@@ -373,7 +410,7 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, requireWebcam = true }, r
 
   return (
     <>
-      {/* Video phải nằm trong viewport — nếu đẩy ra ngoài màn hình trình duyệt throttle khung hình → FaceDetector/heuristic sai */}
+      {/* Video phải nằm trong viewport; kích thước CSS quá nhỏ (vd. 4×4) khiến một số trình duyệt giảm/giật frame → AI luôn lỗi */}
       <video
         ref={videoRef}
         autoPlay
@@ -383,9 +420,9 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, requireWebcam = true }, r
           position: 'fixed',
           right: 0,
           bottom: 0,
-          width: 4,
-          height: 4,
-          opacity: 0.01,
+          width: 320,
+          height: 240,
+          opacity: 0.02,
           pointerEvents: 'none',
           zIndex: 2147483646,
           objectFit: 'cover',
@@ -434,7 +471,13 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, requireWebcam = true }, r
 });
 
 export const CameraHeaderPanel = ({ monitorRef }) => {
-  const [stats, setStats] = useState({ cameraWarnings: 0, tabWarnings: 0, lastFaceDetected: true, cameraStatus: 'loading' });
+  const [stats, setStats] = useState({
+    cameraWarnings: 0,
+    tabWarnings: 0,
+    lastFaceDetected: true,
+    cameraStatus: 'loading',
+    consecutiveNoFace: 0,
+  });
   const previewVideoRef = useRef(null);
 
   useEffect(() => {
@@ -485,6 +528,14 @@ export const CameraHeaderPanel = ({ monitorRef }) => {
            <span className="text-xs text-white/50 uppercase font-black tracking-wider">Giám sát bài thi</span>
         </div>
         <div className="flex flex-col gap-0.5 mt-1.5 font-mono">
+           {stats.cameraStatus === 'denied' && (
+             <span className="text-[9px] font-bold text-red-400 leading-tight">
+               Camera bị chặn — cho phép truy cập camera và tải lại trang.
+             </span>
+           )}
+           {stats.cameraStatus === 'loading' && (
+             <span className="text-[9px] font-bold text-amber-200/90 leading-tight">Đang bật camera…</span>
+           )}
            <span className="text-[10px] font-bold text-white/70 leading-tight">
              Khung hình:{' '}
              <span className={stats.lastFaceDetected ? 'text-emerald-400' : 'text-amber-300'}>
