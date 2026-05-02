@@ -187,7 +187,12 @@ function AppRoutes({ session, onSessionChange, isAuthLoading, onLogin, onLogout 
         <Route path="/admin"       element={<ErrorBoundary inline><AdminDashboard onNavigate={go} /></ErrorBoundary>} />
         <Route path="/admin/inbox" element={
           <ErrorBoundary inline>
-            <Inbox currentUserId={session?.id} currentUserName={session?.name} currentUserRole={session?.role} onNavigate={go} />
+            <Inbox 
+              currentUserId={session?.id} 
+              currentUserName={session?.name} 
+              currentUserRole={session?.role === 'staff' ? 'admin' : session?.role} 
+              onNavigate={go} 
+            />
           </ErrorBoundary>
         } />
       </Route>

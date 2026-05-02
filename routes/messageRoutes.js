@@ -205,8 +205,8 @@ router.get('/conversations/:userId', async (req, res) => {
       { $match: { $or: [
         { senderId: userId },
         { receiverId: userId },
-        // Fallback cho legacy Admin messages
-        ...(req.user.role === 'admin' ? [{ senderId: 'admin' }, { receiverId: 'admin' }] : [])
+        // Fallback cho legacy Admin messages (cho cả SuperAdmin và Staff)
+        ...(['admin', 'staff'].includes(req.user.role) ? [{ senderId: 'admin' }, { receiverId: 'admin' }] : [])
       ]}},
       { $sort: { createdAt: -1 }},
       { $group: {
@@ -262,7 +262,7 @@ router.get('/search/:userId', async (req, res) => {
       $or: [
         { senderId: userId }, 
         { receiverId: userId },
-        ...(req.user.role === 'admin' ? [{ senderId: 'admin' }, { receiverId: 'admin' }] : [])
+        ...(['admin', 'staff'].includes(req.user.role) ? [{ senderId: 'admin' }, { receiverId: 'admin' }] : [])
       ],
       content: { $regex: q, $options: 'i' }
     }).sort({ createdAt: -1 }).limit(50);
@@ -313,7 +313,7 @@ router.get('/sync/:userId', async (req, res) => {
       $or: [
         { senderId: userId },
         { receiverId: userId },
-        ...(req.user.role === 'admin' ? [{ senderId: 'admin' }, { receiverId: 'admin' }] : []),
+        ...(['admin', 'staff'].includes(req.user.role) ? [{ senderId: 'admin' }, { receiverId: 'admin' }] : []),
         // Tin nhắn nhóm: conversationId bắt đầu bằng "group_" và thuộc nhóm của user
         ...(groupIds.length > 0 ? [{ conversationId: { $in: groupIds.map(id => `group_${id}`) } }] : [])
       ],
@@ -359,7 +359,8 @@ router.post('/', async (req, res) => {
   try {
     // Luôn dùng ID và Role từ token để ngăn chặn giả mạo (impersonation)
     const senderId = req.user.id;
-    const senderRole = req.user.role;
+    // Thống nhất role admin cho cả SUPER_ADMIN và STAFF trong hệ thống Chat
+    const senderRole = (req.user.role === 'staff') ? 'admin' : req.user.role;
     const senderName = req.user.name;
 
     const { receiverId, receiverName, receiverRole, content, isGroup, groupId, messageType, fileUrl, fileName } = req.body;
@@ -368,17 +369,56 @@ router.post('/', async (req, res) => {
     if (isGroup && groupId) {
       conversationId = `group_${groupId}`;
     } else {
+      // CHẾ ĐỘ RIÊNG TƯ TUYỆT ĐỐI: Luôn dùng ID thật của từng người
+      const sRoleForConv = (senderRole === 'admin' || senderRole === 'staff') ? 'admin' : senderRole;
+      const rRoleForConv = (receiverRole === 'admin' || receiverRole === 'staff') ? 'admin' : receiverRole;
+
       conversationId = [
-        `${senderRole}_${senderId}`,
-        `${receiverRole}_${receiverId}`,
+        `${sRoleForConv}_${senderId}`,
+        `${rRoleForConv}_${receiverId}`,
       ].sort().join('__');
+    }
+
+    // Tìm branchCode của cả 2 bên để lưu vào Message (Cần check ID hợp lệ tránh lỗi findById('admin'))
+    const Teacher = require('../models/Teacher');
+    const Student = require('../models/Student');
+    const mongoose = require('mongoose');
+    
+    let sBranch = '';
+    if (senderId === 'admin') {
+      sBranch = 'HỆ THỐNG';
+    } else if (mongoose.Types.ObjectId.isValid(senderId)) {
+      if (senderRole === 'teacher' || senderRole === 'admin' || senderRole === 'staff') {
+        const t = await Teacher.findById(senderId).select('branchCode').lean();
+        sBranch = t?.branchCode || '';
+      } else if (senderRole === 'student') {
+        const s = await Student.findById(senderId).select('branchCode').lean();
+        sBranch = s?.branchCode || '';
+      }
+    }
+
+    let rBranch = '';
+    if (!isGroup) {
+      if (receiverId === 'admin') {
+        rBranch = 'HỆ THỐNG';
+      } else if (mongoose.Types.ObjectId.isValid(receiverId)) {
+        if (receiverRole === 'teacher' || receiverRole === 'admin' || receiverRole === 'staff') {
+          const t = await Teacher.findById(receiverId).select('branchCode').lean();
+          rBranch = t?.branchCode || '';
+        } else if (receiverRole === 'student') {
+          const s = await Student.findById(receiverId).select('branchCode').lean();
+          rBranch = s?.branchCode || '';
+        }
+      }
     }
 
     const message = await Message.create({
       conversationId, senderId, senderName, senderRole,
+      senderBranchCode: sBranch,
       receiverId: isGroup ? groupId : receiverId, 
       receiverName: isGroup ? 'Group' : receiverName, 
       receiverRole: isGroup ? 'admin' : receiverRole, // Dummy for groups
+      receiverBranchCode: rBranch,
       content,
       messageType: messageType || 'text',
       fileUrl: fileUrl || '',
@@ -666,4 +706,106 @@ router.get('/unread/:userId', async (req, res) => {
   }
 });
 
+
+// ══ POST /api/chat/broadcast  ──  Gửi tin nhắn hàng loạt ══
+router.post('/broadcast', async (req, res) => {
+  try {
+    const { role: userRole, id: userId, adminRole, name: userName } = req.user;
+    const { targetRole, content, messageType = 'text', fileUrl, fileName } = req.body;
+
+    // Chỉ Admin hoặc STAFF mới được gửi broadcast
+    if (userRole !== 'admin' && userRole !== 'staff') {
+      return res.status(403).json({ success: false, message: 'Không có quyền thực hiện' });
+    }
+
+    if (!['student', 'teacher', 'admin'].includes(targetRole)) {
+      return res.status(400).json({ success: false, message: 'Đối tượng nhận không hợp lệ' });
+    }
+
+    if (!content && messageType === 'text') {
+      return res.status(400).json({ success: false, message: 'Nội dung không được trống' });
+    }
+
+    // Lấy branchId của người gửi (nếu là STAFF thì chỉ gửi trong branch đó)
+    const senderDoc = await Teacher.findById(userId).select('branchId').lean();
+    const branchFilter = (adminRole === 'STAFF' && senderDoc?.branchId) 
+      ? { branchId: senderDoc.branchId } 
+      : {};
+
+    let targets = [];
+    if (targetRole === 'student') {
+      targets = await Student.find(branchFilter, '_id name phone').lean();
+    } else if (targetRole === 'teacher') {
+      targets = await Teacher.find({ role: 'teacher', status: 'active', ...branchFilter }, '_id name phone').lean();
+    } else if (targetRole === 'admin') {
+      // Gửi cho toàn bộ Admin/Staff
+      targets = await Teacher.find({ role: { $in: ['admin', 'staff'] }, ...branchFilter }, '_id name phone adminRole').lean();
+    }
+
+    const io = req.app.get('io');
+    const results = [];
+
+    // Tạo tin nhắn cho từng người nhận
+    for (const target of targets) {
+      // Không tự gửi cho chính mình
+      if (target._id.toString() === userId) continue;
+
+      const receiverId = target._id.toString();
+      const receiverName = target.name;
+      const receiverRole = (targetRole === 'admin') 
+        ? (target.adminRole === 'STAFF' ? 'staff' : 'admin') 
+        : targetRole;
+
+      // CHẾ ĐỘ RIÊNG TƯ TUYỆT ĐỐI: Luôn dùng ID thật của từng người
+      const sRoleForConv = 'admin';
+      const rRoleForConv = (receiverRole === 'admin' || receiverRole === 'staff') ? 'admin' : receiverRole;
+
+      const conversationId = [
+        `${sRoleForConv}_${userId}`,
+        `${rRoleForConv}_${receiverId}`,
+      ].sort().join('__');
+
+      const newMsg = new Message({
+        conversationId,
+        senderId: userId,
+        senderName: userName,
+        senderRole: userRole,
+        receiverId,
+        receiverName,
+        receiverRole,
+        content,
+        messageType,
+        fileUrl,
+        fileName,
+      });
+
+      await newMsg.save();
+      results.push(newMsg);
+
+      // Emit socket real-time
+      if (io) {
+        const msgPayload = {
+          ...newMsg.toObject(),
+          _id: newMsg._id,
+        };
+        // 1. Gửi trực tiếp cho người nhận qua room cá nhân
+        io.to(receiverId).emit('message:receive', msgPayload);
+        // 2. Đồng bộ cho Team Admin
+        io.to('ADMIN_TEAM').emit('message:receive', msgPayload);
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      message: `Đã gửi tin nhắn tới ${results.length} người dùng.`,
+      count: results.length 
+    });
+
+  } catch (err) {
+    console.error('[BROADCAST] Error:', err);
+    res.status(500).json({ success: false, message: 'Lỗi hệ thống khi gửi broadcast' });
+  }
+});
+
 module.exports = router;
+

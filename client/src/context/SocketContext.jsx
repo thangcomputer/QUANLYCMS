@@ -21,6 +21,7 @@ export const SocketProvider = ({ userId, role, name, children }) => {
   const groupNewCallbackRef = useRef(null);
   const dataRefreshCallbackRef = useRef(null);
   const contactListUpdatedCallbackRef = useRef(null); // CONTACT_LIST_UPDATED
+  const readAckCallbackRef = useRef(new Set());
 
   // Đăng ký callback nhận tin nhắn real-time
   const onMessageReceive = useCallback((callback) => {
@@ -54,6 +55,11 @@ export const SocketProvider = ({ userId, role, name, children }) => {
   const onContactListUpdated = useCallback((callback) => {
     contactListUpdatedCallbackRef.current = callback;
     return () => { contactListUpdatedCallbackRef.current = null; };
+  }, []);
+
+  const onReadAck = useCallback((callback) => {
+    readAckCallbackRef.current.add(callback);
+    return () => readAckCallbackRef.current.delete(callback);
   }, []);
 
   useEffect(() => {
@@ -106,7 +112,16 @@ export const SocketProvider = ({ userId, role, name, children }) => {
 
     // Nhận tin nhắn real-time từ người khác
     newSocket.on('message:receive', (data) => {
-      playMessageSound();
+      // Logic âm thanh: 
+      // 1. Nếu mình là Admin/Staff và tin nhắn đến cũng từ Admin/Staff (tin đồng bộ) -> KHÔNG kêu.
+      // 2. Các trường hợp khác (HV nhắn cho Admin, Admin nhắn cho HV) -> CÓ kêu.
+      const isFromAdmin = ['admin', 'staff'].includes(data.senderRole?.toLowerCase());
+      const amIAdmin = ['admin', 'staff'].includes(role?.toLowerCase());
+
+      if (!(amIAdmin && isFromAdmin)) {
+        playMessageSound();
+      }
+      
       messageCallbacksRef.current.forEach(cb => cb(data));
     });
 
@@ -118,6 +133,10 @@ export const SocketProvider = ({ userId, role, name, children }) => {
     // Nhận sự kiện thu hồi tin nhắn
     newSocket.on('message:recall', (data) => {
       recallCallbacksRef.current.forEach(cb => cb(data));
+    });
+
+    newSocket.on('message:read_ack', (data) => {
+      readAckCallbackRef.current.forEach(cb => cb(data));
     });
 
     // Nhận sự kiện nhóm mới
@@ -251,6 +270,7 @@ export const SocketProvider = ({ userId, role, name, children }) => {
     onGroupNew,
     onDataRefresh,
     onContactListUpdated,
+    onReadAck,
     joinGroupChat,
   };
 

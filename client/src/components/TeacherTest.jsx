@@ -104,6 +104,21 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
 
   const currentTeacher = pool?.find(t => String(t.id) === String(teacherId));
 
+  const handleViolate = useCallback((reason) => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    localStorage.removeItem('teacher_test_phase');
+    localStorage.removeItem('teacher_test_tabs');
+    setBanReason(reason);
+    setPhase('banned');
+    if (teacherId) {
+      updateTeacher(teacherId, { 
+        status: 'Locked', 
+        testScore: 0,
+        lockReason: reason 
+      });
+    }
+  }, [teacherId, updateTeacher]);
+
   // Tự động khôi phục phase nếu đã có kết quả trong DB
   useEffect(() => {
     if (phase === 'test') return; // Đang thi thì không ghi đè
@@ -133,21 +148,6 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
         }, 1000);
     }
   }, [handleViolate]);
-
-  const handleViolate = useCallback((reason) => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    localStorage.removeItem('teacher_test_phase');
-    localStorage.removeItem('teacher_test_tabs');
-    setBanReason(reason);
-    setPhase('banned');
-    if (teacherId) {
-      updateTeacher(teacherId, { 
-        status: 'Locked', 
-        testScore: 0,
-        lockReason: reason 
-      });
-    }
-  }, [teacherId, updateTeacher]);
 
   const triggerAlert = (type, message, count) => {
      const now = Date.now();

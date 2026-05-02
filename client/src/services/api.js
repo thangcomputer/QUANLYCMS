@@ -426,11 +426,20 @@ export const messagesAPI = {
     const res = await apiFetch(`/messages/groups/${groupId}`, { method: 'DELETE' });
     return res.json();
   },
+
   markRead: async (conversationId) => {
     const res = await apiFetch(`/messages/read/${conversationId}`, { method: 'PUT' });
     return res.json();
+  },
+  broadcast: async (targetRole, content, extra = {}) => {
+    const res = await apiFetch('/messages/broadcast', {
+      method: 'POST',
+      body: JSON.stringify({ targetRole, content, ...extra })
+    });
+    return res.json();
   }
 };
+
 
 // ─── SCHEDULE API ───────────────────────────────────────────────────────────
 export const schedulesAPI = {

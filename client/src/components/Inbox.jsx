@@ -8,7 +8,8 @@ import { useSocket } from '../context/SocketContext';
 import { useData } from '../context/DataContext';
 import { useLocation } from 'react-router-dom';
 import { useToast } from '../utils/toast';
-import { messagesAPI, SOCKET_BASE } from '../services/api';
+import { messagesAPI, SOCKET_BASE, apiFetch } from '../services/api';
+import { Megaphone, Loader2 } from 'lucide-react';
 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -187,6 +188,11 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
   const [isUploading, setIsUploading] = useState(false);
   // Trạng thái recall đang xử lý
   const [recallingId, setRecallingId] = useState(null);
+
+  // Broadcast states
+  const [broadcastConfig, setBroadcastConfig] = useState(null); // { targetRole: 'student', label: 'Học viên' }
+  const [broadcastContent, setBroadcastContent] = useState('');
+  const [isBroadcasting, setIsBroadcasting] = useState(false);
 
   const EMOJIS = ['😊', '👍', '❤️', '👏', '🔥', '✅', '🆘', '📚', '💻', '💡'];
 
@@ -551,6 +557,11 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
                     <div className="flex justify-between items-baseline mb-0.5">
                       <div className="flex items-center gap-1 min-w-0 pr-2">
                         <h4 className="font-extrabold text-[#1E293B] text-[13px] truncate">{conv.user.name}</h4>
+                        {conv.user.branchCode && (
+                          <span className="bg-emerald-100 text-emerald-700 text-[9px] font-black px-1.5 py-0.5 rounded-sm uppercase tracking-tighter shrink-0">
+                            {conv.user.branchCode}
+                          </span>
+                        )}
                         {conv.user.phone && (
                           <a 
                             href={`https://zalo.me/${conv.user.phone.replace(/\s+/g, '')}`} 
@@ -616,11 +627,36 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
                 <p className="text-slate-500 font-bold max-w-sm mx-auto text-[14px] leading-relaxed">
                   Chọn một cuộc trò chuyện từ danh sách bên trái để bắt đầu thảo luận hoặc gửi tài liệu.
                 </p>
-                <div className="mt-8 flex gap-3 justify-center">
-                   <span className="px-3 py-1.5 bg-white rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest border border-slate-100 shadow-sm">Kênh Admin</span>
-                   <span className="px-3 py-1.5 bg-white rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest border border-slate-100 shadow-sm">Giảng viên</span>
-                   <span className="px-3 py-1.5 bg-white rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest border border-slate-100 shadow-sm">Học viên</span>
-                </div>
+                 <div className="mt-8 flex flex-wrap gap-3 justify-center">
+                    {['admin', 'staff'].includes(currentUserRole) ? (
+                      <>
+                         <button 
+                           onClick={() => setBroadcastConfig({ targetRole: 'admin', label: 'Kênh Admin' })}
+                           className="px-4 py-2 bg-white hover:bg-slate-50 rounded-2xl text-[10px] font-black text-slate-600 uppercase tracking-widest border border-slate-100 shadow-sm transition-all active:scale-95"
+                         >
+                           📢 Gửi toàn bộ Admin
+                         </button>
+                         <button 
+                           onClick={() => setBroadcastConfig({ targetRole: 'teacher', label: 'Giảng viên' })}
+                           className="px-4 py-2 bg-white hover:bg-slate-50 rounded-2xl text-[10px] font-black text-slate-600 uppercase tracking-widest border border-slate-100 shadow-sm transition-all active:scale-95"
+                         >
+                           📢 Gửi toàn bộ Giảng viên
+                         </button>
+                         <button 
+                           onClick={() => setBroadcastConfig({ targetRole: 'student', label: 'Học viên' })}
+                           className="px-4 py-2 bg-white hover:bg-slate-50 rounded-2xl text-[10px] font-black text-slate-600 uppercase tracking-widest border border-slate-100 shadow-sm transition-all active:scale-95"
+                         >
+                           📢 Gửi toàn bộ Học viên
+                         </button>
+                      </>
+                    ) : (
+                      <>
+                         <span className="px-3 py-1.5 bg-white rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest border border-slate-100 shadow-sm">Kênh Admin</span>
+                         <span className="px-3 py-1.5 bg-white rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest border border-slate-100 shadow-sm">Giảng viên</span>
+                         <span className="px-3 py-1.5 bg-white rounded-xl text-[10px] font-black text-slate-400 uppercase tracking-widest border border-slate-100 shadow-sm">Học viên</span>
+                      </>
+                    )}
+                 </div>
               </div>
             </div>
           ) : (
@@ -648,6 +684,11 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="font-bold text-gray-800 text-xs md:text-sm">{activeConv.user.name}</p>
+                      {activeConv.user.branchCode && (
+                        <span className="bg-emerald-100 text-emerald-700 text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-widest shadow-sm">
+                          Cơ sở: {activeConv.user.branchCode}
+                        </span>
+                      )}
                       {activeConv.user.phone && (
                         <a 
                           href={`https://zalo.me/${activeConv.user.phone.replace(/\s+/g, '')}`} 
@@ -1040,6 +1081,85 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
                 >
                   Xóa Vĩnh Viễn
                 </button>
+              </div>
+           </div>
+        </div>
+      )}
+      {/* ── Broadcast Message Modal ── */}
+      {broadcastConfig && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+           <div className="bg-white w-full max-w-lg rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in slide-in-from-bottom-8 duration-500">
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-700 px-8 py-6 flex items-center justify-between">
+                <div>
+                  <h3 className="text-white font-black text-lg flex items-center gap-2">
+                    <Megaphone size={20} /> Gửi tin nhắn hàng loạt
+                  </h3>
+                  <p className="text-blue-100 text-[11px] font-bold uppercase tracking-widest opacity-80 mt-1">
+                    Đối tượng: <span className="text-white bg-white/20 px-2 py-0.5 rounded-lg ml-1">{broadcastConfig.label}</span>
+                  </p>
+                </div>
+                <button onClick={() => setBroadcastConfig(null)} className="w-10 h-10 rounded-2xl bg-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-all"><X size={20}/></button>
+              </div>
+
+              <div className="p-8">
+                <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 mb-6 flex gap-3 items-start">
+                  <AlertCircle size={20} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-[13px] text-amber-700 font-bold leading-relaxed">
+                    Tin nhắn này sẽ được gửi <span className="underline decoration-2">riêng biệt</span> tới từng người dùng thuộc nhóm <span className="text-amber-800 font-black">{broadcastConfig.label}</span>. 
+                    {currentUserRole === 'staff' && ' Bạn chỉ có thể gửi cho người dùng thuộc cùng chi nhánh.'}
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Nội dung thông báo</label>
+                    <textarea
+                      value={broadcastContent}
+                      onChange={(e) => setBroadcastContent(e.target.value)}
+                      placeholder="Nhập nội dung tin nhắn gửi đi..."
+                      className="w-full bg-slate-50 border-2 border-slate-100 rounded-[24px] px-6 py-5 text-[15px] font-medium outline-none focus:border-blue-500 focus:bg-white transition-all h-40 resize-none shadow-inner"
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="flex gap-4 pt-2">
+                    <button
+                      onClick={() => setBroadcastConfig(null)}
+                      disabled={isBroadcasting}
+                      className="flex-1 py-4 px-6 bg-slate-100 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all disabled:opacity-50"
+                    >
+                      Hủy bỏ
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (!broadcastContent.trim()) return toast.error('Vui lòng nhập nội dung');
+                        setIsBroadcasting(true);
+                        try {
+                          const res = await messagesAPI.broadcast(broadcastConfig.targetRole, broadcastContent);
+                          if (res.success) {
+                             toast.success(res.message || 'Đã gửi tin nhắn thành công');
+                             setBroadcastConfig(null);
+                             setBroadcastContent('');
+                          } else {
+                             toast.error(res.message || 'Lỗi khi gửi tin nhắn');
+                          }
+                        } catch (err) {
+                           toast.error('Lỗi kết nối máy chủ');
+                        } finally {
+                           setIsBroadcasting(false);
+                        }
+                      }}
+                      disabled={isBroadcasting || !broadcastContent.trim()}
+                      className="flex-[2] py-4 px-6 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:shadow-xl hover:shadow-blue-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95"
+                    >
+                      {isBroadcasting ? (
+                        <><Loader2 size={16} className="animate-spin" /> Đang gửi...</>
+                      ) : (
+                        <><Send size={16} /> Gửi ngay bây giờ</>
+                      )}
+                    </button>
+                  </div>
+                </div>
               </div>
            </div>
         </div>

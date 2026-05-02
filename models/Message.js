@@ -23,6 +23,10 @@ const messageSchema = new mongoose.Schema({
     enum: ['admin', 'teacher', 'student', 'staff'],
     required: true,
   },
+  senderBranchCode: {
+    type: String,
+    default: '',
+  },
 
   // Người nhận
   receiverId: {
@@ -37,6 +41,10 @@ const messageSchema = new mongoose.Schema({
     type: String,
     enum: ['admin', 'teacher', 'student', 'staff'],
     required: true,
+  },
+  receiverBranchCode: {
+    type: String,
+    default: '',
   },
 
   // Nội dung

@@ -89,7 +89,9 @@ io.on('connection', (socket) => {
     socket.join('GLOBAL');          // Global room
     
     if (role) {
-      socket.join(`ALL_${role.toUpperCase()}`); // e.g., ALL_ADMIN, ALL_TEACHER
+      const uRole = role.toLowerCase();
+      socket.join(`ALL_${role.toUpperCase()}`); 
+      
       if (branchId) {
         socket.join(`ALL_${role.toUpperCase()}_${branchId}`); 
       }
@@ -104,28 +106,42 @@ io.on('connection', (socket) => {
   // ── Nhắn tin 1-1 ──
   socket.on('message:send', (data) => {
     // data = { senderId, senderName, senderRole, receiverId, receiverRole, content }
-    const receiverKey = `${data.receiverRole}_${data.receiverId}`;
-    const receiver = onlineUsers.get(receiverKey);
+    // Tìm người nhận (Hỗ trợ linh hoạt cả prefix admin_ và staff_)
+    let receiver = onlineUsers.get(`${data.receiverRole}_${data.receiverId}`);
+    if (!receiver && (data.receiverRole === 'admin' || data.receiverRole === 'staff')) {
+      const altRole = data.receiverRole === 'admin' ? 'staff' : 'admin';
+      receiver = onlineUsers.get(`${altRole}_${data.receiverId}`);
+    }
 
-    // Tính conversationId theo cùng logic sort như client DataContext
-    const convId = data.isGroup && data.groupId
-      ? `group_${data.groupId}`
-      : [`${data.senderRole}_${data.senderId}`, `${data.receiverRole}_${data.receiverId}`].sort().join('__');
+    // Xác định ID hội thoại (admin/staff đều dùng 'admin' để chung 1 thread)
+    const sRole = (data.senderRole === 'admin' || data.senderRole === 'staff') ? 'admin' : data.senderRole;
+    const rRole = (data.receiverRole === 'admin' || data.receiverRole === 'staff') ? 'admin' : data.receiverRole;
+    const convId = [`${sRole}_${data.senderId}`, `${rRole}_${data.receiverId}`].sort().join('__');
+
+    // Lấy branchCode người gửi để hiển thị badge (GV/HV/Staff)
+    let sender = onlineUsers.get(`${data.senderRole}_${data.senderId}`);
+    if (!sender && (data.senderRole === 'admin' || data.senderRole === 'staff')) {
+      const altRole = data.senderRole === 'admin' ? 'staff' : 'admin';
+      sender = onlineUsers.get(`${altRole}_${data.senderId}`);
+    }
+    const sBranch = sender?.branchCode || '';
+    const rBranch = receiver?.branchCode || '';
 
     const msgPayload = {
       ...data,
-      _id: `msg_${Date.now()}`,
-      conversationId: convId,    // ⭑ Quan trọng: để Inbox match đúng conversation
+      _id: data._id || `msg_${Date.now()}`,
+      conversationId: convId,
+      senderBranchCode: sBranch,
+      receiverBranchCode: rBranch,
       createdAt: new Date().toISOString(),
       isRead: false,
     };
 
-    // Gửi cho người nhận nếu online
-    if (receiver) {
+    // 1. Gửi cho người nhận nếu online
+    if (receiver && receiver.socketId) {
       io.to(receiver.socketId).emit('message:receive', msgPayload);
     }
-
-    // Gửi lại cho người gửi (confirm)
+    // 2. Gửi confirm ngược lại cho chính người gửi (để đồng bộ nhiều thiết bị)
     socket.emit('message:sent', msgPayload);
   });
 
@@ -230,13 +246,22 @@ io.on('connection', (socket) => {
 
 // ── Hàm gửi notification real-time ──
 app.notifyUser = (role, userId, eventName, data) => {
-  const key = `${role}_${userId}`;
-  const user = onlineUsers.get(key);
+  let key = `${role}_${userId}`;
+  let user = onlineUsers.get(key);
+  
+  if (!user && (role === 'admin' || role === 'staff')) {
+    const altRole = role === 'admin' ? 'staff' : 'admin';
+    user = onlineUsers.get(`${altRole}_${userId}`);
+  }
+  
   if (user) {
     io.to(user.socketId).emit(eventName, data);
     return true;
   }
-  return false;
+  
+  // Fallback: Nếu không tìm thấy role_id, thử join room theo userId
+  io.to(userId).emit(eventName, data);
+  return true;
 };
 
 // ── Broadcast cho tất cả user có role nhất định ──

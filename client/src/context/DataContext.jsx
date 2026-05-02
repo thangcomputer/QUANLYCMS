@@ -70,6 +70,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
   const [messages, setMessages] = useState(() => loadState('thvp_messages', INITIAL_MESSAGES));
   const [materials, setMaterials] = useState(() => loadState('thvp_materials', INITIAL_MATERIALS));
   const [groups, setGroups] = useState(() => loadState('thvp_groups', []));
+  const [staffs, setStaffs] = useState(() => loadState('thvp_staffs', []));
   const [privateEvaluations, setPrivateEvaluations] = useState(() => loadState('thvp_privateEvaluations', INITIAL_PRIVATE_EVALUATIONS));
 
   // ── KẾT QUẢ THI (Admin quản lý, chấm điởm HV & GV) ─────────────────────────
@@ -88,7 +89,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
 
   // ── SOCKET LISTENERS (Global Data Sync) ───────────────────────────────────
   const { 
-    onGroupNew, onRecallReceive, onReactionReceive, onDataRefresh, onMessageReceive,
+    onGroupNew, onRecallReceive, onReactionReceive, onDataRefresh, onMessageReceive, onReadAck,
     notifications: socketNotifications, setNotifications: setSocketNotifications,
     socket,
   } = useSocket();
@@ -182,11 +183,21 @@ export const DataProvider = ({ children, user, onLogout }) => {
       });
     }
 
+    let unsubRead;
+    if (onReadAck) {
+      unsubRead = onReadAck((data) => {
+        setMessages(prev => prev.map(m => 
+          m.convId === data.conversationId ? { ...m, read: true } : m
+        ));
+      });
+    }
+
     return () => {
       if (unsubGroup) unsubGroup();
       if (unsubRecall) unsubRecall();
       if (unsubReaction) unsubReaction();
       if (unsubMsg) unsubMsg();
+      if (unsubRead) unsubRead();
     };
   }, [onGroupNew, onRecallReceive, onMessageReceive, onReactionReceive]);
 
@@ -201,6 +212,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
   useEffect(() => { localStorage.setItem('thvp_messages', JSON.stringify(messages)); }, [messages]);
   useEffect(() => { localStorage.setItem('thvp_materials', JSON.stringify(materials)); }, [materials]);
   useEffect(() => { localStorage.setItem('thvp_groups', JSON.stringify(groups)); }, [groups]);
+  useEffect(() => { localStorage.setItem('thvp_staffs', JSON.stringify(staffs)); }, [staffs]);
   useEffect(() => { localStorage.setItem('thvp_privateEvaluations', JSON.stringify(privateEvaluations)); }, [privateEvaluations]);
   useEffect(() => { localStorage.setItem('thvp_trainingData', JSON.stringify(trainingData)); }, [trainingData]);
   useEffect(() => { localStorage.setItem('thvp_studentTrainingData', JSON.stringify(studentTrainingData)); }, [studentTrainingData]);
@@ -261,6 +273,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
 
       if (isAdmin) {
         promises.push(api.teachers.getAll().catch(() => ({ success: false })));
+        promises.push(api.staff.getAll().catch(() => ({ success: false })));
         promises.push(api.transactions.getAll().catch(() => ({ success: false })));
         promises.push(api.examResults.getAll().catch(() => ({ success: false })));
         promises.push(api.evaluations.getPrivate().catch(() => ({ success: false })));
@@ -309,6 +322,8 @@ export const DataProvider = ({ children, user, onLogout }) => {
       if (isAdmin) {
         const teachersRes = results[idx++];
         if (teachersRes?.success) setTeachers(teachersRes.data.map(t => ({ ...t, id: t._id })));
+        const staffRes = results[idx++];
+        if (staffRes?.success) setStaffs(staffRes.data.map(st => ({ ...st, id: st._id })));
         const transactionsRes = results[idx++];
         if (transactionsRes?.success) setTransactions(transactionsRes.data.map(tx => ({ ...tx, id: tx._id })));
         const examResultsRes = results[idx++];
@@ -400,7 +415,10 @@ export const DataProvider = ({ children, user, onLogout }) => {
   // ── NOTIFICATIONS ──────────────────────────────────────────────────────────
 
   const addNotification = useCallback((userId, role, text, type = 'system', path = null) => {
-    playNotifySound();
+    // Chỉ phát âm thanh nếu mình là người nhận
+    if (String(userId) === String(currentUser?.id || currentUser?._id)) {
+      playNotifySound();
+    }
     setSocketNotifications(prev => [{
       id: Date.now(), userId, role, message: text, // Map to bell's expected 'message' key
       time: new Date().toISOString(), read: false, type, path,
@@ -1002,7 +1020,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
     const tempId = `temp_${Date.now()}`;
     const convId = msg.isGroup && msg.groupId
       ? `group_${msg.groupId}`
-      : [`${msg.senderRole}_${msg.senderId}`, `${msg.receiverRole}_${msg.receiverId}`].sort().join('__');
+      : makeConvId(msg.senderRole, msg.senderId, msg.receiverRole, msg.receiverId);
     const newMsg = {
       id: tempId,
       convId,
@@ -1181,29 +1199,74 @@ export const DataProvider = ({ children, user, onLogout }) => {
 
   // Helper: Tạo conversationId chuẩn (role_id format, sorted)
   const makeConvId = (role1, id1, role2, id2) => {
-    return [`${role1}_${id1}`, `${role2}_${id2}`].sort().join('__');
+    // CHẾ ĐỘ RIÊNG TƯ TUYỆT ĐỐI: Luôn dùng ID thật của từng người
+    // Quy đổi role 'staff' về 'admin' để thống nhất prefix nhưng giữ nguyên ID
+    const r1 = (role1 === 'admin' || role1 === 'staff') ? 'admin' : role1;
+    const r2 = (role2 === 'admin' || role2 === 'staff') ? 'admin' : role2;
+    return [`${r1}_${id1}`, `${r2}_${id2}`].sort().join('__');
   };
 
   const getConversations = useCallback((userId) => {
     const sId = String(userId);
-    const userRole = (sId === 'admin') ? 'admin' : (students.find(s => String(s.id) === sId) ? 'student' : 'teacher');
+    // Role detection: Nếu là 'admin' (ID hardcoded) hoặc là một Teacher có adminRole (STAFF/SUPER_ADMIN)
+    const dbUser = (sId === 'admin') ? { role: 'admin' } : teachers.find(t => String(t.id) === sId);
+    const userRole = (sId === 'admin' || (dbUser && dbUser.adminRole)) ? 'admin' : (students.find(s => String(s.id) === sId) ? 'student' : 'teacher');
 
-    // Filter messages where user is sender or receiver
-    const userMsgs = messages.filter(m => String(m.senderId) === sId || String(m.receiverId) === sId);
+    // Filter messages where user is sender or receiver (including legacy 'admin' ID for admin/staff)
+    const userMsgs = messages.filter(m => {
+      const isDirect = String(m.senderId) === sId || String(m.receiverId) === sId;
+      const isAdminFallback = (userRole === 'admin') && (String(m.senderId) === 'admin' || String(m.receiverId) === 'admin');
+      return isDirect || isAdminFallback;
+    });
     const convMap = {};
 
     // 1. Add existing conversations from messages
     userMsgs.forEach(m => {
-      if (!convMap[m.convId] || m.time > convMap[m.convId].lastTime) {
-        const otherUserId = String(m.senderId) === sId ? m.receiverId : m.senderId;
-        const otherName = String(m.senderId) === sId ? m.receiverName : m.senderName;
-        const otherRole = String(m.senderId) === sId ? m.receiverRole : m.senderRole;
+      const mTime = new Date(m.time).getTime();
+      const existing = convMap[m.convId];
+      const existingTime = existing ? new Date(existing.lastTime).getTime() : 0;
+
+      if (!existing || mTime > existingTime) {
+        // Xác định xem mình có phải là người gửi không (bao gồm cả fallback 'admin')
+        const isMeSender = String(m.senderId) === sId || (userRole === 'admin' && String(m.senderId) === 'admin');
+
+        const otherUserId = isMeSender ? m.receiverId : m.senderId;
+        const otherName = isMeSender ? m.receiverName : m.senderName;
+        const otherRole = isMeSender ? m.receiverRole : m.senderRole;
+        
+        // Ưu tiên lấy branchCode trực tiếp từ tin nhắn (nếu có), nếu không mới tìm trong list local
+        let branchCode = isMeSender ? m.receiverBranchCode : m.senderBranchCode;
+
+        if (!branchCode) {
+          if (otherRole === 'teacher') {
+            const t = teachers.find(t => String(t.id) === String(otherUserId));
+            branchCode = t?.branchCode || '';
+          } else if (otherRole === 'student') {
+            const s = students.find(s => String(s.id) === String(otherUserId));
+            branchCode = s?.branchCode || '';
+          } else if (otherRole === 'admin' || otherRole === 'staff') {
+            const st = staffs.find(st => String(st.id) === String(otherUserId) || String(st._id) === String(otherUserId));
+            branchCode = st?.branchCode || '';
+          }
+        }
+
         convMap[m.convId] = {
           id: m.convId,
-          user: { id: otherUserId, name: otherName, role: otherRole, avatar: String(otherName || 'U').substring(0, 2).toUpperCase(), online: true },
+          user: { 
+            id: otherUserId, 
+            name: otherName, 
+            role: otherRole, 
+            avatar: String(otherName || 'U').substring(0, 2).toUpperCase(), 
+            online: true,
+            branchCode: branchCode
+          },
           lastMessage: m.content,
           lastTime: m.time,
-          unread: userMsgs.filter(um => um.convId === m.convId && String(um.receiverId) === sId && !um.read).length,
+          unread: userMsgs.filter(um => 
+            um.convId === m.convId && 
+            (String(um.receiverId) === sId || (userRole === 'admin' && String(um.receiverId) === 'admin')) && 
+            !um.read
+          ).length,
         };
       }
     });
@@ -1217,19 +1280,19 @@ export const DataProvider = ({ children, user, onLogout }) => {
         if (t && !convMap[convId]) {
           convMap[convId] = {
             id: convId,
-            user: { id: t.id, name: t.name, role: 'teacher', avatar: String(t.name || 'GV').substring(0, 2).toUpperCase(), online: true },
+            user: { id: t.id, name: t.name, role: 'teacher', avatar: String(t.name || 'GV').substring(0, 2).toUpperCase(), online: true, branchCode: t.branchCode || '' },
             lastMessage: 'Chưa có tin nhắn',
             lastTime: new Date(0),
             unread: 0,
           };
         }
       }
-      // Thêm Admin vào danh bạ của Học viên
+      // Thêm Admin vào danh bạ của Học viên (Dùng ID 'admin' cho Super Admin)
       const adminConvId = makeConvId('student', sId, 'admin', 'admin');
       if (!convMap[adminConvId]) {
         convMap[adminConvId] = {
           id: adminConvId,
-          user: { id: 'admin', name: 'Admin Thắng Tin Học', role: 'admin', avatar: 'AD', online: true },
+          user: { id: 'admin', name: 'Admin Thắng Tin Học', role: 'admin', avatar: 'AD', online: true, branchCode: '' },
           lastMessage: 'Chưa có tin nhắn',
           lastTime: new Date(0),
           unread: 0,
@@ -1242,7 +1305,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
         if (!convMap[convId]) {
           convMap[convId] = {
             id: convId,
-            user: { id: s.id, name: s.name, role: 'student', avatar: String(s.name || 'HV').substring(0, 2).toUpperCase(), online: true },
+            user: { id: s.id, name: s.name, role: 'student', avatar: String(s.name || 'HV').substring(0, 2).toUpperCase(), online: true, branchCode: s.branchCode || '' },
             lastMessage: 'Chưa có tin nhắn',
             lastTime: new Date(0),
             unread: 0,
@@ -1250,25 +1313,25 @@ export const DataProvider = ({ children, user, onLogout }) => {
         }
       });
 
-      // Admin contact
+      // Admin contact (Dùng ID 'admin' cho Super Admin)
       const adminConvId = makeConvId('admin', 'admin', 'teacher', sId);
       if (!convMap[adminConvId]) {
         convMap[adminConvId] = {
           id: adminConvId,
-          user: { id: 'admin', name: 'Admin Thắng Tin Học', role: 'admin', avatar: 'AD', online: true },
+          user: { id: 'admin', name: 'Admin Thắng Tin Học', role: 'admin', avatar: 'AD', online: true, branchCode: '' },
           lastMessage: 'Chưa có tin nhắn',
           lastTime: new Date(0),
           unread: 0,
         };
       }
     } else if (userRole === 'admin') {
-      // All active teachers
+      // Dùng ID thật của Staff để tạo convId riêng tư
       teachers.filter(t => t.status === 'Active' || t.status === 'active').forEach(t => {
-        const convId = makeConvId('admin', 'admin', 'teacher', t.id);
+        const convId = makeConvId('admin', sId, 'teacher', t.id);
         if (!convMap[convId]) {
           convMap[convId] = {
             id: convId,
-            user: { id: t.id, name: t.name, role: 'teacher', avatar: String(t.name || 'GV').substring(0, 2).toUpperCase(), online: true },
+            user: { id: t.id, name: t.name, role: 'teacher', avatar: String(t.name || 'GV').substring(0, 2).toUpperCase(), online: true, branchCode: t.branchCode || '' },
             lastMessage: 'Chưa có tin nhắn',
             lastTime: new Date(0),
             unread: 0,
@@ -1276,13 +1339,12 @@ export const DataProvider = ({ children, user, onLogout }) => {
         }
       });
 
-      // All students
       students.forEach(s => {
-        const convId = makeConvId('admin', 'admin', 'student', s.id);
+        const convId = makeConvId('admin', sId, 'student', s.id);
         if (!convMap[convId]) {
           convMap[convId] = {
             id: convId,
-            user: { id: s.id, name: s.name, role: 'student', avatar: String(s.name || 'HV').substring(0, 2).toUpperCase(), online: true },
+            user: { id: s.id, name: s.name, role: 'student', avatar: String(s.name || 'HV').substring(0, 2).toUpperCase(), online: true, branchCode: s.branchCode || '' },
             lastMessage: 'Chưa có tin nhắn',
             lastTime: new Date(0),
             unread: 0,
@@ -1313,9 +1375,12 @@ export const DataProvider = ({ children, user, onLogout }) => {
       // Ghim Admin lên đầu
       if (a.user.role === 'admin' && b.user.role !== 'admin') return -1;
       if (b.user.role === 'admin' && a.user.role !== 'admin') return 1;
-      return b.lastTime - a.lastTime;
+      // Đảm bảo so sánh bằng số (ms) để tránh lỗi khi time là string từ localStorage
+      const timeA = new Date(a.lastTime).getTime();
+      const timeB = new Date(b.lastTime).getTime();
+      return timeB - timeA;
     });
-  }, [messages, students, teachers, groups]);
+  }, [messages, students, teachers, staffs, groups]);
 
   const getMessages = useCallback((convId) => {
     return messages.filter(m => m.convId === convId).sort((a, b) => a.time - b.time);
@@ -1634,7 +1699,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
     // Exam Results
     examResults, addExamResult, updateExamResult, removeExamResult,
     // Data
-    students, teachers, transactions, schedules, notifications: socketNotifications, messages, materials,
+    students, teachers, staffs, transactions, schedules, notifications: socketNotifications, messages, materials,
     currentUser, setCurrentUser,
 
     // Admin

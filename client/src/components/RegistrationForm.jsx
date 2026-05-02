@@ -615,18 +615,34 @@ const RegistrationForm = ({ onNavigate }) => {
                     <span className="font-bold text-green-600 flex items-center gap-1"><CheckCircle size={14} /> ĐÃ THANH TOÁN</span>
                   </div>
                 </div>
-                <div className="flex flex-col gap-3 pt-2">
-                  <button onClick={handleExportPDF} disabled={exporting}
-                    className="w-full bg-gradient-to-r from-red-600 to-red-500 text-white py-4 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center gap-2 disabled:opacity-50">
-                    {exporting ? <><Loader2 size={22} className="animate-spin"/>Đang xuất PDF...</> : <><Printer size={22}/>IN HÓA ĐƠN A5 (PHIẾU THU)</>}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                  <button 
+                    onClick={() => {
+                      const { printInvoice } = require('../utils/exportPDF');
+                      printInvoice();
+                    }}
+                    className="py-3.5 bg-blue-600 text-white font-bold rounded-xl shadow-lg hover:bg-blue-700 transform hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Printer size={20} /> IN
                   </button>
-                  <button onClick={() => onNavigate('student')}
-                    className="w-full py-3 text-blue-600 font-semibold hover:text-blue-800 flex items-center justify-center gap-2">
-                    <LayoutDashboard size={18} /> VÀO DASHBOARD XEM LỊCH HỌC
+                  <button 
+                    onClick={handleExportPDF} 
+                    disabled={exporting}
+                    className="py-3.5 bg-emerald-600 text-white font-bold rounded-xl shadow-lg hover:bg-emerald-700 transform hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {exporting ? <Loader2 size={20} className="animate-spin"/> : <Download size={20} />} TẢI PDF
                   </button>
+                  <button 
+                    onClick={() => onNavigate('student')}
+                    className="py-3.5 bg-gray-200 text-gray-700 font-bold rounded-xl hover:bg-gray-300 transition-all flex items-center justify-center gap-2"
+                  >
+                    <LayoutDashboard size={20} /> ĐÓNG
+                  </button>
+                </div>
+                <div className="pt-2">
                   <button onClick={() => { setStep(1); sessionRef.current = null; setFormData({ name:'', age:'', zalo:'', course: COURSES[0].name, price: COURSES[0].price }); }}
-                    className="text-sm text-gray-400 hover:text-gray-600">
-                    Đăng ký học viên mới
+                    className="text-sm text-gray-400 hover:text-gray-600 font-medium">
+                    + Đăng ký cho học viên khác
                   </button>
                 </div>
               </div>
