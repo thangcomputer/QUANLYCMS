@@ -582,6 +582,14 @@ router.patch('/:messageId/recall', async (req, res) => {
       return res.status(403).json({ success: false, message: 'Bạn không có quyền thu hồi tin nhắn này' });
     }
 
+    // 24h limit check
+    const now = new Date();
+    const sentAt = new Date(message.createdAt);
+    const diffHours = (now - sentAt) / (1000 * 60 * 60);
+    if (diffHours > 24) {
+      return res.status(403).json({ success: false, message: 'Chỉ có thể thu hồi tin nhắn trong vòng 24 giờ kể từ lúc gửi' });
+    }
+
     message.isRecalled = true;
     message.content = 'Tin nhắn đã được thu hồi';
     await message.save();

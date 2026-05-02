@@ -830,8 +830,13 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
                             )}
                           </div>
 
-                          {/* Thu hồi button — chỉ hiện khi là tin của mình và chưa thu hồi */}
-                          {isMine && !msg.isRecalled && (
+                          {/* Thu hồi button — chỉ hiện khi là tin của mình, chưa thu hồi và trong vòng 24h */}
+                          {isMine && !msg.isRecalled && (() => {
+                            const now = new Date();
+                            const sentAt = new Date(msg.time);
+                            const diffHours = (now - sentAt) / (1000 * 60 * 60);
+                            return diffHours <= 24;
+                          })() && (
                             <button
                               onClick={() => handleRecall(msg.id)}
                               disabled={recallingId === msg.id}
