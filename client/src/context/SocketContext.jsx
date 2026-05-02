@@ -19,7 +19,7 @@ export const SocketProvider = ({ userId, role, name, children }) => {
   const reactionCallbacksRef = useRef(new Set());
   const recallCallbacksRef = useRef(new Set());
   const groupNewCallbackRef = useRef(null);
-  const dataRefreshCallbackRef = useRef(null);
+  const dataRefreshCallbacksRef = useRef(new Set());
   const contactListUpdatedCallbackRef = useRef(null); // CONTACT_LIST_UPDATED
   const readAckCallbackRef = useRef(new Set());
 
@@ -48,7 +48,8 @@ export const SocketProvider = ({ userId, role, name, children }) => {
 
   // Đăng ký callback khi cần refresh data (ví dụ assign teacher)
   const onDataRefresh = useCallback((callback) => {
-    dataRefreshCallbackRef.current = callback;
+    dataRefreshCallbacksRef.current.add(callback);
+    return () => dataRefreshCallbacksRef.current.delete(callback);
   }, []);
 
   // Đăng ký callback khi danh bạ cần cập nhật (CONTACT_LIST_UPDATED)
@@ -152,9 +153,7 @@ export const SocketProvider = ({ userId, role, name, children }) => {
       if (refreshDebounceTimer) clearTimeout(refreshDebounceTimer);
       refreshDebounceTimer = setTimeout(() => {
         refreshDebounceTimer = null;
-        if (dataRefreshCallbackRef.current) {
-          dataRefreshCallbackRef.current(data);
-        }
+        dataRefreshCallbacksRef.current.forEach((cb) => cb(data));
       }, 320);
     };
 
@@ -173,6 +172,22 @@ export const SocketProvider = ({ userId, role, name, children }) => {
       'evaluation:admin_feedback', 'evaluation:teacher_rating',
     ];
     refreshEvents.forEach((ev) => newSocket.on(ev, triggerRefresh));
+
+    // Fallback toàn cục: nếu backend emit sự kiện mới chưa được whitelist phía trên,
+    // vẫn trigger refresh để UI không cần F5.
+    const ignoredAnyEvents = new Set([
+      'connect',
+      'disconnect',
+      'users:online',
+      'users:lastSeen',
+      'message:read_ack',
+    ]);
+    const onAnyEvent = (eventName, payload) => {
+      if (ignoredAnyEvents.has(eventName)) return;
+      if (String(eventName || '').startsWith('message:')) return; // tránh bão refetch khi chat
+      triggerRefresh({ type: 'socket:any', eventName, payload });
+    };
+    newSocket.onAny(onAnyEvent);
 
     // Centralized Notification Event
     newSocket.on('RECEIVE_NOTIFICATION', (data) => {
@@ -237,6 +252,7 @@ export const SocketProvider = ({ userId, role, name, children }) => {
 
     return () => {
       if (refreshDebounceTimer) clearTimeout(refreshDebounceTimer);
+      newSocket.offAny(onAnyEvent);
       newSocket.disconnect();
     };
   }, [userId, role, name]);

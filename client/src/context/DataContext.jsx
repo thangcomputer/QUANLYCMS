@@ -387,8 +387,9 @@ export const DataProvider = ({ children, user, onLogout }) => {
     };
 
     // Lắng nghe sự kiện force refresh
+    let offDataRefresh = null;
     if (onDataRefresh) {
-      onDataRefresh(() => {
+      offDataRefresh = onDataRefresh(() => {
         triggerBackgroundSync();
       });
     }
@@ -407,6 +408,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
 
     return () => {
       clearInterval(interval);
+      if (offDataRefresh) offDataRefresh();
       window.removeEventListener('storage', handleStorage);
       document.removeEventListener('visibilitychange', handleSync);
       window.removeEventListener('focus', handleSync);
