@@ -304,14 +304,6 @@ export const CameraHeaderPanel = ({ monitorRef }) => {
       }
     }, 1000);
     return () => clearInterval(t);
-  }, [monitorRef]);orRef.current.getStats());
-        // Sync srcObject to preview video
-        if (previewVideoRef.current && monitorRef.current.videoRef?.current && !previewVideoRef.current.srcObject) {
-          previewVideoRef.current.srcObject = monitorRef.current.videoRef.current.srcObject;
-        }
-      }
-    }, 1000);
-    return () => clearInterval(t);
   }, [monitorRef]);
 
   return (
