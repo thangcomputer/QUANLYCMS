@@ -2,19 +2,17 @@ import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef, us
 import { AlertTriangle, ShieldCheck, Camera } from 'lucide-react';
 
 const CONFIG = {
-  MAX_CONSECUTIVE_NO_FACE: 5,      // 5 lần liên tiếp không thấy mặt → reset
-  CAMERA_CHECK_INTERVAL: 20000,    // Check mỗi 20 giây — thoáng hơn
-  MAX_RESETS: 1,                   // Cho phép reset 1 lần, lần sau hủy bài thi
+  MAX_CONSECUTIVE_NO_FACE: 5,      // 5 lần liên tiếp không thấy mặt
+  CAMERA_CHECK_INTERVAL: 5000,     // Check mỗi 5 giây cho nhạy
 };
 
-const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam, requireWebcam = true }, ref) => {
+const ExamMonitor = forwardRef(({ isActive, onViolate, requireWebcam = true }, ref) => {
   const [cameraWarnings, setCameraWarnings] = useState(0);
   const [tabWarnings, setTabWarnings] = useState(0);
   const [cameraStatus, setCameraStatus] = useState('loading');
   const [lastFaceDetected, setLastFaceDetected] = useState(true);
   const [warningOverlay, setWarningOverlay] = useState(null);
   const [isTerminated, setIsTerminated] = useState(false);
-  const [resetCount, setResetCount] = useState(0);
 
   const videoRef = useRef(null);
   const streamRef = useRef(null);
@@ -22,8 +20,10 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam, requireWebca
   const consecutiveNoFaceRef = useRef(0);
   const cameraWarningsRef = useRef(0);
   const tabWarningsRef = useRef(0);
-  const resetCountRef = useRef(0);
   const lastViolationTimeRef = useRef(0);
+  const onViolateRef = useRef(onViolate);
+
+  useEffect(() => { onViolateRef.current = onViolate; }, [onViolate]);
 
   const terminateExam = useCallback((reason) => {
     if (isTerminated) return;
@@ -31,8 +31,8 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam, requireWebca
     setWarningOverlay({ type: 'terminated', message: 'KẾT THÚC BÀI THI!', sub: reason, persistent: true });
     if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
     if (intervalRef.current) clearInterval(intervalRef.current);
-    if (onViolate) onViolate(reason);
-  }, [onViolate, isTerminated]);
+    if (onViolateRef.current) onViolateRef.current(reason);
+  }, [isTerminated]);
 
   const playWarningBeep = () => {
     try {
@@ -43,16 +43,13 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam, requireWebca
     } catch (e) { }
   };
 
-
-
   useImperativeHandle(ref, () => ({
     getStats: () => ({ 
       cameraWarnings: cameraWarningsRef.current, 
       tabWarnings: tabWarningsRef.current, 
       lastFaceDetected, 
       cameraStatus, 
-      consecutiveNoFace: consecutiveNoFaceRef.current, 
-      resetCount: resetCountRef.current 
+      consecutiveNoFace: consecutiveNoFaceRef.current
     }),
     videoRef: videoRef
   }), [lastFaceDetected, cameraStatus]);
@@ -80,9 +77,8 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam, requireWebca
 
     const setupCamera = async () => {
       try {
-        // Use more standard constraints
         const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } } 
+          video: { width: { ideal: 640 }, height: { ideal: 480 } } 
         });
         
         if (!isMounted) {
@@ -93,7 +89,6 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam, requireWebca
         streamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          // Ensure it starts playing
           videoRef.current.play().catch(() => {});
         }
         setCameraStatus('active');
@@ -107,24 +102,22 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam, requireWebca
               const faces = await faceDetector.detect(videoRef.current);
               hasFace = faces.length > 0;
             } else {
-               // Improved Skin Color + Luminosity Heuristic
                ctx.drawImage(videoRef.current, 0, 0, 160, 120);
                const frame = ctx.getImageData(0, 0, 160, 120);
                const data = frame.data;
                
                let skinPixels = 0;
                let totalLuminance = 0;
+               let zeroPixels = 0;
                
-               // Sample only the central 60% of the image
                for (let y = 30; y < 90; y++) {
                  for (let x = 40; x < 120; x++) {
                    const i = (y * 160 + x) * 4;
                    const r = data[i], g = data[i+1], b = data[i+2];
                    
-                   // Luminance
                    totalLuminance += (0.299 * r + 0.587 * g + 0.114 * b);
+                   if (r === 0 && g === 0 && b === 0) zeroPixels++;
                    
-                   // Normalized skin color detection (robust to brightness)
                    const sum = r + g + b;
                    if (sum > 0) {
                      const nr = r / sum, ng = g / sum;
@@ -135,29 +128,28 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam, requireWebca
                
                const avgLuminance = totalLuminance / (60 * 80);
                const skinRatio = skinPixels / (60 * 80);
+               const blackRatio = zeroPixels / (60 * 80);
                
-               // If too dark, don't punish immediately
-               if (avgLuminance < 15) {
-                 hasFace = true; // Temporary pass for dark room
+               if (blackRatio > 0.95 || (avgLuminance < 5)) {
+                 hasFace = false;
+               } else if (avgLuminance < 15) {
+                 hasFace = true; 
                } else {
-                 hasFace = skinRatio > 0.05; // 5% skin pixels in center
+                 hasFace = skinRatio > 0.02;
                }
             }
             
             setLastFaceDetected(hasFace);
             if (!hasFace) {
               consecutiveNoFaceRef.current += 1;
-              cameraWarningsRef.current += 1;
               const consecutive = consecutiveNoFaceRef.current;
-              const n = cameraWarningsRef.current;
-              setCameraWarnings(n);
-
-              if (consecutive === 3) {
+              
+              if (consecutive === 2 || consecutive === 4) {
                 playWarningBeep();
                 setWarningOverlay({
                   type: 'camera',
                   message: '📸 KIỂM TRA CAMERA!',
-                  sub: `Hệ thống không nhận diện được khuôn mặt của bạn ${consecutive} lần liên tiếp. Vui lòng ngồi đúng vị trí trước camera.`,
+                  sub: `Hệ thống không nhận diện được khuôn mặt. Vui lòng ngồi đúng vị trí. Vi phạm lần ${consecutive}/5. Đạt 5/5 bài thi sẽ bị HỦY ngay lập tức!`,
                   count: consecutive,
                   max: CONFIG.MAX_CONSECUTIVE_NO_FACE
                 });
@@ -165,28 +157,15 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam, requireWebca
 
               if (consecutive >= CONFIG.MAX_CONSECUTIVE_NO_FACE) {
                 playWarningBeep();
-                if (resetCountRef.current >= CONFIG.MAX_RESETS) {
-                  terminateExam('Không phát hiện khuôn mặt sau 2 lần kiểm tra liên tiếp. Bài thi bị hủy.');
-                } else {
-                  resetCountRef.current += 1;
-                  setResetCount(resetCountRef.current);
-                  consecutiveNoFaceRef.current = 0;
-                  setWarningOverlay({
-                    type: 'reset',
-                    message: '🔄 RESET BÀI THI!',
-                    sub: 'Hệ thống không nhận diện được khuôn mặt của bạn 5 lần liên tiếp. Bài thi được reset lại từ đầu. Nếu tiếp tục vi phạm, bài thi sẽ bị HỦY.',
-                    persistent: false,
-                    isReset: true
-                  });
-                  if (onResetExam) onResetExam();
-                }
+                terminateExam('Không phát hiện khuôn mặt 5 lần liên tiếp. Bài thi bị hủy tự động theo quy định!');
               }
             } else {
               consecutiveNoFaceRef.current = 0;
             }
-          } catch (e) { }
+          } catch (e) { console.error("ExamMonitor: Detection error", e); }
         }, CONFIG.CAMERA_CHECK_INTERVAL);
       } catch (err) {
+        console.error("ExamMonitor: Camera access denied", err);
         setCameraStatus('denied');
         setLastFaceDetected(true);
       }
@@ -197,7 +176,7 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam, requireWebca
       if (intervalRef.current) clearInterval(intervalRef.current); 
       if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); 
     };
-  }, [isActive, isTerminated, requireWebcam, terminateExam, onResetExam]);
+  }, [isActive, isTerminated, requireWebcam, terminateExam]);
 
   // TAB DETECTION
   useEffect(() => {
@@ -234,13 +213,12 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam, requireWebca
 
   return (
     <>
-      {/* Hidden but active video element for processing */}
       <video 
         ref={videoRef} 
         autoPlay 
         muted 
         playsInline 
-        style={{ position: 'absolute', width: '1px', height: '1px', opacity: 0.01, pointerEvents: 'none' }} 
+        style={{ position: 'fixed', left: '-500px', top: '-500px', width: '160px', height: '120px', opacity: 0.01, pointerEvents: 'none', zIndex: -1 }} 
       />
       {warningOverlay && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-red-950/90 backdrop-blur-md p-4 animate-in fade-in duration-300">
@@ -294,11 +272,11 @@ export const CameraHeaderPanel = ({ monitorRef }) => {
         const currentStats = monitorRef.current.getStats();
         setStats(currentStats);
         
-        // Continuous sync of srcObject to ensure preview works
         const monitorVideo = monitorRef.current.videoRef?.current;
         if (previewVideoRef.current && monitorVideo && monitorVideo.srcObject) {
           if (previewVideoRef.current.srcObject !== monitorVideo.srcObject) {
             previewVideoRef.current.srcObject = monitorVideo.srcObject;
+            previewVideoRef.current.play().catch(() => {});
           }
         }
       }
@@ -309,7 +287,7 @@ export const CameraHeaderPanel = ({ monitorRef }) => {
   return (
     <div className="flex items-center gap-4 p-2.5 bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-white/5 shadow-2xl">
       <div className="relative w-24 h-16 bg-black/40 rounded-xl overflow-hidden hidden sm:block border border-white/10">
-        <video ref={previewVideoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1] opacity-50" />
+        <video ref={previewVideoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
         <div className={`absolute inset-0 ${stats.lastFaceDetected ? 'bg-blue-500/10' : 'bg-red-500/20 animate-pulse'}`} />
         <div className="absolute top-1 left-1.5 flex items-center gap-1">
           <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
@@ -330,9 +308,6 @@ export const CameraHeaderPanel = ({ monitorRef }) => {
            <span className="text-sm font-bold text-white">Cam: <span className={(stats.consecutiveNoFace || 0) > 0 ? 'text-red-400' : 'text-green-400'}>{stats.consecutiveNoFace || 0}/{5}</span></span>
            <span className="text-sm font-bold text-white">Tab: <span className={stats.tabWarnings > 0 ? 'text-orange-400' : 'text-green-400'}>{stats.tabWarnings}/2</span></span>
         </div>
-        {(stats.resetCount || 0) > 0 && (
-          <span className="text-[9px] text-yellow-400 font-bold mt-1">⚠️ Đã reset {stats.resetCount} lần</span>
-        )}
       </div>
     </div>
   );

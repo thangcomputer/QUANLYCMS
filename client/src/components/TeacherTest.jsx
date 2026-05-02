@@ -752,7 +752,7 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
         <div className="absolute bottom-[-10%] right-[-5%] w-[40%] h-[40%] bg-red-50/50 rounded-full blur-[120px]" />
       </div>
 
-      <ExamMonitor ref={monitorRef} isActive={phase === 'test'} onViolate={(r) => handleViolate(r)} tabViolations={tabViolations} />
+      <ExamMonitor ref={monitorRef} isActive={phase === 'test'} onViolate={handleViolate} tabViolations={tabViolations} />
       
       {/* ─── PREMIUM HEADER ─── */}
       <div className="fixed top-0 left-0 right-0 z-50">
