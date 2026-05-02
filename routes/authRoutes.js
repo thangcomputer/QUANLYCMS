@@ -7,6 +7,13 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const Teacher  = require('../models/Teacher');
 const Student  = require('../models/Student');
 const blacklist = require('../middleware/tokenBlacklist');
+const {
+  loginLimiter,
+  captchaLimiter,
+  refreshTokenLimiter,
+  sensitiveFlowLimiter,
+  checkRoleLimiter,
+} = require('../middleware/authRateLimit');
 const SystemSettings = require('../models/SystemSettings');
 
 const router = express.Router();
@@ -74,7 +81,7 @@ const generateTokens = (payload, audience = 'public') => {
 };
 
 // ─── GET /api/auth/captcha  — Sinh CAPTCHA mới ────────────────────────────────
-router.get('/captcha', (req, res) => {
+router.get('/captcha', captchaLimiter, (req, res) => {
   const captcha = svgCaptcha.create({
     size:        5,
     ignoreChars: '0oOlI1',
@@ -101,7 +108,7 @@ function verifyCaptcha(cid, input) {
 }
 
 // ─── POST /api/auth/refresh ───────────────────────────────────────────────────
-router.post('/refresh', async (req, res) => {
+router.post('/refresh', refreshTokenLimiter, async (req, res) => {
   try {
     const { refreshToken } = req.body;
     if (!refreshToken) return res.status(400).json({ success: false, message: 'Thiếu refreshToken' });
@@ -115,6 +122,7 @@ router.post('/refresh', async (req, res) => {
       permissions: decoded.permissions || [],
       branchId:    decoded.branchId    || null,
       branchCode:  decoded.branchCode  || '',
+      tokenVersion: decoded.tokenVersion,
     }, decoded.aud || 'public');
     return res.json({ success: true, accessToken });
   } catch (err) {
@@ -124,7 +132,7 @@ router.post('/refresh', async (req, res) => {
 
 // ─── POST /api/auth/check-role ────────────────────────────────────────────────
 // Nhận identifier (phone/email), trả về role để hiện badge UI
-router.post('/check-role', async (req, res) => {
+router.post('/check-role', checkRoleLimiter, async (req, res) => {
   try {
     const { identifier } = req.body;
     if (!identifier) return res.json({ success: true, data: null });
@@ -243,7 +251,7 @@ router.get('/zalo/callback', async (req, res) => {
  *
  * Body: { phone: "0935758462", password: "123456", role: "teacher"|"admin"|"student" }
  */
-router.post('/login', async (req, res) => {
+router.post('/login', loginLimiter, async (req, res) => {
   try {
     // Hỗ trợ cả 'identifier' (mới) lẫn 'phone' (cũ) để tương thích ngược
     const { identifier, phone: legacyPhone, password, role = 'teacher' } = req.body;
@@ -426,7 +434,7 @@ async function lookupUser(rawId, requestedRole = null) {
 
 // ─── POST /api/auth/login/public ─────────────────────────────────────────────
 // Cổng đăng nhập dành cho HỌC VIÊN & GIẢNG VIÊN (Social Login hợp lệ với route này)
-router.post('/login/public', async (req, res) => {
+router.post('/login/public', loginLimiter, async (req, res) => {
   try {
     const { identifier, password, role } = req.body;
     const rawId = (identifier || '').trim();
@@ -502,7 +510,7 @@ router.post('/login/public', async (req, res) => {
 
 // ─── POST /api/auth/login/internal ───────────────────────────────────────────
 // Cổng đăng nhập nội bộ — CHỈ ADMIN & STAFF — yêu cầu CAPTCHA
-router.post('/login/internal', async (req, res) => {
+router.post('/login/internal', loginLimiter, async (req, res) => {
   try {
     const { identifier, password, captchaId, captchaAnswer } = req.body;
     const rawId = (identifier || '').trim();
@@ -611,41 +619,6 @@ router.post('/login/internal', async (req, res) => {
   }
 });
 
-// ─── POST /api/auth/refresh ───────────────────────────────────────────────────
-/**
- * @route   POST /api/auth/refresh
- * @desc    Làm mới access token bằng refresh token
- * @access  Public
- */
-router.post('/refresh', async (req, res) => {
-  try {
-    const { refreshToken } = req.body;
-
-    if (!refreshToken) {
-      return res.status(400).json({ success: false, message: 'Thiếu refresh token' });
-    }
-
-    const decoded = jwt.verify(
-      refreshToken,
-      process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET
-    );
-
-    const { accessToken, refreshToken: newRefreshToken } = generateTokens({
-      id:   decoded.id,
-      role: decoded.role,
-      name: decoded.name,
-    });
-
-    return res.status(200).json({
-      success: true,
-      data: { accessToken, refreshToken: newRefreshToken },
-    });
-
-  } catch (error) {
-    return res.status(401).json({ success: false, message: 'Refresh token không hợp lệ hoặc đã hết hạn' });
-  }
-});
-
 // ─── POST /api/auth/logout ────────────────────────────────────────────────────
 /**
  * @route   POST /api/auth/logout
@@ -695,7 +668,7 @@ router.post('/logout', authMiddleware, async (req, res) => {
  * @desc    Đăng ký tài khoản giảng viên (chờ Admin duyệt)
  * @access  Public
  */
-router.post('/register-teacher', async (req, res) => {
+router.post('/register-teacher', sensitiveFlowLimiter, async (req, res) => {
   try {
     const { name, phone, password, password2, specialty } = req.body;
 
@@ -961,7 +934,7 @@ async function sendZaloOTP(phoneOrZalo, otp, userName) {
  * @desc    Bước 1: Gửi OTP về Zalo để cấp lại mật khẩu
  * @access  Public
  */
-router.post('/forgot-password/request', async (req, res) => {
+router.post('/forgot-password/request', sensitiveFlowLimiter, async (req, res) => {
   try {
     const { phone, role } = req.body;
     if (!phone) return res.status(400).json({ success: false, message: 'Vui lòng nhập số điện thoại' });
@@ -1015,7 +988,7 @@ router.post('/forgot-password/request', async (req, res) => {
  * @desc    Bước 2: Xác minh OTP và cấp mật khẩu mới
  * @access  Public
  */
-router.post('/forgot-password/verify', async (req, res) => {
+router.post('/forgot-password/verify', sensitiveFlowLimiter, async (req, res) => {
   try {
     const { phone, otp, role } = req.body;
     if (!phone || !otp) return res.status(400).json({ success: false, message: 'Thiếu thông tin' });
@@ -1109,7 +1082,7 @@ router.post('/admin/generate-otp', authMiddleware, async (req, res) => {
 
 
 // ─── POST /api/auth/reset-password-request (backward compat) ─────────────────
-router.post('/reset-password-request', async (req, res) => {
+router.post('/reset-password-request', sensitiveFlowLimiter, async (req, res) => {
   try {
     const { phone, zalo, role } = req.body;
     if (!phone) return res.status(400).json({ success: false, message: 'Vui lòng nhập số điện thoại' });

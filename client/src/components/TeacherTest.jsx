@@ -421,6 +421,7 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
                <div className="bg-[#B9F5C5] text-[#1E5C2A] text-center py-1.5 rounded-[10px] font-bold text-[10px] opacity-40 mix-blend-luminosity">Không bao giờ cho phép</div>
             </div>
          </div>
+         </div>
 
          {/* Trạng thái Sẵn sàng */}
          <div className={`py-2 rounded-[14px] font-black text-[10px] mb-3 flex items-center justify-center gap-1.5 transition-all duration-300 ${cameraReady ? 'bg-[#E1FDEB] text-[#008945]' : 'bg-slate-100 text-slate-400 opacity-60'}`}>
@@ -539,7 +540,7 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
                     {[
                         { text: 'Camera BẬT suốt thời gian', icon: Camera, color: 'text-blue-400' },
                         { text: 'Face ID mỗi 5s', icon: UserCheck, color: 'text-green-400' },
-                        { text: 'Rời Face 10 lần = HỦY', icon: AlertTriangle, color: 'text-red-400' },
+                        { text: 'Rời Face 5 lần = HỦY', icon: AlertTriangle, color: 'text-red-400' },
                         { text: 'Lưu log toàn màn hình', icon: Video, color: 'text-orange-400' },
                     ].map((item, i) => (
                         <div key={i} className="bg-white/5 border border-white/10 p-4 rounded-2xl flex flex-col items-center text-center gap-2 hover:bg-white/10 transition">

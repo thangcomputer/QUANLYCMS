@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Lock, User, Eye, EyeOff, AlertTriangle, ChevronRight, Fingerprint, Activity } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { setTokens } from '../services/api';
+import { setTokens, API_BASE, SOCKET_BASE } from '../services/api';
 
 const AdminLoginPage = ({ onLogin }) => {
   const navigate = useNavigate();
@@ -12,7 +12,8 @@ const AdminLoginPage = ({ onLogin }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const API = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || "");
+  /** Base gốc API (domain backend hoặc '' để dùng proxy Vite /api) */
+  const API = SOCKET_BASE;
   const [dynamicLogo, setDynamicLogo] = useState('');
 
   // Fetch dynamic logo from web settings
@@ -66,13 +67,19 @@ const AdminLoginPage = ({ onLogin }) => {
     setError(null);
 
     try {
-      const response = await fetch(`${API}/api/auth/login`, {
+      const response = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier: username, password }),
       });
 
-      const data = await response.json();
+      const raw = await response.text();
+      let data;
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        throw new Error('INVALID_JSON');
+      }
 
       if (data.success) {
         // Extract real user object from wrapped structure if it exists
@@ -99,8 +106,13 @@ const AdminLoginPage = ({ onLogin }) => {
         setPassword(''); // Xóa mật khẩu sai
       }
     } catch (err) {
-      setError('LỖI KẾT NỐI HỆ THỐNG BẢO MẬT');
-      toast.error('Server gặp sự cố');
+      console.error('[AdminLogin]', err);
+      setError(
+        err?.message === 'INVALID_JSON'
+          ? 'MÁY CHỦ TRẢ VỀ DỮ LIỆU KHÔNG HỢP LỆ (KIỂM TRA API ĐANG CHẠY VÀ PROXY VITE)'
+          : 'LỖI KẾT NỐI HỆ THỐNG BẢO MẬT',
+      );
+      toast.error('Không kết nối được máy chủ — chạy backend (port 5000) và npm run dev client');
     } finally {
       setLoading(false);
     }

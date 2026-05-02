@@ -15,11 +15,17 @@ dotenv.config();
 const app    = express();
 const server = http.createServer(app);
 
+// Sau reverse proxy (Nginx, Cloudflare): đặt TRUST_PROXY=1 để rate limit theo IP client đúng
+if (process.env.TRUST_PROXY === '1') {
+  app.set('trust proxy', 1);
+}
+
 // Cấu hình các domain được phép truy cập (CORS)
+const viteLocalOrigins = [5173, 5174, 5175, 5176, 5177].map((p) => `http://localhost:${p}`);
 const allowedOrigins = [
   process.env.CLIENT_URL,
   process.env.FRONTEND_URL,
-  'http://localhost:5173',
+  ...viteLocalOrigins,
   'http://localhost:3000',
 ].filter(Boolean);
 
@@ -46,8 +52,10 @@ app.use(cors({
   origin: allowedOrigins.length > 0 ? allowedOrigins : '*',
   credentials: true
 }));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Giới hạn JSON/urlencoded — file lớn dùng Multer trên từng route (vd. teacher/message upload)
+const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || '12mb';
+app.use(express.json({ limit: JSON_BODY_LIMIT }));
+app.use(express.urlencoded({ extended: true, limit: JSON_BODY_LIMIT }));
 app.use(require('passport').initialize()); // Social OAuth
 
 // Serve uploaded files với cache 1 ngày (tăng tốc load ảnh)
