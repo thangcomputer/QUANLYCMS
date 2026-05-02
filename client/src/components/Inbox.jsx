@@ -8,7 +8,7 @@ import { useSocket } from '../context/SocketContext';
 import { useData } from '../context/DataContext';
 import { useLocation } from 'react-router-dom';
 import { useToast } from '../utils/toast';
-import { messagesAPI, SOCKET_BASE, apiFetch } from '../services/api';
+import { messagesAPI, SOCKET_BASE, apiFetch, API_BASE } from '../services/api';
 import { Megaphone, Loader2 } from 'lucide-react';
 
 
@@ -407,6 +407,34 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const handleDownload = useCallback(async (url, fileName) => {
+    try {
+      const fullUrl = url.startsWith('http') ? url : `${API_BASE.replace('/api', '')}${url}`;
+      const response = await fetch(fullUrl);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = fileName || 'download';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      // Fallback nếu fetch bị chặn (CORS...)
+      const link = document.createElement('a');
+      const fullUrl = url.startsWith('http') ? url : `${API_BASE.replace('/api', '')}${url}`;
+      link.href = fullUrl;
+      link.download = fileName || 'download';
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+    setShowMessageOptions(null);
+  }, []);
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -819,7 +847,15 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
                               <MoreHorizontal size={14} />
                             </button>
                             {showMessageOptions === msg.id && (
-                              <div className={`absolute bottom-full mb-1 z-50 animate-in fade-in zoom-in-95 duration-100 ${isMine ? 'right-0' : 'left-0'}`}>
+                              <div className={`absolute bottom-full mb-1 z-50 animate-in fade-in zoom-in-95 duration-100 flex flex-col gap-1 ${isMine ? 'right-0' : 'left-0'}`}>
+                                {msg.fileUrl && (
+                                  <button
+                                    onClick={() => handleDownload(msg.fileUrl, msg.fileName)}
+                                    className="flex items-center gap-2 whitespace-nowrap bg-white px-3 py-2 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.18)] border border-slate-100 text-xs font-bold text-blue-600 hover:bg-blue-50 transition-colors"
+                                  >
+                                    <Download size={12} /> Tải {msg.messageType === 'image' ? 'ảnh' : 'tệp'}
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => handleDeleteHistory(msg.id)}
                                   className="flex items-center gap-2 whitespace-nowrap bg-white px-3 py-2 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.18)] border border-slate-100 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors"
