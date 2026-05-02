@@ -86,7 +86,7 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
   const location = useLocation();
   const toast = useToast();
   const socketCtx = useSocket();
-  const { sendMessage: socketSend, onlineUsers, joinGroupChat, onMessageReceive, onReactionReceive, onRecallReceive, onContactListUpdated } = socketCtx;
+  const { sendMessage: socketSend, onlineUsers, joinGroupChat, onMessageReceive, onReactionReceive, onRecallReceive, onContactListUpdated, socket } = socketCtx;
   const {
     getConversations, getMessages: ctxGetMessages, sendMessage: ctxSendMessage,
     markMessagesRead, syncMessages, recallMessage: ctxRecallMessage, createChatGroup, deleteChatGroup, groups,
@@ -134,6 +134,24 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
     });
     return unsub;
   }, [onContactListUpdated, refreshContacts]);
+
+  // Đồng bộ danh sách liên hệ khi dữ liệu hệ thống thay đổi (không chỉ CONTACT_LIST_UPDATED)
+  useEffect(() => {
+    if (!socket) return;
+    let t = null;
+    const bump = () => {
+      if (t) clearTimeout(t);
+      t = setTimeout(() => {
+        t = null;
+        refreshContacts();
+      }, 400);
+    };
+    ['data:refresh', 'student:new', 'student:assigned', 'teacher:new', 'student:updated'].forEach((ev) => socket.on(ev, bump));
+    return () => {
+      if (t) clearTimeout(t);
+      ['data:refresh', 'student:new', 'student:assigned', 'teacher:new', 'student:updated'].forEach((ev) => socket.off(ev, bump));
+    };
+  }, [socket, refreshContacts]);
 
   const [activeConv, setActiveConv] = useState(null);
   const [messages, setMessages] = useState([]);

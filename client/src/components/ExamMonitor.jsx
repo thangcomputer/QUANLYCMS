@@ -194,14 +194,15 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, requireWebcam = true }, r
   };
 
   useImperativeHandle(ref, () => ({
-    getStats: () => ({ 
-      cameraWarnings: cameraWarningsRef.current, 
-      tabWarnings: tabWarningsRef.current, 
-      lastFaceDetected, 
-      cameraStatus, 
+    getStats: () => ({
+      cameraWarnings: cameraWarningsRef.current,
+      tabWarnings: tabWarningsRef.current,
+      lastFaceDetected,
+      cameraStatus,
       consecutiveNoFace: consecutiveNoFaceRef.current
     }),
-    videoRef: videoRef
+    getStream: () => streamRef.current,
+    videoRef
   }), [lastFaceDetected, cameraStatus]);
 
   // CAMERA DETECTION - NATIVE / HEURISTIC
@@ -301,7 +302,7 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, requireWebcam = true }, r
             let faces = null;
             let bboxW = CONFIG.DETECT_W;
             let bboxH = CONFIG.DETECT_H;
-            if (faceDetector && !lensBlocked) {
+            if (faceDetector) {
               try {
                 faces = await faceDetector.detect(canvas);
                 if (!faces || faces.length === 0) {
@@ -316,19 +317,21 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, requireWebcam = true }, r
 
             const anyRawFace = Array.isArray(faces) && faces.length > 0;
             let apiOk = false;
-            if (!lensBlocked && anyRawFace) {
+            if (anyRawFace) {
               apiOk = faces.some((f) => facePassesFraming(f, bboxW, bboxH));
             }
 
             let heuristicOk = false;
-            if (!lensBlocked && !anyRawFace) {
+            if (!anyRawFace) {
               heuristicOk = heuristicStrictUpperFaceZone(frame, CONFIG.DETECT_W, CONFIG.DETECT_H);
-            } else if (!lensBlocked && anyRawFace && !apiOk) {
+            } else if (anyRawFace && !apiOk) {
               /** API thấy mặt nhưng khung không đạt — vẫn thử heuristic để tránh “treo” đỏ */
               heuristicOk = heuristicStrictUpperFaceZone(frame, CONFIG.DETECT_W, CONFIG.DETECT_H);
             }
 
-            const hasFace = !lensBlocked && (apiOk || heuristicOk);
+            /** Chỉ coi là “che cam” khi heuristic cũng không thấy vùng mặt — tránh phòng tối bị coi là che ống kính liên tục */
+            const blockedNoFace = lensBlocked && !heuristicOk;
+            const hasFace = !blockedNoFace && (apiOk || heuristicOk);
 
             setLastFaceDetected(hasFace);
             if (!hasFace) {
@@ -481,20 +484,27 @@ export const CameraHeaderPanel = ({ monitorRef }) => {
   const previewVideoRef = useRef(null);
 
   useEffect(() => {
-    const t = setInterval(() => { 
-      if (monitorRef.current) {
-        const currentStats = monitorRef.current.getStats();
-        setStats(currentStats);
-        
-        const monitorVideo = monitorRef.current.videoRef?.current;
-        if (previewVideoRef.current && monitorVideo && monitorVideo.srcObject) {
-          if (previewVideoRef.current.srcObject !== monitorVideo.srcObject) {
-            previewVideoRef.current.srcObject = monitorVideo.srcObject;
-            previewVideoRef.current.play().catch(() => {});
-          }
-        }
+    const syncPreview = () => {
+      const mon = monitorRef.current;
+      const prev = previewVideoRef.current;
+      if (!mon || !prev) return;
+      const stream = typeof mon.getStream === 'function' ? mon.getStream() : null;
+      const monitorVideo = mon.videoRef?.current;
+      const source = stream || monitorVideo?.srcObject;
+      if (source && prev.srcObject !== source) {
+        prev.srcObject = source;
+        prev.muted = true;
+        prev.setAttribute('playsinline', '');
+        prev.play().catch(() => {});
       }
-    }, 1000);
+    };
+
+    const t = setInterval(() => {
+      if (monitorRef.current) {
+        setStats(monitorRef.current.getStats());
+        syncPreview();
+      }
+    }, 400);
     return () => clearInterval(t);
   }, [monitorRef]);
 
@@ -543,8 +553,11 @@ export const CameraHeaderPanel = ({ monitorRef }) => {
              </span>
            </span>
            <div className="flex items-center gap-4">
-             <span className="text-xs font-bold text-white" title={`Số lần kiểm tra liên tiếp không thấy mặt (${CONFIG.MAX_CONSECUTIVE_NO_FACE} = hủy bài)`}>
-               Cảnh báo cam:{' '}
+             <span
+               className="text-xs font-bold text-white"
+               title={`Số lần liên tiếp không nhận được mặt trong khung (đủ ${CONFIG.MAX_CONSECUTIVE_NO_FACE} lần sẽ hủy bài). Không phải số lượng camera.`}
+             >
+               Mặt (lỗi liên tiếp):{' '}
                <span className={(stats.consecutiveNoFace || 0) > 0 ? 'text-red-400' : 'text-emerald-400'}>
                  {stats.consecutiveNoFace || 0}/{CONFIG.MAX_CONSECUTIVE_NO_FACE}
                </span>

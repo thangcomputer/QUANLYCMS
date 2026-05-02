@@ -1133,29 +1133,82 @@ const AdminDashboard = ({ onNavigate }) => {
     setCurrentPage(1);
   }, [search, filterPaid, filterCourse, selectedBranchId]);
 
-  // ── Socket listener: khi cơ sở thêm HV mới → auto-refresh danh sách + stats ──
+  // ── Socket: cập nhật dashboard / học viên / tài chính / logs ngay khi server thay đổi (không cần F5) ──
+  const adminBumpTimerRef = React.useRef(null);
   useEffect(() => {
     if (!socket) return;
 
-    const handleStudentNew = (data) => {
-      toast.success(`📋 Học viên mới: ${data?.name || 'N/A'} — ${data?.course || ''}`);
-
-      // Re-fetch students nếu đang ở tab students
+    const runBump = () => {
+      mutate(['admin_stats', selectedBranchId]);
+      mutate(['admin_finance', selectedBranchId]);
       if (activeTab === 'students') {
-        fetchStudentsPaginated({ page: currentPage, limit: 10, branch_id: selectedBranchId });
+        fetchStudentsPaginated({
+          page: currentPage,
+          limit: PAGE_SIZE,
+          search,
+          paid: filterPaid,
+          course: filterCourse,
+          branch_id: selectedBranchId,
+        });
       }
-
-      // Re-fetch stats
-      const params = selectedBranchId && selectedBranchId !== 'all'
-        ? { branch_id: selectedBranchId } : {};
-      api.students.getStats(params).then(res => {
-        if (res?.success) setBranchStats(res.data);
-      }).catch(() => {});
+      if (activeTab === 'logs') {
+        setIsLoadingLogs(true);
+        api.systemLogs.getAll(1, 100)
+          .then((res) => setDbLogs(res.data))
+          .catch(() => {})
+          .finally(() => setIsLoadingLogs(false));
+      }
+      if (activeTab === 'teachers') {
+        fetchTeachers();
+      }
     };
 
-    socket.on('student:new', handleStudentNew);
-    return () => socket.off('student:new', handleStudentNew);
-  }, [socket, activeTab, currentPage, selectedBranchId, fetchStudentsPaginated, toast]);
+    const bumpAdminViews = () => {
+      if (adminBumpTimerRef.current) clearTimeout(adminBumpTimerRef.current);
+      adminBumpTimerRef.current = setTimeout(() => {
+        adminBumpTimerRef.current = null;
+        runBump();
+      }, 350);
+    };
+
+    const onStudentNew = (data) => {
+      toast.success(`📋 Học viên mới: ${data?.name || 'N/A'} — ${data?.course || ''}`);
+      bumpAdminViews();
+    };
+
+    const adminRealtimeEvents = [
+      'data:refresh', 'student:updated', 'student:assigned', 'student:history_reset',
+      'schedule:new', 'schedule:updated', 'schedule:completed', 'schedule:cancelled',
+      'transactions:new', 'teacher:financeUpdated', 'tuition:paid', 'revenue:updated',
+      'teacher:scored', 'teacher:approved', 'teacher:practical_submitted', 'teacher:rejected', 'teacher:new',
+      'assignment:new', 'assignment:graded', 'assignment:submitted', 'assignment:updated', 'assignment:deleted',
+      'submission:new', 'submission:graded',
+      'exam:unlocked', 'teacher:updated',
+      'evaluation:admin_feedback', 'evaluation:teacher_rating',
+      'new-notification',
+    ];
+
+    socket.on('student:new', onStudentNew);
+    adminRealtimeEvents.forEach((ev) => socket.on(ev, bumpAdminViews));
+
+    return () => {
+      if (adminBumpTimerRef.current) clearTimeout(adminBumpTimerRef.current);
+      socket.off('student:new', onStudentNew);
+      adminRealtimeEvents.forEach((ev) => socket.off(ev, bumpAdminViews));
+    };
+  }, [
+    socket,
+    activeTab,
+    currentPage,
+    search,
+    filterPaid,
+    filterCourse,
+    selectedBranchId,
+    fetchStudentsPaginated,
+    fetchTeachers,
+    toast,
+    PAGE_SIZE,
+  ]);
 
 
   // Close 3-dot menu when clicking outside
@@ -1565,7 +1618,7 @@ const AdminDashboard = ({ onNavigate }) => {
       <div className="min-w-0">
         {/* Topbar removed - using DashboardLayout header */}
 
-        <div className="p-8 space-y-8">
+        <div className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8 space-y-6 sm:space-y-8">
           {/* ===== TAB: TỔNG QUAN (DASHBOARD) ===== */}
           {activeTab === 'dashboard' && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -1607,22 +1660,22 @@ const AdminDashboard = ({ onNavigate }) => {
               {/* Quick info panels */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Học viên mới */}
-                <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-gray-100 p-8 transition-all hover:shadow-[0_20px_50px_rgba(0,0,0,0.05)]">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="font-black text-gray-800 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-red-50 text-red-600 flex items-center justify-center">
+                <div className="bg-white rounded-2xl sm:rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-gray-100 p-4 sm:p-6 lg:p-8 transition-all hover:shadow-[0_20px_50px_rgba(0,0,0,0.05)]">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6 min-w-0">
+                    <h3 className="font-black text-gray-800 flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-red-50 text-red-600 flex items-center justify-center flex-shrink-0">
                         <Users size={18} />
                       </div>
                       Học viên vừa đăng ký
                     </h3>
-                    <button onClick={() => navigate('/admin#students')} className="text-[11px] font-black text-red-600 hover:underline uppercase tracking-widest">Xem tất cả</button>
+                    <button onClick={() => navigate('/admin#students')} className="text-[11px] font-black text-red-600 hover:underline uppercase tracking-widest shrink-0 self-start sm:self-auto">Xem tất cả</button>
                   </div>
                   
                   {students.slice(0, 5).length > 0 ? (
                     <div className="space-y-4">
                       {students.slice(0, 5).map(s => (
-                        <div key={s.id || s._id} className="group flex items-center justify-between p-4 rounded-2xl hover:bg-red-50/50 transition-all border border-transparent hover:border-red-100">
-                          <div className="flex items-center gap-4">
+                        <div key={s.id || s._id} className="group flex flex-col gap-3 min-[380px]:flex-row min-[380px]:items-center min-[380px]:justify-between p-4 rounded-2xl hover:bg-red-50/50 transition-all border border-transparent hover:border-red-100 min-w-0">
+                          <div className="flex items-center gap-4 min-w-0">
                              <Avatar initials={(s.name || '?').charAt(0).toUpperCase()} color={s.paid ? 'bg-red-600' : 'bg-slate-400'} />
                             <div>
                               <p className="text-sm font-black text-gray-800 group-hover:text-red-700 transition-colors uppercase tracking-tight">{s.name}</p>
@@ -1643,22 +1696,22 @@ const AdminDashboard = ({ onNavigate }) => {
                 </div>
 
                 {/* Giảng viên */}
-                <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-gray-100 p-8 transition-all hover:shadow-[0_20px_50px_rgba(0,0,0,0.05)]">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="font-black text-gray-800 flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-800 flex items-center justify-center">
+                <div className="bg-white rounded-2xl sm:rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-gray-100 p-4 sm:p-6 lg:p-8 transition-all hover:shadow-[0_20px_50px_rgba(0,0,0,0.05)]">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-6 min-w-0">
+                    <h3 className="font-black text-gray-800 flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-800 flex items-center justify-center flex-shrink-0">
                         <GraduationCap size={18} />
                       </div>
                       Đội ngũ Giảng viên
                     </h3>
-                    <button onClick={() => navigate('/admin#teachers')} className="text-[11px] font-black text-red-600 hover:underline uppercase tracking-widest">Quản lý GV</button>
+                    <button onClick={() => navigate('/admin#teachers')} className="text-[11px] font-black text-red-600 hover:underline uppercase tracking-widest shrink-0 self-start sm:self-auto">Quản lý GV</button>
                   </div>
 
                   {teachers.slice(0, 5).length > 0 ? (
                     <div className="space-y-4">
                       {teachers.slice(0, 5).map(t => (
-                        <div key={t.id || t._id} className="group flex items-center justify-between p-4 rounded-2xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-100">
-                          <div className="flex items-center gap-4">
+                        <div key={t.id || t._id} className="group flex flex-col gap-3 min-[380px]:flex-row min-[380px]:items-center min-[380px]:justify-between p-4 rounded-2xl hover:bg-slate-50 transition-all border border-transparent hover:border-slate-100 min-w-0">
+                          <div className="flex items-center gap-4 min-w-0">
                             <Avatar initials={(t.name || '?').substring(0,2).toUpperCase()} color={['Active','active'].includes(t.status) ? 'bg-red-600' : 'bg-amber-500'} />
                             <div>
                               <p className="text-sm font-black text-gray-800 uppercase tracking-tight">{t.name}</p>
@@ -1693,7 +1746,7 @@ const AdminDashboard = ({ onNavigate }) => {
                     { label: 'Doanh thu', hash: 'analytics', icon: TrendingUp, color: 'from-slate-900 to-black', desc: 'Phân tích tăng trưởng' },
                   ].map(q => (
                     <button key={q.hash} onClick={() => navigate(`/admin#${q.hash}`)}
-                      className={`group relative bg-gradient-to-br ${q.color} text-white rounded-[24px] p-6 text-left hover:shadow-2xl hover:shadow-red-900/20 transition-all duration-300 overflow-hidden`}>
+                      className={`group relative bg-gradient-to-br ${q.color} text-white rounded-xl sm:rounded-[24px] p-4 sm:p-6 text-left hover:shadow-2xl hover:shadow-red-900/20 transition-all duration-300 overflow-hidden min-w-0`}>
                       <div className="absolute top-0 right-0 w-24 h-24 bg-white/5 rounded-full -mr-10 -mt-10 group-hover:scale-150 transition-transform duration-700" />
                       <q.icon size={28} className="mb-4 text-white/50 group-hover:text-white transition-colors" />
                       <p className="text-base font-black uppercase tracking-tight">{q.label}</p>
@@ -1707,83 +1760,81 @@ const AdminDashboard = ({ onNavigate }) => {
 
           {/* ===== TAB: HỌC VIÊN ===== */}
           {activeTab === 'students' && (
-            <div className="bg-white rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
+            <div className="bg-white rounded-2xl sm:rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.02)] border border-gray-100 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-500">
               {/* ── TOOLBAR ──────────────────────────────────────────────── */}
-              <div className="px-8 py-6 border-b border-gray-50">
-                <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-                  <h2 className="text-xl font-black text-gray-800 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center">
+              <div className="px-4 py-5 sm:px-6 lg:px-8 border-b border-gray-50">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                  <h2 className="text-lg sm:text-xl font-black text-gray-800 flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center flex-shrink-0">
                       <BookOpen size={22} />
                     </div>
-                    Quản lý Học Viên
-                    <span className="text-[11px] font-black text-gray-400 bg-gray-100 px-2 py-0.5 rounded-lg ml-2">{studentsPagination.totalRecords} HV</span>
+                    <span className="leading-tight">Quản lý Học Viên</span>
+                    <span className="text-[11px] font-black text-gray-400 bg-gray-100 px-2 py-0.5 rounded-lg">{studentsPagination.totalRecords} HV</span>
                   </h2>
-                  <div className="flex items-center gap-3 flex-wrap w-full lg:w-auto">
-                    {/* Search */}
-                    <div className="relative flex-1 lg:flex-none">
-                      <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <div className="flex w-full min-w-0 flex-col gap-3 2xl:flex-row 2xl:flex-wrap 2xl:items-stretch 2xl:justify-end">
+                    <div className="relative w-full min-w-0 2xl:w-64 2xl:flex-shrink-0">
+                      <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                       <input
                         value={search}
                         onChange={e => setSearch(e.target.value)}
-                        className="pl-10 pr-4 py-2.5 bg-gray-50 border-2 border-transparent rounded-2xl text-xs font-bold focus:border-red-600 focus:bg-white outline-none w-full lg:w-60 transition-all shadow-sm"
+                        className="pl-10 pr-4 py-2.5 bg-gray-50 border-2 border-transparent rounded-2xl text-xs font-bold focus:border-red-600 focus:bg-white outline-none w-full transition-all shadow-sm"
                         placeholder="Tìm tên / SĐT..."
                       />
                     </div>
-                    {/* Filter: Course */}
-                    <select
-                      value={filterCourse}
-                      onChange={e => setFilterCourse(e.target.value)}
-                      className="py-2.5 px-4 bg-gray-50 border-2 border-transparent rounded-2xl text-[11px] font-black uppercase focus:border-red-600 outline-none cursor-pointer transition-all shadow-sm"
-                    >
-                      <option value="all">Tất cả khóa học</option>
-                      <option value="THVP">THVP Nâng Cao</option>
-                      <option value="MOS">MOS Excel</option>
-                      <option value="THIET KE">Thiết Kế Đồ Họa</option>
-                      <option value="AUTOCAD">AutoCAD</option>
-                      <option value="PYTHON">Lập trình Python</option>
-                    </select>
-                    {/* Filter: Payment */}
-                    <select
-                      value={filterPaid}
-                      onChange={e => setFilterPaid(e.target.value)}
-                      className="py-2.5 px-4 bg-gray-50 border-2 border-transparent rounded-2xl text-[11px] font-black uppercase focus:border-red-600 outline-none cursor-pointer transition-all shadow-sm"
-                    >
-                      <option value="all">Tất cả trạng thái</option>
-                      <option value="paid">✅ Đã đóng phí</option>
-                      <option value="unpaid">❌ Chưa đóng phí</option>
-                    </select>
-                    {/* Export button */}
-                    <button
-                      onClick={handleExportExcel}
-                      disabled={isExportingExcel}
-                      className="flex items-center gap-2 bg-white border-2 border-gray-100 text-gray-500 px-5 py-2.5 rounded-2xl text-[11px] font-black uppercase hover:bg-gray-50 transition-all disabled:opacity-50 shadow-sm"
-                    >
-                      {isExportingExcel
-                        ? <><Loader2 size={14} className="animate-spin" /> ...</>
-                        : <><Download size={14} /> Xuất</>
-                      }
-                    </button>
-                    {/* Import button */}
-                    <button
-                      onClick={() => setShowImportModal(true)}
-                      className="flex items-center gap-2 bg-emerald-50 border-2 border-emerald-100 text-emerald-600 px-5 py-2.5 rounded-2xl text-[11px] font-black uppercase hover:bg-emerald-100 transition-all shadow-sm"
-                    >
-                      <FileSpreadsheet size={14} /> Nhập Excel
-                    </button>
-                    {/* Add button */}
-                    <button
-                      onClick={() => setShowModal(true)}
-                      className="flex items-center gap-2 bg-red-600 text-white px-6 py-2.5 rounded-2xl text-[11px] font-black uppercase shadow-lg shadow-red-200 hover:bg-red-700 hover:-translate-y-0.5 active:translate-y-0 transition-all"
-                    >
-                      <Plus size={16} /> Thêm Học Viên
-                    </button>
+                    <div className="grid grid-cols-1 min-[480px]:grid-cols-2 gap-3 w-full min-w-0 2xl:w-auto 2xl:max-w-xl 2xl:grid-cols-2">
+                      <select
+                        value={filterCourse}
+                        onChange={e => setFilterCourse(e.target.value)}
+                        className="w-full min-w-0 py-2.5 px-4 bg-gray-50 border-2 border-transparent rounded-2xl text-[11px] font-black uppercase focus:border-red-600 outline-none cursor-pointer transition-all shadow-sm"
+                      >
+                        <option value="all">Tất cả khóa học</option>
+                        <option value="THVP">THVP Nâng Cao</option>
+                        <option value="MOS">MOS Excel</option>
+                        <option value="THIET KE">Thiết Kế Đồ Họa</option>
+                        <option value="AUTOCAD">AutoCAD</option>
+                        <option value="PYTHON">Lập trình Python</option>
+                      </select>
+                      <select
+                        value={filterPaid}
+                        onChange={e => setFilterPaid(e.target.value)}
+                        className="w-full min-w-0 py-2.5 px-4 bg-gray-50 border-2 border-transparent rounded-2xl text-[11px] font-black uppercase focus:border-red-600 outline-none cursor-pointer transition-all shadow-sm"
+                      >
+                        <option value="all">Tất cả trạng thái</option>
+                        <option value="paid">✅ Đã đóng phí</option>
+                        <option value="unpaid">❌ Chưa đóng phí</option>
+                      </select>
+                    </div>
+                    <div className="flex flex-wrap gap-2 sm:gap-3 w-full 2xl:w-auto 2xl:justify-end">
+                      <button
+                        onClick={handleExportExcel}
+                        disabled={isExportingExcel}
+                        className="inline-flex flex-1 min-[480px]:flex-initial justify-center items-center gap-2 bg-white border-2 border-gray-100 text-gray-500 px-4 sm:px-5 py-2.5 rounded-2xl text-[11px] font-black uppercase hover:bg-gray-50 transition-all disabled:opacity-50 shadow-sm min-w-[7.5rem]"
+                      >
+                        {isExportingExcel
+                          ? <><Loader2 size={14} className="animate-spin" /> ...</>
+                          : <><Download size={14} /> Xuất</>
+                        }
+                      </button>
+                      <button
+                        onClick={() => setShowImportModal(true)}
+                        className="inline-flex flex-1 min-[480px]:flex-initial justify-center items-center gap-2 bg-emerald-50 border-2 border-emerald-100 text-emerald-600 px-4 sm:px-5 py-2.5 rounded-2xl text-[11px] font-black uppercase hover:bg-emerald-100 transition-all shadow-sm min-w-[7.5rem]"
+                      >
+                        <FileSpreadsheet size={14} /> Nhập Excel
+                      </button>
+                      <button
+                        onClick={() => setShowModal(true)}
+                        className="inline-flex flex-1 min-[480px]:flex-[1_1_100%] sm:flex-[1_1_auto] justify-center items-center gap-2 bg-red-600 text-white px-5 sm:px-6 py-2.5 rounded-2xl text-[11px] font-black uppercase shadow-lg shadow-red-200 hover:bg-red-700 hover:-translate-y-0.5 active:translate-y-0 transition-all w-full min-[520px]:w-auto"
+                      >
+                        <Plus size={16} /> Thêm Học Viên
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* ── TABLE ────────────────────────────────────────────────── */}
-              <div className="overflow-x-auto min-h-[600px]">
-                <table className="w-full text-left border-collapse min-w-[900px] lg:min-w-0">
+              <div className="overflow-x-auto overscroll-x-contain min-h-[400px] sm:min-h-[600px] touch-pan-x">
+                <table className="w-full text-left border-collapse min-w-[900px]">
                   <thead>
                     <tr className="border-b border-gray-100 bg-gray-50/60">
                       <th className="px-6 py-3.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">Học viên</th>
@@ -1902,8 +1953,19 @@ const AdminDashboard = ({ onNavigate }) => {
                                     className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors">
                                     {s.studentExamUnlocked ? <><Lock size={13} /> Khóa phòng thi</> : <><Unlock size={13} /> Cho phép thi</>}
                                   </button>
-                                  <button onClick={() => { ctxUpdateStudent(s.id || s._id, { requireWebcam: !s.requireWebcam }); setActionMenuId(null); }}
-                                    className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-gray-700 hover:bg-teal-50 hover:text-teal-600 transition-colors">
+                                  <button
+                                    onClick={async () => {
+                                      const webcamEnforced = s.requireWebcam !== false;
+                                      try {
+                                        await ctxUpdateStudent(s.id || s._id, { requireWebcam: !webcamEnforced });
+                                        toast.success(webcamEnforced ? 'Đã tắt giám sát webcam khi thi' : 'Đã bật giám sát webcam khi thi');
+                                      } catch (e) {
+                                        toast.error(e?.message || 'Không cập nhật được giám sát webcam');
+                                      }
+                                      setActionMenuId(null);
+                                    }}
+                                    className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-gray-700 hover:bg-teal-50 hover:text-teal-600 transition-colors"
+                                  >
                                     <Camera size={13} /> {s.requireWebcam !== false ? 'Tắt giám sát Webcam' : 'Bật giám sát Webcam'}
                                   </button>
                                   <button onClick={() => { handlePrintInvoice(s); setActionMenuId(null); }}
@@ -1994,37 +2056,39 @@ const AdminDashboard = ({ onNavigate }) => {
             <div className="space-y-6">
               {/* Header */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-                  <h2 className="text-xl font-black text-gray-800 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                <div className="px-4 py-5 sm:px-6 border-b border-gray-100 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between min-w-0">
+                  <h2 className="text-lg sm:text-xl font-black text-gray-800 flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center flex-shrink-0">
                       <GraduationCap size={22} />
                     </div>
-                    Duyệt Giảng Viên & Kiểm Tra Bài Thực Hành
-                    <span className="text-[11px] font-black text-gray-400 bg-gray-100 px-2 py-0.5 rounded-lg ml-2">{teachers.length} GV</span>
+                    <span className="leading-snug max-w-[min(100%,40rem)]">Duyệt Giảng Viên & Kiểm Tra Bài Thực Hành</span>
+                    <span className="text-[11px] font-black text-gray-400 bg-gray-100 px-2 py-0.5 rounded-lg">{teachers.length} GV</span>
                   </h2>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-stretch xl:flex-nowrap xl:items-center w-full min-w-0 xl:w-auto">
+                    <div className="flex flex-wrap gap-2 items-center">
                     {teachers.filter(t => t.practicalFile && t.practicalStatus === 'submitted').length > 0 && (
-                      <span className="bg-orange-100 text-orange-700 text-xs px-3 py-1 rounded-full font-bold animate-pulse">
+                      <span className="bg-orange-100 text-orange-700 text-[11px] sm:text-xs px-2 sm:px-3 py-1 rounded-full font-bold animate-pulse max-w-full truncate sm:truncate-none">
                         📎 {teachers.filter(t => t.practicalFile && t.practicalStatus === 'submitted').length} file chờ kiểm tra
                       </span>
                     )}
-                    <span className="bg-yellow-100 text-yellow-700 text-xs px-3 py-1 rounded-full font-bold">
+                    <span className="bg-yellow-100 text-yellow-700 text-[11px] sm:text-xs px-2 sm:px-3 py-1 rounded-full font-bold">
                       {teachers.filter(t => t.status === 'Pending').length} chờ duyệt
                     </span>
-                    <div className="relative">
-                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    </div>
+                    <div className="relative w-full sm:flex-1 sm:min-w-[12rem] sm:max-w-md xl:flex-initial xl:w-64 xl:max-w-none">
+                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                       <input
                         type="text"
                         placeholder="Tìm giảng viên..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-300 transition-all w-48 lg:w-64"
+                        className="pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:border-blue-300 transition-all w-full"
                       />
                     </div>
                     {isSuperAdmin && (
                     <button
                       onClick={() => setShowTeacherModal(true)}
-                      className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-500 text-white px-4 py-2 rounded-xl text-sm font-black shadow-lg shadow-emerald-900/10 hover:shadow-emerald-900/20 hover:from-emerald-700 transition-all active:scale-95"
+                      className="inline-flex shrink-0 justify-center items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-500 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-black shadow-lg shadow-emerald-900/10 hover:shadow-emerald-900/20 hover:from-emerald-700 transition-all active:scale-95 w-full sm:w-auto min-h-[2.5rem]"
                     >
                       <Plus size={16} /> THÊM GIẢNG VIÊN
                     </button>
@@ -2033,9 +2097,9 @@ const AdminDashboard = ({ onNavigate }) => {
                 </div>
 
                 {/* Quy trình duyệt */}
-                <div className="px-6 py-4 bg-blue-50 border-b border-blue-100">
+                <div className="px-4 py-4 sm:px-6 bg-blue-50 border-b border-blue-100">
                   <p className="text-xs font-bold text-blue-700 mb-2">📋 QUY TRÌNH DUYỆT GIẢNG VIÊN</p>
-                  <div className="flex items-center gap-2 text-xs text-blue-600">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-blue-600">
                     {['Bài Test ≥ 80đ', '→', 'Nộp file thực hành', '→', 'Admin kiểm tra công thức', '→', 'Cấp quyền'].map((step, i) => (
                       <span key={i} className={i % 2 === 1 ? 'text-blue-400' : 'bg-white px-2 py-1 rounded-lg font-semibold'}>{step}</span>
                     ))}
@@ -2045,10 +2109,10 @@ const AdminDashboard = ({ onNavigate }) => {
                 {/* Teacher list */}
                 <div className="divide-y divide-gray-50">
                   {filteredTeachers.length > 0 ? filteredTeachers.map(t => (
-                    <div key={t.id} className={`px-6 py-5 transition-colors ${t.practicalStatus === 'submitted' ? 'bg-orange-50/30' : 'hover:bg-gray-50'}`}>
-                      <div className="flex items-start justify-between gap-4">
+                    <div key={t.id} className={`px-4 py-5 sm:px-6 transition-colors ${t.practicalStatus === 'submitted' ? 'bg-orange-50/30' : 'hover:bg-gray-50'}`}>
+                      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                         {/* Left info */}
-                        <div className="flex items-start gap-4 flex-1">
+                        <div className="flex items-start gap-4 flex-1 min-w-0">
                           <Avatar initials={t.name?.substring(0, 2).toUpperCase() || 'GV'} color={t.status === 'Active' ? 'bg-green-500' : (t.testScore || 0) >= 80 ? 'bg-yellow-500' : 'bg-red-400'} />
                           <div className="flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
@@ -2134,7 +2198,7 @@ const AdminDashboard = ({ onNavigate }) => {
                         </div>
 
                         {/* Right actions */}
-                        <div className="flex flex-col items-end gap-2">
+                        <div className="flex flex-col gap-2 items-stretch md:items-end flex-shrink-0 w-full md:w-auto">
                           <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${['Active', 'active'].includes(t.status) ? 'bg-green-100 text-green-700' :
                               ['Pending', 'pending'].includes(t.status) ? 'bg-yellow-100 text-yellow-700' :
                                 t.status === 'Locked' ? 'bg-red-100 text-red-700' :
@@ -2446,11 +2510,11 @@ const AdminDashboard = ({ onNavigate }) => {
               <div className={`grid grid-cols-1 ${isSuperAdmin ? 'lg:grid-cols-2' : ''} gap-6`}>
                 {/* Revenue Card */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                      <DollarSign size={18} className="text-green-600" /> Doanh Thu Học Phí
+                  <div className="px-4 py-4 sm:px-6 sm:py-5 border-b border-gray-100 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between min-w-0">
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2 min-w-0">
+                      <DollarSign size={18} className="text-green-600 flex-shrink-0" /> Doanh Thu Học Phí
                     </h3>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-stretch sm:items-center gap-2 w-full sm:w-auto min-w-0">
                       <button
                         onClick={() => {
                           
@@ -2473,24 +2537,24 @@ const AdminDashboard = ({ onNavigate }) => {
                               toast.error('Xuất thất bại: ' + (e.message || 'Lỗi'));
                             }
                         }}
-                        className="text-[10px] font-black bg-white border border-gray-200 px-3 py-1.5 rounded-lg text-gray-500 hover:bg-gray-50 flex items-center gap-1.5">
-                        <Download size={12} /> XUẤT BÁO CÁO CHI PHÍ
+                        className="text-[10px] font-black bg-white border border-gray-200 px-2 sm:px-3 py-1.5 rounded-lg text-gray-500 hover:bg-gray-50 flex items-center justify-center gap-1.5 flex-1 sm:flex-initial whitespace-normal text-center leading-tight">
+                        <Download size={12} className="flex-shrink-0" /> XUẤT BÁO CÁO CHI PHÍ
                       </button>
                     </div>
                   </div>
-                  <div className="p-6">
-                    <div className="bg-gradient-to-br from-indigo-700 to-blue-800 rounded-3xl p-6 text-white shadow-xl shadow-blue-200 relative overflow-hidden">
+                  <div className="p-4 sm:p-6">
+                    <div className="bg-gradient-to-br from-indigo-700 to-blue-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 text-white shadow-xl shadow-blue-200 relative overflow-hidden">
                       <div className="absolute top-0 right-0 p-4 opacity-10">
                         <DollarSign size={80} />
                       </div>
-                      <div className="flex justify-between items-start">
-                        <div>
+                      <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start">
+                        <div className="min-w-0">
                           <p className="text-blue-100 text-xs font-bold uppercase tracking-wider">Tổng doanh thu thực tế (Đã thu)</p>
-                          <p className="text-4xl font-black mt-2">{(financeStudents.filter(s => s.paid).reduce((sum, s) => sum + (s.price || 0), 0)).toLocaleString('vi-VN')}đ</p>
+                          <p className="text-3xl sm:text-4xl font-black mt-2 break-words">{(financeStudents.filter(s => s.paid).reduce((sum, s) => sum + (s.price || 0), 0)).toLocaleString('vi-VN')}đ</p>
                         </div>
-                        <div className="bg-white/20 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/20 flex items-center gap-1.5 animate-pulse">
+                        <div className="bg-white/20 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/20 flex items-center gap-1.5 animate-pulse shrink-0 self-start">
                           <TrendingUp size={14} className="text-emerald-300" />
-                          <span className="text-[10px] font-black">+12.5% vs tháng trước</span>
+                          <span className="text-[10px] font-black whitespace-nowrap sm:whitespace-normal">+12.5% vs tháng trước</span>
                         </div>
                       </div>
 
@@ -2520,30 +2584,32 @@ const AdminDashboard = ({ onNavigate }) => {
                   <div className="divide-y divide-gray-50 border-t border-gray-50 max-h-80 overflow-y-auto relative">
                     {isLoadingFinance && <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-10"><RefreshCw className="animate-spin text-indigo-500" /></div>}
                     {financeStudents.map(s => (
-                      <div key={s.id} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${s.paid ? 'bg-green-500' : 'bg-red-400'}`}>
+                      <div key={s.id} className="px-4 py-4 sm:px-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between hover:bg-gray-50 transition-colors min-w-0">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0 ${s.paid ? 'bg-green-500' : 'bg-red-400'}`}>
                             {s.name[0]}
                           </div>
-                          <div>
-                            <p className="text-sm font-bold text-gray-800">{s.name}</p>
-                            <p className="text-[10px] text-gray-400">{s.course}</p>
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-gray-800 truncate">{s.name}</p>
+                            <p className="text-[10px] text-gray-400 truncate">{s.course}</p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm font-black text-gray-800">{(s.price || 0).toLocaleString('vi-VN')}đ</p>
-                          <span className={`text-[10px] font-bold ${s.paid ? 'text-green-600' : 'text-red-500'}`}>
-                            {s.paid ? 'Đã nộp' : 'Chưa nộp'}
-                          </span>
+                        <div className="flex flex-wrap items-center gap-3 sm:justify-end sm:gap-4">
+                          <div className="text-left sm:text-right min-w-[7rem]">
+                            <p className="text-sm font-black text-gray-800 break-all">{(s.price || 0).toLocaleString('vi-VN')}đ</p>
+                            <span className={`text-[10px] font-bold ${s.paid ? 'text-green-600' : 'text-red-500'}`}>
+                              {s.paid ? 'Đã nộp' : 'Chưa nộp'}
+                            </span>
+                          </div>
+                          {!s.paid && (
+                            <button
+                              onClick={() => markStudentPaid(s.id)}
+                              className="sm:ml-auto px-3 py-1.5 bg-green-50 text-green-600 text-[10px] font-bold rounded-lg hover:bg-green-100 whitespace-nowrap w-full sm:w-auto"
+                            >
+                              Xác nhận thu
+                            </button>
+                          )}
                         </div>
-                        {!s.paid && (
-                          <button
-                            onClick={() => markStudentPaid(s.id)}
-                            className="ml-4 px-2 py-1 bg-green-50 text-green-600 text-[10px] font-bold rounded hover:bg-green-100"
-                          >
-                            Xác nhận thu
-                          </button>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -2552,9 +2618,9 @@ const AdminDashboard = ({ onNavigate }) => {
                 {/* Expense Card (Teacher Payouts) — CHỈ Super Admin */}
                 {isSuperAdmin && (
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                  <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-                    <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                      <CreditCard size={18} className="text-blue-600" /> Thanh Toán Giảng Viên
+                  <div className="px-4 py-4 sm:px-6 sm:py-5 border-b border-gray-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between min-w-0">
+                    <h3 className="font-bold text-gray-800 flex items-center gap-2 min-w-0">
+                      <CreditCard size={18} className="text-blue-600 flex-shrink-0" /> Thanh Toán Giảng Viên
                     </h3>
                     <button
                       onClick={() => {
@@ -2579,16 +2645,16 @@ const AdminDashboard = ({ onNavigate }) => {
                             toast.error(e.message || 'Lỗi khi xuất file');
                           }
                       }}
-                      className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-xl hover:bg-slate-700 transition shadow-sm font-semibold text-sm"
+                      className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-800 text-white rounded-xl hover:bg-slate-700 transition shadow-sm font-semibold text-sm w-full sm:w-auto"
                     >
                       <Download size={16} /> Xuất Báo Cáo
                     </button>
                   </div>
-                  <div className="p-6">
-                    <div className="bg-slate-800 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
+                  <div className="p-4 sm:p-6">
+                    <div className="bg-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 text-white shadow-lg relative overflow-hidden">
                       {isLoadingFinance ? <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center"><RefreshCw className="animate-spin text-white" size={24}/></div> : null}
                       <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">Tổng thù lao đã chi</p>
-                      <p className="text-4xl font-black mt-2">{(financialData.reduce((s, p) => s + (p.amount || 0), 0)).toLocaleString('vi-VN')}đ</p>
+                      <p className="text-3xl sm:text-4xl font-black mt-2 break-words">{(financialData.reduce((s, p) => s + (p.amount || 0), 0)).toLocaleString('vi-VN')}đ</p>
                       <p className="text-[10px] text-slate-500 mt-2 font-bold uppercase italic tracking-widest">Giai đoạn: 01/01 - Hiện tại</p>
                     </div>
                   </div>
@@ -2596,25 +2662,25 @@ const AdminDashboard = ({ onNavigate }) => {
                     {financialData.map(t => {
                       const bankInfo = t.teacherId?.bankAccount || t.bankAccount;
                       return (
-                      <div key={t.id || t._id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                      <div key={t.id || t._id} className="px-4 py-4 sm:px-6 hover:bg-gray-50 transition-colors min-w-0">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between min-w-0">
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
                               <Users size={14} />
                             </div>
-                            <div>
-                              <p className="text-sm font-bold text-gray-800">{t.teacherId?.name || t.teacherName || 'Giảng viên'}</p>
-                              <p className="text-[10px] text-gray-400">{t.description || t.note || 'Thù lao'}</p>
+                            <div className="min-w-0">
+                              <p className="text-sm font-bold text-gray-800 truncate">{t.teacherId?.name || t.teacherName || 'Giảng viên'}</p>
+                              <p className="text-[10px] text-gray-400 truncate">{t.description || t.note || 'Thù lao'}</p>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <p className="text-sm font-black text-blue-600">-{t.amount ? t.amount.toLocaleString('vi-VN') : 0}đ</p>
+                          <div className="text-left sm:text-right shrink-0">
+                            <p className="text-sm font-black text-blue-600 break-all">-{t.amount ? t.amount.toLocaleString('vi-VN') : 0}đ</p>
                             <p className="text-[10px] text-gray-400 font-medium">{t.date || new Date(t.createdAt).toLocaleDateString('vi-VN')}</p>
                           </div>
                         </div>
                         {/* Bank info row */}
                         {bankInfo?.accountNumber && (
-                          <div className="mt-2 ml-11 flex items-center gap-2 flex-wrap">
+                          <div className="mt-2 ml-0 pl-0 sm:ml-11 sm:pl-0 flex items-center gap-2 flex-wrap">
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-1 rounded-lg border border-emerald-100">
                               <CreditCard size={10} /> {bankInfo.bankName || 'N/A'}
                             </span>

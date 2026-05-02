@@ -146,23 +146,33 @@ export const SocketProvider = ({ userId, role, name, children }) => {
       }
     });
 
-    // Gọi refresh data khi có thay đổi từ server (phổ biến)
+    // Gom nhiều sự kiện socket trong ~300ms → một lần gọi refresh (tránh bão API)
+    let refreshDebounceTimer = null;
     const triggerRefresh = (data) => {
-      if (dataRefreshCallbackRef.current) {
-        dataRefreshCallbackRef.current(data);
-      }
+      if (refreshDebounceTimer) clearTimeout(refreshDebounceTimer);
+      refreshDebounceTimer = setTimeout(() => {
+        refreshDebounceTimer = null;
+        if (dataRefreshCallbackRef.current) {
+          dataRefreshCallbackRef.current(data);
+        }
+      }, 320);
     };
 
     newSocket.on('data:refresh', triggerRefresh);
     newSocket.on('student:updated', triggerRefresh);
-    
-    // Binding ALL web application actions to trigger seamless automated real-time background syncs:
+
+    /** Các route không luôn kèm data:refresh — vẫn cần kích hoạt đồng bộ DataContext */
     const refreshEvents = [
       'schedule:new', 'schedule:updated', 'schedule:completed', 'schedule:cancelled',
-      'assignment:new', 'assignment:graded', 'assignment:submitted',
-      'teacher:updated', 'exam:unlocked'
+      'assignment:new', 'assignment:graded', 'assignment:submitted', 'assignment:updated', 'assignment:deleted',
+      'teacher:updated', 'exam:unlocked',
+      'student:new', 'student:assigned', 'student:history_reset',
+      'submission:new', 'submission:graded',
+      'transactions:new', 'teacher:financeUpdated', 'tuition:paid', 'revenue:updated',
+      'teacher:scored', 'teacher:approved', 'teacher:practical_submitted', 'teacher:rejected', 'teacher:new',
+      'evaluation:admin_feedback', 'evaluation:teacher_rating',
     ];
-    refreshEvents.forEach(ev => newSocket.on(ev, triggerRefresh));
+    refreshEvents.forEach((ev) => newSocket.on(ev, triggerRefresh));
 
     // Centralized Notification Event
     newSocket.on('RECEIVE_NOTIFICATION', (data) => {
@@ -172,6 +182,7 @@ export const SocketProvider = ({ userId, role, name, children }) => {
 
     newSocket.on('new-notification', () => {
       playNotifySound();
+      triggerRefresh({ type: 'notifications' });
       apiFetch('/notifications/unread')
         .then(res => res.json())
         .then(data => {
@@ -218,12 +229,14 @@ export const SocketProvider = ({ userId, role, name, children }) => {
         id: Date.now(), read: false, type: 'payment',
         ...data,
       }, ...prev]);
+      triggerRefresh({ type: 'payment' });
     });
 
     socketRef.current = newSocket;
     setSocket(newSocket);
 
     return () => {
+      if (refreshDebounceTimer) clearTimeout(refreshDebounceTimer);
       newSocket.disconnect();
     };
   }, [userId, role, name]);

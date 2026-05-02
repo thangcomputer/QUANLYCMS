@@ -365,8 +365,8 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
     return (
       <div className="bg-white rounded-[40px] shadow-2xl shadow-blue-900/5 border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-500">
         {/* Header - Dark Theme */}
-        <div className="bg-[#1e293b] px-10 py-8 text-white">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="bg-[#1e293b] px-4 py-6 sm:px-8 md:px-10 md:py-8 text-white">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6 min-w-0">
              <div className="flex items-center gap-6">
                 <div className={`w-20 h-20 ${student.color} rounded-[28px] flex items-center justify-center text-white font-black text-2xl shadow-2xl border-4 border-white/10`}>
                   {student.avatar}
@@ -382,7 +382,7 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
                 </div>
              </div>
              
-             <div className="flex items-center gap-3">
+             <div className="flex flex-wrap items-center gap-2 md:gap-3 w-full md:w-auto">
                 <span className={`px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-sm ${
                   isCompleted ? 'bg-green-500 text-white' : 'bg-blue-600 text-white'
                 }`}>
@@ -390,7 +390,7 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
                 </span>
                 <button 
                   onClick={() => window.open(`http://zalo.me/${student.zalo || student.phone}`, '_blank')}
-                  className="w-12 h-12 bg-white/10 hover:bg-white/20 text-white rounded-2xl flex items-center justify-center transition-all border border-white/5"
+                  className="w-12 h-12 shrink-0 bg-white/10 hover:bg-white/20 text-white rounded-2xl flex items-center justify-center transition-all border border-white/5"
                   title="Gửi tin nhắn"
                 >
                   <MessageSquare size={20} />
@@ -406,7 +406,7 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
                             onConfirm: () => onLockExam(student)
                         });
                     }}
-                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-[11px] font-black px-5 py-3 rounded-2xl transition-all shadow-lg shadow-red-900/40 uppercase tracking-widest"
+                    className="flex flex-1 min-[360px]:flex-initial justify-center items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-[11px] font-black px-4 py-3 sm:px-5 rounded-2xl transition-all shadow-lg shadow-red-900/40 uppercase tracking-widest"
                   >
                     <XCircle size={16} /> ĐÁNH TRƯỢT
                   </button>
@@ -428,10 +428,10 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
         </div>
 
         {/* Tabs - Material Design Style */}
-        <div className="flex px-8 bg-white border-b border-gray-50">
+        <div className="flex px-1 sm:px-4 md:px-8 bg-white border-b border-gray-50 overflow-x-auto">
           {panels.map(({ key, icon: Icon, label }) => (
             <button key={key} onClick={() => setActivePanel(key)}
-              className={`flex-1 flex items-center justify-center gap-2 py-5 text-[11px] font-black uppercase tracking-widest transition-all relative ${
+              className={`flex-1 min-w-[5.5rem] sm:min-w-0 flex items-center justify-center gap-1.5 sm:gap-2 py-4 sm:py-5 text-[10px] sm:text-[11px] font-black uppercase tracking-widest transition-all relative ${
                 activePanel === key ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
               }`}>
               <Icon size={14} /> {label}
@@ -443,7 +443,7 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
         </div>
 
         {/* Action Content */}
-        <div className="p-10 space-y-8">
+        <div className="p-4 sm:p-6 md:p-10 space-y-6 sm:space-y-8">
            {activePanel === 'progress' && (
               <div className="space-y-8 animate-in fade-in duration-500">
                  {/* Stat Boxes */}
@@ -871,15 +871,15 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
     <React.Fragment>
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className={`w-12 h-12 ${student.color} rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-lg`}>
+      <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-4 py-4 sm:px-6">
+        <div className="flex flex-col gap-4 min-[440px]:flex-row min-[440px]:items-start min-[440px]:justify-between min-w-0">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+            <div className={`w-12 h-12 ${student.color} rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-lg shrink-0`}>
               {student.avatar}
             </div>
-            <div>
-              <p className="text-white font-bold text-lg tracking-wide">{getDisplayName(student)}</p>
-              <p className="text-slate-300 text-xs mt-0.5 flex items-center gap-2">
+            <div className="min-w-0">
+              <p className="text-white font-bold text-lg tracking-wide truncate">{getDisplayName(student)}</p>
+              <p className="text-slate-300 text-xs mt-0.5 flex flex-wrap items-center gap-2">
                 {student.course} · {student.age} tuổi
                 <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-black tracking-wider uppercase ${student.learningMode === 'ONLINE' ? 'bg-blue-500/20 text-blue-300' : 'bg-white/10 text-slate-300'}`}>
                   {student.learningMode === 'ONLINE' ? '🌐 ONLINE' : '🏢 OFFLINE'}
@@ -887,13 +887,13 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full min-[440px]:w-auto min-[440px]:justify-end">
             <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${
               isCompleted ? 'bg-green-500/20 text-green-400' : 'bg-blue-500/20 text-blue-400'
             }`}>{isCompleted ? '✓ Hoàn thành' : student.status}</span>
             <a href={`https://zalo.me/${student.zalo}`} target="_blank" rel="noreferrer"
-              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition-all">
-              <MessageSquare size={14} /> {student.zalo}
+              className="inline-flex flex-1 min-[440px]:flex-initial justify-center items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-2 rounded-xl transition-all min-w-0 max-w-full">
+              <MessageSquare size={14} className="shrink-0" /> <span className="truncate">{student.zalo}</span>
             </a>
             {onLockExam && (
               <button
@@ -906,7 +906,7 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
                         onConfirm: () => onLockExam(student)
                     });
                 }}
-                className="flex items-center gap-1.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-black px-3 py-2 rounded-xl transition-all shadow-lg shadow-red-900/30"
+                className="inline-flex justify-center items-center gap-1.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-black px-3 py-2 rounded-xl transition-all shadow-lg shadow-red-900/30 flex-1 min-[440px]:flex-initial"
               >
                 <XCircle size={14} /> ĐÁNH TRƯỢT
               </button>
@@ -2724,12 +2724,12 @@ const TeacherDashboard = ({ onNavigate }) => {
         ) : currentHash === 'schedule' ? (
           /* ═══ LỊCH DẠY ═══ */
           <div className="px-4 md:px-8 py-6 md:py-8 space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
-                <Calendar size={20} className="text-blue-600" /> Lịch dạy
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between min-w-0">
+              <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2 min-w-0">
+                <Calendar size={20} className="text-blue-600 shrink-0" /> Lịch dạy
               </h2>
               <button onClick={() => { setEditingSchedule(null); setShowScheduleModal(true); }}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md transition flex items-center gap-2">
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md transition flex items-center justify-center gap-2 w-full sm:w-auto shrink-0">
                 <Plus size={14} /> Xếp lịch mới
               </button>
             </div>

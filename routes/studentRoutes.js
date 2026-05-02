@@ -83,6 +83,7 @@ router.get('/', [authMiddleware, branchFilter], async (req, res) => {
 
     const studentsWithRealSessions = students.map(st => {
       const doc = st.toObject();
+      doc.requireWebcam = doc.requireWebcam !== false;
       const sid = String(st._id);
       const sess = sessionMap[sid];
       const realCompleted = sess?.completed || 0;
@@ -215,6 +216,7 @@ router.get('/:id', [authMiddleware, branchFilter], async (req, res) => {
     });
 
     const doc = student.toObject();
+    doc.requireWebcam = doc.requireWebcam !== false;
     doc.completedSessions = realCompleted;
     doc.remainingSessions = Math.max(0, (student.totalSessions || 12) - realCompleted);
 

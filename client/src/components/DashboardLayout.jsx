@@ -5,7 +5,7 @@ import BranchFilterDropdown from './BranchFilterDropdown';
 import { useData } from '../context/DataContext';
 import api from '../services/api';
 import { 
-  Bell, Search, LogOut, CheckCircle2, Clock, X, ChevronRight, Lock,
+  Bell, LogOut, CheckCircle2, Clock, X, ChevronRight, Lock,
   Calendar, DollarSign, UserPlus, Zap, BookOpen, Award, Activity
 } from 'lucide-react';
 
@@ -209,10 +209,10 @@ const DashboardLayout = ({ role, session, onLogout }) => {
       />
 
       <main className="flex-1 min-w-0 flex flex-col h-screen">
-        <header className="h-16 md:h-20 bg-white/80 border-b border-gray-100 flex items-center justify-between pl-20 lg:pl-8 pr-3 md:pr-8 flex-shrink-0 z-40 backdrop-blur-xl">
-          <div className="flex items-center gap-2 md:gap-4 overflow-hidden flex-1">
-            <div className="flex items-center gap-1 md:gap-3 flex-shrink-0">
-              <nav className="flex items-center gap-1 md:gap-2 text-[10px] md:text-[11px] font-black uppercase tracking-widest text-gray-400">
+        <header className="min-h-14 flex flex-col gap-3 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-3 sm:gap-y-2 md:min-h-16 lg:min-h-[5rem] lg:py-0 bg-white/80 border-b border-gray-100 pl-20 lg:pl-8 pr-3 md:pr-8 flex-shrink-0 z-40 backdrop-blur-xl">
+          <div className="flex items-center gap-2 md:gap-4 min-w-0 flex-1 overflow-hidden">
+            <div className="flex items-center gap-1 md:gap-3 flex-shrink-0 min-w-0">
+              <nav className="flex flex-wrap items-center gap-x-1 gap-y-1 md:gap-2 text-[10px] md:text-[11px] font-black uppercase tracking-widest text-gray-400 min-w-0">
                  <span className="hidden lg:inline hover:text-red-600 transition-colors cursor-pointer">Dashboard</span>
                  <ChevronRight size={12} className="hidden lg:block opacity-50" />
                  <span className="text-red-600">
@@ -229,7 +229,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
               </nav>
             </div>
             <div className="w-px h-6 bg-gray-100 mx-2 hidden xl:block"></div>
-            <h1 className="text-sm font-black text-gray-800 lg:block hidden animate-in fade-in slide-in-from-left-4 duration-500 truncate max-w-[250px] xl:max-w-none">
+            <h1 className="text-xs sm:text-sm font-black text-gray-800 hidden sm:block min-w-0 animate-in fade-in slide-in-from-left-4 duration-500 truncate md:max-w-[min(18rem,42vw)] xl:max-w-[min(36rem,52vw)]">
               <span className={`px-2 py-0.5 rounded-lg text-[9px] uppercase tracking-widest font-black text-white shadow-sm ${
                 role === 'admin' ? 'bg-slate-900' : role === 'teacher' ? 'bg-red-600' : 'bg-blue-600'
               }`}>
@@ -243,13 +243,10 @@ const DashboardLayout = ({ role, session, onLogout }) => {
             </h1>
           </div>
 
-          <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
-            {role === 'admin' && <BranchFilterDropdown />}
-
+          <div className="flex flex-wrap items-center justify-end gap-2 md:gap-3 flex-shrink-0 w-full sm:w-auto min-w-0">
             {role === 'admin' && (
-              <div className="relative hidden lg:block group">
-                <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-red-500 transition-colors" />
-                <input type="text" placeholder="Tìm tên, SĐT..." className="pl-11 pr-4 py-3 bg-gray-50 border-2 border-transparent rounded-2xl text-xs outline-none focus:border-red-600 focus:bg-white transition-all w-32 xl:w-48 xl:focus:w-72 shadow-sm font-medium" />
+              <div className="min-w-0 max-w-full sm:max-w-[min(240px,72vw)] md:max-w-none">
+                <BranchFilterDropdown />
               </div>
             )}
 
@@ -268,7 +265,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
               </button>
 
               {showNotif && (
-                  <div ref={notifRef} className="absolute right-0 mt-4 w-96 bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-gray-100 z-[70] overflow-hidden animate-in fade-in zoom-in duration-200 origin-top-right">
+                  <div ref={notifRef} className="absolute right-0 mt-4 w-[min(24rem,calc(100vw-1.25rem))] max-w-[calc(100vw-1rem)] bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-gray-100 z-[70] overflow-hidden animate-in fade-in zoom-in duration-200 origin-top-right">
                     <div className="p-6 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
                       <h3 className="font-black text-gray-800 text-base">Thông báo mới</h3>
                       <button onClick={() => setShowNotif(false)} className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-gray-400 hover:text-red-600 shadow-sm transition-all"><X size={16}/></button>

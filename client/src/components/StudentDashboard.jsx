@@ -1596,12 +1596,12 @@ const StudentDashboard = ({ onNavigate }) => {
           /* ═══ TỔNG QUAN (default) ═══ */
           <>
             {/* Greeting */}
-            <div className="px-4 md:px-8 pt-5 pb-2 flex justify-between items-center">
-              <div>
-                <h2 className="text-lg md:text-xl font-black text-slate-800">Chào mừng, {studentData.name}! 👋</h2>
+            <div className="px-4 md:px-8 pt-5 pb-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between min-w-0">
+              <div className="min-w-0">
+                <h2 className="text-lg md:text-xl font-black text-slate-800 truncate">Chào mừng, {studentData.name}! 👋</h2>
                 <p className="text-slate-400 text-xs md:text-sm italic">"Học hôm nay, thành công mai sau."</p>
               </div>
-              <div className="text-right hidden md:block">
+              <div className="text-left sm:text-right shrink-0">
                 <p className="text-xs font-bold text-red-600 uppercase tracking-widest">Trung Tâm Thắng Tin Học</p>
               </div>
             </div>
@@ -1695,11 +1695,11 @@ const StudentDashboard = ({ onNavigate }) => {
 
                   {/* Nhật ký */}
                   <div className="bg-white rounded-2xl md:rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="px-4 md:px-6 py-3 md:py-4 border-b border-gray-100 flex items-center justify-between">
-                      <h3 className="font-bold text-slate-700 flex items-center gap-2 text-sm md:text-base">
-                        <Clock size={16} className="text-blue-500" /> NHẬT KÝ HỌC TẬP
+                    <div className="px-4 md:px-6 py-3 md:py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2 min-w-0">
+                      <h3 className="font-bold text-slate-700 flex items-center gap-2 text-sm md:text-base min-w-0">
+                        <Clock size={16} className="text-blue-500 shrink-0" /> NHẬT KÝ HỌC TẬP
                       </h3>
-                      <span className="text-[10px] md:text-xs text-gray-400">{studyLogs.length} sự kiện</span>
+                      <span className="text-[10px] md:text-xs text-gray-400 shrink-0">{studyLogs.length} sự kiện</span>
                     </div>
                     <div className="divide-y divide-gray-50">
                       {studyLogs.map((item, idx) => {
