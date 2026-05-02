@@ -637,10 +637,13 @@ const AddStudentModal = ({ onAdd, onClose, teachers }) => {
                 <label className="text-xs font-black text-gray-500 uppercase tracking-widest block mb-2">Giảng viên hướng dẫn</label>
                 <select name="teacherId" value={form.teacherId} onChange={handleChange} className="w-full bg-gray-50 border-2 border-transparent focus:border-red-600 focus:bg-white rounded-[20px] p-4 font-black text-gray-800 outline-none transition-all shadow-sm cursor-pointer">
                   <option value="">-- Chọn sau (Không bắt buộc) --</option>
-                  {teachers.filter(t => t.status === 'Active' || (t.testScore >= 80)).map(t => (
-                    <option key={t.id || t._id} value={t.id || t._id}>{t.name} (Điểm: {t.testScore || 100})</option>
+                  {teachers.filter(t => String(t.status || '').toLowerCase() === 'active').map(t => (
+                    <option key={t.id || t._id} value={t.id || t._id}>{t.name}{t.phone ? ` — ${t.phone}` : ''}</option>
                   ))}
                 </select>
+                {teachers.filter(t => String(t.status || '').toLowerCase() === 'active').length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">⚠️ Chưa có giảng viên chính thức (Active) để phân công.</p>
+                )}
               </div>
             </div>
           </div>
@@ -874,13 +877,13 @@ const EditStudentModal = ({ student, onSave, onClose, teachers, onResetPassword 
                   <option value="">-- Có thể chọn sau --</option>
                   {teachers.filter(t => {
                     const s = (t.status || '').toLowerCase();
-                    return s === 'active' || s === 'pending' || (t.testScore >= 80);
+                    return s === 'active';
                   }).map(t => (
                     <option key={t.id || t._id} value={t.id || t._id}>{t.name}{t.phone ? ` — ${t.phone}` : ''}</option>
                   ))}
                 </select>
-                {teachers.filter(t => { const s = (t.status || '').toLowerCase(); return s === 'active' || s === 'pending'; }).length === 0 && (
-                  <p className="text-xs text-amber-600 mt-1">⚠️ Chưa có giảng viên nào có trạng thái Active/Pending</p>
+                {teachers.filter(t => { const s = (t.status || '').toLowerCase(); return s === 'active'; }).length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">⚠️ Chưa có giảng viên chính thức (Active).</p>
                 )}
               </div>
             </div>
