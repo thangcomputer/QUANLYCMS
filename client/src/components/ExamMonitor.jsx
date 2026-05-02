@@ -48,13 +48,11 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam, requireWebca
   useImperativeHandle(ref, () => ({
     getStats: () => ({ cameraWarnings: cameraWarningsRef.current, tabWarnings: tabWarningsRef.current, lastFaceDetected, cameraStatus, consecutiveNoFace: consecutiveNoFaceRef.current, resetCount: resetCountRef.current }),
     videoRef: videoRef
-  }), [lastFaceDetected, cameraStatus]);
-
-  // CAMERA DETECTION - NATIVE / HEURISTIC
+  }), [lastFa  // CAMERA DETECTION - NATIVE / HEURISTIC
   useEffect(() => {
     if (!isActive || isTerminated) return;
     if (!requireWebcam) {
-      setCameraStatus('active'); // Dummy status to avoid UI warning
+      setCameraStatus('active');
       setLastFaceDetected(true);
       return;
     }
@@ -63,17 +61,32 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam, requireWebca
     const canvas = document.createElement('canvas');
     canvas.width = 160; canvas.height = 120;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    
     let faceDetector = null;
-    if ('FaceDetector' in window) {
-      faceDetector = new window.FaceDetector({ maxDetectedFaces: 1 });
-    }
+    try {
+      if ('FaceDetector' in window) {
+        faceDetector = new window.FaceDetector({ maxDetectedFaces: 1 });
+      }
+    } catch(e) {}
 
     const setupCamera = async () => {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        if (!isMounted) return;
+        // Use more standard constraints
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 15 } } 
+        });
+        
+        if (!isMounted) {
+          stream.getTracks().forEach(t => t.stop());
+          return;
+        }
+
         streamRef.current = stream;
-        if (videoRef.current) videoRef.current.srcObject = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          // Ensure it starts playing
+          videoRef.current.play().catch(() => {});
+        }
         setCameraStatus('active');
 
         intervalRef.current = setInterval(async () => {
@@ -85,17 +98,41 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam, requireWebca
               const faces = await faceDetector.detect(videoRef.current);
               hasFace = faces.length > 0;
             } else {
-               // Đề phòng Chrome không hỗ trợ: Dùng heuristic nhưng cực kỳ "thoáng"
+               // Improved Skin Color + Luminosity Heuristic
                ctx.drawImage(videoRef.current, 0, 0, 160, 120);
-               const data = ctx.getImageData(30, 20, 100, 80).data; // Chỉ xét vùng trung tâm
+               const frame = ctx.getImageData(0, 0, 160, 120);
+               const data = frame.data;
+               
                let skinPixels = 0;
-               for (let i = 0; i < data.length; i += 4) {
-                 const r = data[i], g = data[i+1], b = data[i+2];
-                 // Thuật toán phát hiện màu da đơn giản
-                 if (r > 60 && g > 40 && b > 20 && r > g && r > b) skinPixels++;
+               let totalLuminance = 0;
+               
+               // Sample only the central 60% of the image
+               for (let y = 30; y < 90; y++) {
+                 for (let x = 40; x < 120; x++) {
+                   const i = (y * 160 + x) * 4;
+                   const r = data[i], g = data[i+1], b = data[i+2];
+                   
+                   // Luminance
+                   totalLuminance += (0.299 * r + 0.587 * g + 0.114 * b);
+                   
+                   // Normalized skin color detection (robust to brightness)
+                   const sum = r + g + b;
+                   if (sum > 0) {
+                     const nr = r / sum, ng = g / sum;
+                     if (nr > 0.35 && nr < 0.55 && ng > 0.25 && ng < 0.35) skinPixels++;
+                   }
+                 }
                }
-               const ratio = skinPixels / (100 * 80);
-               hasFace = ratio > 0.01; // Chỉ cần 1% pixels vùng giữa giống màu da là pass
+               
+               const avgLuminance = totalLuminance / (60 * 80);
+               const skinRatio = skinPixels / (60 * 80);
+               
+               // If too dark, don't punish immediately
+               if (avgLuminance < 15) {
+                 hasFace = true; // Temporary pass for dark room
+               } else {
+                 hasFace = skinRatio > 0.05; // 5% skin pixels in center
+               }
             }
             
             setLastFaceDetected(hasFace);
@@ -106,7 +143,6 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam, requireWebca
               const n = cameraWarningsRef.current;
               setCameraWarnings(n);
 
-              // Hiện cảnh báo nhẹ ở lần 3
               if (consecutive === 3) {
                 playWarningBeep();
                 setWarningOverlay({
@@ -118,14 +154,11 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam, requireWebca
                 });
               }
 
-              // Đạt 5 lần liên tiếp → xử lý
               if (consecutive >= CONFIG.MAX_CONSECUTIVE_NO_FACE) {
                 playWarningBeep();
                 if (resetCountRef.current >= CONFIG.MAX_RESETS) {
-                  // Đã reset 1 lần rồi mà vẫn vi phạm → HỦY bài thi
                   terminateExam('Không phát hiện khuôn mặt sau 2 lần kiểm tra liên tiếp. Bài thi bị hủy.');
                 } else {
-                  // Lần đầu → RESET bài thi, cho cơ hội lần 2
                   resetCountRef.current += 1;
                   setResetCount(resetCountRef.current);
                   consecutiveNoFaceRef.current = 0;
@@ -136,25 +169,26 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam, requireWebca
                     persistent: false,
                     isReset: true
                   });
-                  // Gọi callback reset exam nếu có
                   if (onResetExam) onResetExam();
                 }
               }
             } else {
-              // Phát hiện mặt → reset bộ đếm liên tiếp
               consecutiveNoFaceRef.current = 0;
             }
           } catch (e) { }
         }, CONFIG.CAMERA_CHECK_INTERVAL);
       } catch (err) {
         setCameraStatus('denied');
-        // Không có camera => bỏ qua kiểm tra khuôn mặt hoàn toàn
         setLastFaceDetected(true);
       }
     };
     setupCamera();
-    return () => { isMounted = false; clearInterval(intervalRef.current); if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); };
-  }, [isActive, isTerminated, requireWebcam, terminateExam]);
+    return () => { 
+      isMounted = false; 
+      if (intervalRef.current) clearInterval(intervalRef.current); 
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop()); 
+    };
+  }, [isActive, isTerminated, requireWebcam, terminateExam, onResetExam]);
 
   // TAB DETECTION
   useEffect(() => {
@@ -191,7 +225,14 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam, requireWebca
 
   return (
     <>
-      <video ref={videoRef} autoPlay muted playsInline className="hidden" />
+      {/* Hidden but active video element for processing */}
+      <video 
+        ref={videoRef} 
+        autoPlay 
+        muted 
+        playsInline 
+        style={{ position: 'absolute', width: '1px', height: '1px', opacity: 0.01, pointerEvents: 'none' }} 
+      />
       {warningOverlay && (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-red-950/90 backdrop-blur-md p-4 animate-in fade-in duration-300">
           <div className="bg-white rounded-[40px] shadow-[0_32px_120px_-15px_rgba(220,38,38,0.5)] w-full max-w-sm overflow-hidden border-t-[12px] border-red-600 animate-in zoom-in duration-500 scale-100">
@@ -241,7 +282,20 @@ export const CameraHeaderPanel = ({ monitorRef }) => {
   useEffect(() => {
     const t = setInterval(() => { 
       if (monitorRef.current) {
-        setStats(monitorRef.current.getStats());
+        const currentStats = monitorRef.current.getStats();
+        setStats(currentStats);
+        
+        // Continuous sync of srcObject to ensure preview works
+        const monitorVideo = monitorRef.current.videoRef?.current;
+        if (previewVideoRef.current && monitorVideo && monitorVideo.srcObject) {
+          if (previewVideoRef.current.srcObject !== monitorVideo.srcObject) {
+            previewVideoRef.current.srcObject = monitorVideo.srcObject;
+          }
+        }
+      }
+    }, 1000);
+    return () => clearInterval(t);
+  }, [monitorRef]);orRef.current.getStats());
         // Sync srcObject to preview video
         if (previewVideoRef.current && monitorRef.current.videoRef?.current && !previewVideoRef.current.srcObject) {
           previewVideoRef.current.srcObject = monitorRef.current.videoRef.current.srcObject;
