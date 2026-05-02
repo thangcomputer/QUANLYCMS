@@ -365,10 +365,12 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
          </p>
          
          {/* Hướng dẫn Box (Mô phỏng Dialog Chrome) */}
-         <div className="border-[1.5px] border-slate-200 rounded-[20px] p-3 mb-3 relative text-left bg-[#F4F7F6] shadow-inner select-none pointer-events-none">
+         <div className="relative mb-3">
+           <div className="absolute -top-2 left-1/2 -translate-x-1/2 bg-red-600 text-white text-[8px] font-black px-2 py-0.5 rounded-full z-20 shadow-sm animate-bounce">HƯỚNG DẪN</div>
+           <div className="border-[1.5px] border-slate-200 rounded-[20px] p-3 relative text-left bg-[#F4F7F6] shadow-inner select-none pointer-events-none">
             <div className="flex items-center justify-between mb-2">
                <div>
-                  <p className="font-bold text-slate-700 text-[13px]">dashboard.thangcomputer.com muốn</p>
+                  <p className="font-bold text-slate-700 text-[13px]">{window.location.hostname} muốn</p>
                   <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-1 font-semibold"><Camera size={12}/> Sử dụng camera có sẵn (3)</p>
                </div>
                <XCircle size={16} className="text-slate-400" />
@@ -381,7 +383,12 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
                ) : (
                    <div className="text-white/50 text-xs flex flex-col items-center gap-2 font-bold">
                       <Camera size={24} className="animate-pulse" />
-                      {cameraError ? 'Lỗi Camera: Bị từ chối' : 'Đang chờ cấp quyền...'}
+                      {cameraError ? (
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-red-400 text-[8px]">{cameraError}</span>
+                          <button onClick={() => window.location.reload()} className="px-2 py-0.5 bg-white/20 rounded text-[8px] hover:bg-white/30">Thử lại</button>
+                        </div>
+                      ) : 'Đang chờ cấp quyền...'}
                    </div>
                )}
                <div className="absolute top-2 right-2 bg-white/20 backdrop-blur-md px-2 py-1 rounded-lg text-[10px] text-white flex items-center gap-1 font-bold">
