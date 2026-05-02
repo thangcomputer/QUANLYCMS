@@ -46,9 +46,18 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, onResetExam, requireWebca
 
 
   useImperativeHandle(ref, () => ({
-    getStats: () => ({ cameraWarnings: cameraWarningsRef.current, tabWarnings: tabWarningsRef.current, lastFaceDetected, cameraStatus, consecutiveNoFace: consecutiveNoFaceRef.current, resetCount: resetCountRef.current }),
+    getStats: () => ({ 
+      cameraWarnings: cameraWarningsRef.current, 
+      tabWarnings: tabWarningsRef.current, 
+      lastFaceDetected, 
+      cameraStatus, 
+      consecutiveNoFace: consecutiveNoFaceRef.current, 
+      resetCount: resetCountRef.current 
+    }),
     videoRef: videoRef
-  }), [lastFa  // CAMERA DETECTION - NATIVE / HEURISTIC
+  }), [lastFaceDetected, cameraStatus]);
+
+  // CAMERA DETECTION - NATIVE / HEURISTIC
   useEffect(() => {
     if (!isActive || isTerminated) return;
     if (!requireWebcam) {
