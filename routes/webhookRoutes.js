@@ -55,7 +55,7 @@ setInterval(cleanExpiredSessions, 2 * 60 * 1000);
 
 // ── POST /api/webhooks/payment-session & /api/webhooks/create-session ──
 const handleCreateSession = (req, res) => {
-  const { ref, content, amount } = req.body;
+  const { ref, content, amount, studentName, courseName } = req.body;
   const finalRef = (ref || content || '').toLowerCase().trim();
   if (!finalRef) return res.status(400).json({ success: false, message: 'Thiếu nội dung chuyển khoản (ref/content)' });
 
@@ -64,6 +64,8 @@ const handleCreateSession = (req, res) => {
     ref: finalRef,
     amount: Number(amount) || 0,
     status: 'pending',
+    studentName: studentName || '',
+    courseName: courseName || '',
     createdAt: Date.now(),
   });
 
@@ -97,6 +99,10 @@ const handleCheckSession = (req, res) => {
     success: true,
     status: session.status,   // 'pending' | 'paid' | 'expired'
     paid: session.status === 'paid',
+    studentName: session.studentName,
+    courseName: session.courseName,
+    amount: session.amount,
+    ref: session.ref,
     remaining,
     paidAmount: session.paidAmount || 0,
   });

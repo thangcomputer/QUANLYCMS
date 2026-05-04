@@ -15,6 +15,7 @@ const StudentTest = lazy(() => import('./components/StudentTest'));
 const TeacherTest = lazy(() => import('./components/TeacherTest'));
 const TeacherFinanceAndTraining = lazy(() => import('./components/TeacherFinanceAndTraining'));
 const Inbox = lazy(() => import('./components/Inbox'));
+const PublicPaymentPage = lazy(() => import('./components/PublicPaymentPage'));
 import DashboardLayout                       from './components/DashboardLayout';
 import api, { clearTokens, getRolePrefix } from './services/api';
 import { BranchProvider }                    from './context/BranchContext';
@@ -177,6 +178,7 @@ function AppRoutes({ session, onSessionChange, isAuthLoading, onLogin, onLogout 
       <Route path="/login"       element={<LoginPage onLogin={onLogin} />} />
       <Route path="/admin/login" element={<AdminLoginPage onLogin={onLogin} />} />
       <Route path="/dangkykhoahoc" element={<RegistrationForm onNavigate={go} />} />
+      <Route path="/pay/:sessionId" element={<Suspense fallback={<LoadingScreen />}><PublicPaymentPage /></Suspense>} />
 
       {/* ═══ Admin ═══ */}
       <Route element={

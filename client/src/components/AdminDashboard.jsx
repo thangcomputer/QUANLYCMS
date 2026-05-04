@@ -8,7 +8,7 @@ import {
   FileSpreadsheet, Download, Eye, AlertTriangle, Unlock, Lock, User,
   Phone, CalendarCheck, MessageSquare, Video, FileText, ShieldAlert,
   Edit3, X, PlayCircle, Save, RefreshCw, Trophy, ClipboardList, CreditCard, HelpCircle,
-  MoreHorizontal, AlertCircle, Landmark, Loader2, Settings, RotateCcw, MapPin, Layers, Camera, KeyRound
+  MoreHorizontal, AlertCircle, Landmark, Loader2, Settings, RotateCcw, MapPin, Layers, Camera, KeyRound, Share2
 } from 'lucide-react';
 
 
@@ -372,7 +372,12 @@ const AddStudentModal = ({ onAdd, onClose, teachers }) => {
     fetch(`${API}/api/webhooks/create-session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ amount: form.price, content: ckContent }),
+      body: JSON.stringify({ 
+        amount: form.price, 
+        content: ckContent,
+        studentName: form.name,
+        courseName: form.course
+      }),
     }).then(r => r.json()).then(res => { if (res.sessionId) setSessionId(res.sessionId); }).catch(() => {});
 
     // Countdown
@@ -460,9 +465,24 @@ const AddStudentModal = ({ onAdd, onClose, teachers }) => {
               <p className="font-black text-base">💳 Quét QR Thanh Toán</p>
               <p className="text-xs opacity-80">{form.name} — {form.course?.slice(0,25)}</p>
             </div>
-            <button onClick={onClose} className="w-8 h-8 bg-white/20 hover:bg-white/40 rounded-full flex items-center justify-center transition">
-              <X size={14} />
-            </button>
+            <div className="flex items-center gap-2">
+              {sessionId && (
+                <button 
+                  onClick={() => {
+                    const shareUrl = `${window.location.origin}/pay/${sessionId}`;
+                    navigator.clipboard.writeText(shareUrl);
+                    toast.success('Đã copy link thanh toán! Bạn có thể gửi qua Zalo/Facebook cho học viên.');
+                  }}
+                  className="w-8 h-8 bg-white/20 hover:bg-white/40 rounded-full flex items-center justify-center transition"
+                  title="Chia sẻ link thanh toán"
+                >
+                  <Share2 size={14} />
+                </button>
+              )}
+              <button onClick={onClose} className="w-8 h-8 bg-white/20 hover:bg-white/40 rounded-full flex items-center justify-center transition">
+                <X size={14} />
+              </button>
+            </div>
           </div>
 
           <div className="p-5 space-y-4">
