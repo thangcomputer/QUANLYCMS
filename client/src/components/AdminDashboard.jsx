@@ -283,7 +283,7 @@ const AddStudentModal = ({ onAdd, onClose, teachers }) => {
   const [form, setForm] = useState({
     name: '', age: '', phone: '', zalo: '',
     courseId: '', course: '', price: 0, totalSessions: 12,
-    paid: false, teacherId: '', learningMode: 'OFFLINE', branchId: ''
+    paid: false, teacherId: '', learningMode: 'OFFLINE', branchId: '', branchCode: ''
   });
 
   // Fetch courses from DB
@@ -310,7 +310,8 @@ const AddStudentModal = ({ onAdd, onClose, teachers }) => {
              }
           }
 
-          setForm(f => ({ ...f, courseId: first._id, course: first.name, price: ep, totalSessions: 12, branchId: defaultBranchId, learningMode: mode }));
+          const bCode = defaultBranchId ? (branches.find(b => String(b._id) === String(defaultBranchId))?.code || '') : '';
+          setForm(f => ({ ...f, courseId: first._id, course: first.name, price: ep, totalSessions: 12, branchId: defaultBranchId, branchCode: bCode, learningMode: mode }));
         }
       })
       .catch(() => {});
@@ -326,7 +327,7 @@ const AddStudentModal = ({ onAdd, onClose, teachers }) => {
       if (selectedB && selectedB.name.toLowerCase().includes('online')) {
         mode = 'ONLINE';
       }
-      setForm(f => ({ ...f, branchId: value, learningMode: mode }));
+      setForm(f => ({ ...f, branchId: value, branchCode: selectedB?.code || '', learningMode: mode }));
       return;
     }
 

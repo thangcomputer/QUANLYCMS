@@ -471,6 +471,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
       teacherId:     student.teacherId || null,
       learningMode:  student.learningMode || 'OFFLINE',
       branchId:      student.branchId || undefined,
+      branchCode:    student.branchCode || '',
     };
 
     try {
