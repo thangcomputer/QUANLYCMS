@@ -184,6 +184,15 @@ const StudentSchema = new mongoose.Schema(
       default: true,
     },
     tokenVersion: { type: Number, default: 0 },   // ⭐ Anti-sharing: tăng mỗi lần login
+    
+    // ── Audit: Ai là người thêm học viên này ──────────────────────
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    createdByName: { type: String, default: '' },
+    createdByBranch: { type: String, default: '' },
   },
   {
     timestamps: true,

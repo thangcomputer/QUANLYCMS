@@ -346,6 +346,19 @@ router.post('/', [authMiddleware, branchFilter], async (req, res) => {
     if (req.body.teacherId && (!req.body.status || req.body.status === 'Chờ xếp lớp')) {
       req.body.status = 'Đang học';
     }
+    
+    // ⭐ Audit: Ghi nhận người tạo
+    req.body.createdBy = req.user.id;
+    req.body.createdByName = req.user.name || 'Admin';
+    
+    // Lấy tên chi nhánh người tạo
+    if (req.userBranchId) {
+      const Branch = require('../models/Branch');
+      const br = await Branch.findById(req.userBranchId);
+      if (br) req.body.createdByBranch = br.name;
+    } else {
+      req.body.createdByBranch = 'Hệ Thống (Super Admin)';
+    }
 
     const student = new Student(req.body);
     await student.save();
@@ -353,7 +366,7 @@ router.post('/', [authMiddleware, branchFilter], async (req, res) => {
     const io = req.app.get('io');
     if (io) {
       const NotificationService = require('../services/NotificationService');
-      NotificationService.notifyAdmins(io, '🆕 Học viên mới đăng ký', `Học viên ${student.name} đã đăng ký khóa học ${student.course}.`, { studentId: student._id }, '/admin/students');
+      NotificationService.notifyAdmins(io, '🆕 Học viên mới đăng ký', `Học viên ${student.name} đã đăng ký khóa học ${student.course}.`, { studentId: student._id }, '/admin#students');
       
       io.emit('student:new', {
         studentId: student._id,
@@ -517,7 +530,7 @@ router.put('/:id/pay', authMiddleware, isAdmin, async (req, res) => {
       const NotificationService = require('../services/NotificationService');
       
       // Notify Admin: doanh thu mới
-      NotificationService.notifyAdmins(io, '💰 Thu học phí', `Đã thu ${student.price.toLocaleString('vi-VN')}đ từ ${student.name}`, { studentId: student._id }, '/admin/invoices');
+      NotificationService.notifyAdmins(io, '💰 Thu học phí', `Đã thu ${student.price.toLocaleString('vi-VN')}đ từ ${student.name}`, { studentId: student._id }, '/admin#analytics');
       
       // Notify học viên: xác nhận đã thanh toán
       NotificationService.send(io, {

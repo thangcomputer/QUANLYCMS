@@ -474,7 +474,7 @@ const AddStudentModal = ({ onAdd, onClose, teachers }) => {
               {sessionId && (
                 <button 
                   onClick={() => {
-                    const shareUrl = `${window.location.origin}/pay/${sessionId}`;
+                    const shareUrl = `${window.location.origin}/#/pay/${sessionId}`;
                     navigator.clipboard.writeText(shareUrl);
                     toast.success('Đã copy link thanh toán! Bạn có thể gửi qua Zalo/Facebook cho học viên.');
                   }}
@@ -1661,7 +1661,6 @@ const AdminDashboard = ({ onNavigate }) => {
                   value={statTotalStudents} 
                   sub={`${statPaidStudents} đã hoàn tất học phí`} 
                   color="bg-gradient-to-br from-red-600 to-red-800"
-                  trend={12} 
                 />
                 <StatCard 
                   icon={GraduationCap} 
@@ -1676,7 +1675,6 @@ const AdminDashboard = ({ onNavigate }) => {
                   value={`${(statTotalRevenue / 1000000).toFixed(1)}M`} 
                   sub="VNĐ doanh thu thực tế" 
                   color="bg-gradient-to-br from-red-500 to-rose-700"
-                  trend={8}
                 />
                 <StatCard 
                   icon={TrendingUp} 

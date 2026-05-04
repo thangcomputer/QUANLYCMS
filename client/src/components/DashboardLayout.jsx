@@ -291,7 +291,27 @@ const DashboardLayout = ({ role, session, onLogout }) => {
                                   if (n.payload?.action === 'RESET_PASSWORD') {
                                     window.dispatchEvent(new CustomEvent('open-reset-pw', { detail: n.payload }));
                                   } else if (n.path) {
-                                    navigate(n.path); 
+                                    // ⭐ Tự động chuyển đổi các đường dẫn cũ sang cấu trúc Hash mới để tránh logout/redirect
+                                    let targetPath = n.path;
+                                    
+                                    // Xử lý nếu là URL tuyệt đối
+                                    if (targetPath.startsWith('http')) {
+                                      try {
+                                        const urlObj = new URL(targetPath);
+                                        targetPath = urlObj.pathname + urlObj.search + urlObj.hash;
+                                      } catch (e) {}
+                                    }
+
+                                    if (targetPath.startsWith('/admin/') && targetPath !== '/admin/inbox' && !targetPath.includes('#')) {
+                                      targetPath = '/admin#' + targetPath.replace('/admin/', '');
+                                    } else if (targetPath.startsWith('/student/') && !['/student/exam', '/student/inbox'].includes(targetPath) && !targetPath.includes('#')) {
+                                      targetPath = '/student#' + targetPath.replace('/student/', '');
+                                    } else if (targetPath.startsWith('/teacher/') && !['/teacher/test', '/teacher/finance', '/teacher/inbox', '/teacher/profile'].includes(targetPath) && !targetPath.includes('#')) {
+                                      targetPath = '/teacher#' + targetPath.replace('/teacher/', '');
+                                    }
+                                    
+                                    console.log('🔔 Navigating to notification path:', targetPath);
+                                    navigate(targetPath); 
                                   }
                                   setShowNotif(false); 
                                 }}

@@ -167,11 +167,20 @@ export default function StudentDetailModal({ studentId, onClose }) {
                      <span>Chi nhánh: {data.student.branchCode || 'Hệ thống'}</span>
                    </div>
                    <div className="w-1.5 h-1.5 bg-slate-200 rounded-full" />
-                   <div className="flex items-center gap-1.5">
-                     <Calendar size={14} className="text-slate-300" />
-                     <span>Đăng ký: {fmtDate(data.student.createdAt)}</span>
-                   </div>
-                 </div>
+                    <div className="flex items-center gap-1.5">
+                      <Calendar size={14} className="text-slate-300" />
+                      <span>Đăng ký: {fmtDate(data.student.createdAt)}</span>
+                    </div>
+                    {data.student.createdByName && (
+                      <>
+                        <div className="w-1.5 h-1.5 bg-slate-200 rounded-full" />
+                        <div className="flex items-center gap-1.5">
+                          <User size={14} className="text-slate-300" />
+                          <span>Người tạo: <strong className="text-slate-500">{data.student.createdByName}</strong> ({data.student.createdByBranch || 'Hệ thống'})</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
                </div>
             </div>
 

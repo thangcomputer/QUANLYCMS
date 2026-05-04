@@ -187,7 +187,7 @@ io.on('connection', (socket) => {
       content: notif.message,
       receivers: 'ALL_ADMIN',
       payload: data,
-      link: '/admin/students'
+      link: '/admin#students'
     });
 
     // 2. Gửi cho Giáo viên phụ trách
@@ -198,7 +198,7 @@ io.on('connection', (socket) => {
         content: notif.message,
         receivers: data.teacherId.toString(),
         payload: data,
-        link: '/teacher/dashboard'
+        link: '/teacher'
       });
     }
      // (Removed io.emit('exam:locked') to prevent INFINITE LOOP with StudentTest resolving 'exam:locked' by emitting 'exam:violation')

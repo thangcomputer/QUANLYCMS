@@ -63,7 +63,7 @@ router.post('/', async (req, res) => {
              content: `Học viên ${studentInfo?.name || 'Vô danh'} đã đánh giá bạn.`,
              receivers: targetTeacherId.toString(),
              payload: { evaluationId: newEval._id },
-             link: '/teacher/dashboard'
+             link: '/teacher'
            });
            
            io.emit('data:refresh', { type: 'evaluation', targetId: targetTeacherId });

@@ -275,7 +275,7 @@ router.post('/', async (req, res) => {
            title: '📅 Lịch học mới',
            content: `Lịch học mới vào ngày ${notifDate} lúc ${startTime} đã được thêm.`,
            receivers: studentId.toString(),
-           link: '/student/schedule'
+           link: '/student#schedule'
          });
       }
       
@@ -360,7 +360,7 @@ router.put('/:scheduleId', async (req, res) => {
            title: '❌ Lịch học bị hủy',
            content: `Lịch học ngày ${notifDate} đã bị hủy.`,
            receivers: schedule.studentId.toString(),
-           link: '/student/schedule'
+           link: '/student#schedule'
          });
       }
       else if (status === 'completed' && schedule.status !== 'completed') {
@@ -369,7 +369,7 @@ router.put('/:scheduleId', async (req, res) => {
            title: '✅ Hệ thống đã điểm danh',
            content: `Giảng viên đã điểm danh buổi học ngày ${notifDate}.`,
            receivers: schedule.studentId.toString(),
-           link: '/student/schedule'
+           link: '/student#schedule'
          });
       }
       else if ((startTime && startTime !== schedule.startTime) || (date && new Date(date).getTime() !== schedule.date.getTime())) {
@@ -378,7 +378,7 @@ router.put('/:scheduleId', async (req, res) => {
            title: '🔄 Lịch học đã thay đổi',
            content: `Lịch học đã cập nhật thành: ${startTime || schedule.startTime} ngày ${date ? new Date(date).toLocaleDateString() : notifDate}.`,
            receivers: schedule.studentId.toString(),
-           link: '/student/schedule'
+           link: '/student#schedule'
          });
       }
     }
