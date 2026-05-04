@@ -728,7 +728,8 @@ const EditStudentModal = ({ student, onSave, onClose, teachers, onResetPassword 
     paid: !!student.paid,
     teacherId: student.teacherId || '',
     learningMode: student.learningMode || 'OFFLINE',
-    branchId: student.branchId || ''
+    branchId: student.branchId || '',
+    branchCode: student.branchCode || ''
   });
   const [studentExamUnlocked, setStudentExamUnlocked] = useState(!!student.studentExamUnlocked);
 
@@ -760,7 +761,7 @@ const EditStudentModal = ({ student, onSave, onClose, teachers, onResetPassword 
       if (selectedB && selectedB.name.toLowerCase().includes('online')) {
         mode = 'ONLINE';
       }
-      setForm(f => ({ ...f, branchId: value, learningMode: mode }));
+      setForm(f => ({ ...f, branchId: value, branchCode: selectedB?.code || '', learningMode: mode }));
       return;
     }
 

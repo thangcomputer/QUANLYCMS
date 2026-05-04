@@ -333,6 +333,13 @@ router.post('/', [authMiddleware, branchFilter], async (req, res) => {
     if (req.userBranchId) {
       req.body.branchId = req.userBranchId;
       req.body.branchCode = req.userBranchCode || '';
+    } else if (!req.body.branchCode && req.body.branchId) {
+      // SUPER_ADMIN case: lookup code if not sent
+      try {
+        const Branch = require('../models/Branch');
+        const br = await Branch.findById(req.body.branchId);
+        if (br) req.body.branchCode = br.code;
+      } catch (e) {}
     }
 
     // Nếu lúc tạo có gán Giảng viên luôn thì chuyển trạng thái thành Đang học

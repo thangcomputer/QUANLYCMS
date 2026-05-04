@@ -49,7 +49,7 @@ function describeAction(method, path, body, responseBody) {
   if (p.includes('/students') && method === 'POST') {
     const sName = body?.name || '';
     const amount = body?.price ? Number(body.price).toLocaleString('vi-VN') + 'đ' : '';
-    const bInfo = body?.branchCode || body?.branchId || '';
+    const bInfo = (body?.branchCode && body.branchCode !== '') ? body.branchCode : (body?.branchId || '');
     return { action: 'THÊM HỌC VIÊN', category: 'student', desc: `Thêm học viên: ${sName}${amount ? ` - Học phí: ${amount}` : ''}${bInfo ? ` [Chi nhánh: ${bInfo}]` : ''}` };
   }
   if (p.includes('/students') && p.includes('/price')) return { action: 'SỬA HỌC PHÍ', category: 'student', desc: `Điều chỉnh học phí học viên` };
@@ -99,7 +99,7 @@ function describeAction(method, path, body, responseBody) {
     if (method === 'POST') {
       const sName = body?.studentName || '';
       const amount = body?.amount ? Number(body.amount).toLocaleString('vi-VN') + 'đ' : '';
-      const bCode = body?.branchCode || '';
+      const bCode = (body?.branchCode && body.branchCode !== '') ? body.branchCode : '';
       return { action: 'TẠO MÃ QR', category: 'finance', desc: `Tạo QR thanh toán cho ${sName || 'Học viên'} - ${amount}${bCode ? ` [Chi nhánh: ${bCode}]` : ''}` };
     }
   }
