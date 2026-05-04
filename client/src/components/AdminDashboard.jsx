@@ -350,8 +350,10 @@ const AddStudentModal = ({ onAdd, onClose, teachers }) => {
   const pollRef                     = React.useRef(null);
   const timerRef                    = React.useRef(null);
 
-  const studentCode = `TTH${Date.now().toString().slice(-5)}`;
-  const ckContent   = `${form.name.replace(/\s+/g,'').slice(0,8) || 'HV'} ${studentCode} Nop hoc phi`.trim();
+  const [studentCode] = useState(() => `TTH${Date.now().toString().slice(-5)}`);
+  const ckContent = useMemo(() => {
+    return `${form.name.replace(/\s+/g,'').slice(0,8) || 'HV'} ${studentCode} Nop hoc phi`.trim();
+  }, [form.name, studentCode]);
 
   // Fetch bank + create session khi vào step qr
   useEffect(() => {
@@ -392,15 +394,14 @@ const AddStudentModal = ({ onAdd, onClose, teachers }) => {
       if (!sid && !ckContent) return;
       try {
         const r = await fetch(`${API}/api/webhooks/payment-status?sessionId=${sid || ''}&content=${encodeURIComponent(ckContent)}`).then(x => x.json());
-        if (r.paid) {
+        if (r.paid || r.status === 'paid') {
           clearInterval(pollRef.current);
           clearInterval(timerRef.current);
           setPollStatus('paid');
-          setStep('success');
+          // Skip setStep('success') to close immediately and show invoice
           // Lưu học viên (paid=true)
           onAdd({ ...form, age: Number(form.age), id: Date.now(), paid: true, studentCode });
-          // Tự đóng sau 2.5s
-          setTimeout(() => onClose(), 2500);
+          onClose(); 
         }
       } catch {}
     }, 3000);

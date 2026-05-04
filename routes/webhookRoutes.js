@@ -53,29 +53,37 @@ function cleanExpiredSessions() {
 // Dọn mỗi 2 phút
 setInterval(cleanExpiredSessions, 2 * 60 * 1000);
 
-// ── POST /api/webhooks/payment-session ── Tạo session (PUBLIC) ────────────────
-// Frontend gọi khi học viên vào bước 2, nhận sessionId để polling
-router.post('/payment-session', (req, res) => {
-  const { ref, amount } = req.body;
-  if (!ref) return res.status(400).json({ success: false, message: 'Thiếu ref' });
+// ── POST /api/webhooks/payment-session & /api/webhooks/create-session ──
+const handleCreateSession = (req, res) => {
+  const { ref, content, amount } = req.body;
+  const finalRef = (ref || content || '').toLowerCase().trim();
+  if (!finalRef) return res.status(400).json({ success: false, message: 'Thiếu nội dung chuyển khoản (ref/content)' });
 
   const sessionId = `ps_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   paymentSessions.set(sessionId, {
-    ref: ref.toLowerCase(),
+    ref: finalRef,
     amount: Number(amount) || 0,
     status: 'pending',
     createdAt: Date.now(),
   });
 
-  console.log(`[PAYMENT SESSION] Tạo mới: ${sessionId} — ref: "${ref}"`);
+  console.log(`[PAYMENT SESSION] Tạo mới: ${sessionId} — ref: "${finalRef}"`);
   return res.json({ success: true, sessionId, expiresIn: SESSION_TTL / 1000 });
-});
+};
 
-// ── GET /api/webhooks/payment-session/:id ── Polling (PUBLIC) ─────────────────
-router.get('/payment-session/:id', (req, res) => {
-  const session = paymentSessions.get(req.params.id);
+router.post('/payment-session', handleCreateSession);
+router.post('/create-session', handleCreateSession);
+
+// ── GET /api/webhooks/payment-session/:id & /api/webhooks/payment-status ── Polling
+const handleCheckSession = (req, res) => {
+  const sessionId = req.params.id || req.query.sessionId;
+  if (!sessionId) {
+     return res.status(400).json({ success: false, message: 'Missing sessionId' });
+  }
+
+  const session = paymentSessions.get(sessionId);
   if (!session) {
-    return res.json({ success: true, status: 'not_found' });
+    return res.json({ success: true, status: 'not_found', paid: false });
   }
 
   const elapsed = Date.now() - session.createdAt;
@@ -88,10 +96,14 @@ router.get('/payment-session/:id', (req, res) => {
   return res.json({
     success: true,
     status: session.status,   // 'pending' | 'paid' | 'expired'
+    paid: session.status === 'paid',
     remaining,
     paidAmount: session.paidAmount || 0,
   });
-});
+};
+
+router.get('/payment-session/:id', handleCheckSession);
+router.get('/payment-status', handleCheckSession);
 
 // ── POST /api/webhooks/sepay ── SePay Webhook (HMAC verified) ──────────────────
 router.post('/sepay', verifySepaySignature, async (req, res) => {
