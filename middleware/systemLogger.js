@@ -60,7 +60,11 @@ function describeAction(method, path, body, responseBody) {
   if (p.includes('/students') && method === 'DELETE')  return { action: 'XÓA HỌC VIÊN', category: 'student', desc: `Xóa học viên khỏi hệ thống` };
 
   // ── Teachers ──
-  if (p.includes('/teachers') && method === 'POST')    return { action: 'THÊM GIẢNG VIÊN', category: 'teacher', desc: `Thêm giảng viên mới: ${body?.name || ''}` };
+  if (p.includes('/teachers') && method === 'POST') {
+    const tName = body?.name || '';
+    const bCode = body?.branchCode || '';
+    return { action: 'THÊM GIẢNG VIÊN', category: 'teacher', desc: `Thêm giảng viên mới: ${tName}${bCode ? ` [Chi nhánh: ${bCode}]` : ''}` };
+  }
   if (p.includes('/teachers') && p.includes('/approve'))  return { action: 'DUYỆT GV', category: 'teacher', desc: `Duyệt cấp quyền giảng viên` };
   if (p.includes('/teachers') && p.includes('/reject'))   return { action: 'TỪ CHỐI GV', category: 'teacher', desc: `Từ chối giảng viên` };
   if (p.includes('/teachers') && p.includes('/score'))    return { action: 'CHẤM ĐIỂM GV', category: 'teacher', desc: `Chấm điểm bài test giảng viên` };
@@ -144,8 +148,11 @@ const systemLogger = (req, res, next) => {
     // Chỉ ghi log thao tác ghi thành công (2xx)
     if (res.statusCode >= 200 && res.statusCode < 300) {
       if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
+        const path = req.originalUrl;
+        // ⭐ Bỏ qua log các hành động lặp lại/không quan trọng để đỡ rối nhật ký
+        if (path.includes('/notifications/mark-read')) return originalJson.call(this, body);
 
-        const { action, category, desc } = describeAction(req.method, req.originalUrl, req.body, body);
+        const { action, category, desc } = describeAction(req.method, path, req.body, body);
         if (!action) return originalJson.call(this, body);
 
         const ua = req.headers['user-agent'] || '';
