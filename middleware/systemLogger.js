@@ -46,7 +46,12 @@ function describeAction(method, path, body, responseBody) {
   if (p.includes('/change-password'))return { action: 'ĐỔI MẬT KHẨU', category: 'auth', desc: 'Thay đổi mật khẩu' };
 
   // ── Students ──
-  if (p.includes('/students') && method === 'POST')   return { action: 'THÊM HỌC VIÊN', category: 'student', desc: `Thêm học viên mới: ${body?.name || ''}` };
+  if (p.includes('/students') && method === 'POST') {
+    const sName = body?.name || '';
+    const amount = body?.price ? Number(body.price).toLocaleString('vi-VN') + 'đ' : '';
+    const bInfo = body?.branchCode || body?.branchId || '';
+    return { action: 'THÊM HỌC VIÊN', category: 'student', desc: `Thêm học viên: ${sName}${amount ? ` - Học phí: ${amount}` : ''}${bInfo ? ` [Chi nhánh: ${bInfo}]` : ''}` };
+  }
   if (p.includes('/students') && p.includes('/price')) return { action: 'SỬA HỌC PHÍ', category: 'student', desc: `Điều chỉnh học phí học viên` };
   if (p.includes('/students') && method === 'PUT') {
     const sName = responseBody?.data?.name || body?.name || '';
@@ -90,6 +95,14 @@ function describeAction(method, path, body, responseBody) {
 
   // ── Webhook ──
   if (p.includes('/webhooks/sepay'))  return { action: 'THANH TOÁN', category: 'finance', desc: `Webhook SePay: nhận thanh toán tự động` };
+  if (p.includes('/webhooks/create-session') || p.includes('/webhooks/payment-session')) {
+    if (method === 'POST') {
+      const sName = body?.studentName || '';
+      const amount = body?.amount ? Number(body.amount).toLocaleString('vi-VN') + 'đ' : '';
+      const bCode = body?.branchCode || '';
+      return { action: 'TẠO MÃ QR', category: 'finance', desc: `Tạo QR thanh toán cho ${sName || 'Học viên'} - ${amount}${bCode ? ` [Chi nhánh: ${bCode}]` : ''}` };
+    }
+  }
 
   // ── Assignments ──
   if (p.includes('/assignments/upload')) return {}; // Bỏ qua log file bẩn (trả về empty obj để !action bắt được ở dưới nếu có logic chặn)

@@ -369,6 +369,9 @@ const AddStudentModal = ({ onAdd, onClose, teachers }) => {
 
     // 2) Create payment session
     const token = (() => { try { return JSON.parse(localStorage.getItem('admin_user') || '{}').token || ''; } catch { return ''; } })();
+    const selectedBranch = branches.find(b => String(b._id) === String(form.branchId || (selectedBranchId !== 'all' ? selectedBranchId : '')));
+    const branchCode = selectedBranch?.code || '';
+
     fetch(`${API}/api/webhooks/create-session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -376,7 +379,8 @@ const AddStudentModal = ({ onAdd, onClose, teachers }) => {
         amount: form.price, 
         content: ckContent,
         studentName: form.name,
-        courseName: form.course
+        courseName: form.course,
+        branchCode: branchCode
       }),
     }).then(r => r.json()).then(res => { if (res.sessionId) setSessionId(res.sessionId); }).catch(() => {});
 

@@ -73,8 +73,8 @@ const handleCreateSession = (req, res) => {
   return res.json({ success: true, sessionId, expiresIn: SESSION_TTL / 1000 });
 };
 
-router.post('/payment-session', handleCreateSession);
-router.post('/create-session', handleCreateSession);
+router.post('/payment-session', authMiddleware, handleCreateSession);
+router.post('/create-session', authMiddleware, handleCreateSession);
 
 // ── GET /api/webhooks/payment-session/:id & /api/webhooks/payment-status ── Polling
 const handleCheckSession = (req, res) => {
