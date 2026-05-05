@@ -15,27 +15,57 @@ const { authMiddleware } = require('../middleware/auth');
 
 const PaymentSession = require('../models/PaymentSession');
 
-// ── SePay HMAC signature verification ────────────────────────────────────────
-// SePay gửi x-sepay-token header = HMAC-SHA256(requestBody, SEPAY_SECRET_KEY)
-// Nếu SEPAY_SECRET_KEY chưa set trong .env → bỏ qua (backward compat)
+// ── SePay Webhook verification ────────────────────────────────────────────────
+// SePay hỗ trợ 2 kiểu chứng thực:
+// 1. API Key: Authorization: Apikey <KEY>
+// 2. HMAC: x-sepay-token = HMAC-SHA256(body, SECRET_KEY)
+// Nếu chưa cấu hình → cho qua (backward compat)
 function verifySepaySignature(req, res, next) {
-  const secret = process.env.SEPAY_SECRET_KEY;
-  if (!secret) return next();  // Chưa cấu hình → cho qua
+  console.log('[SEPAY] Incoming webhook headers:', JSON.stringify({
+    authorization: req.headers['authorization'],
+    'x-sepay-token': req.headers['x-sepay-token'],
+    'x-api-key': req.headers['x-api-key'],
+  }));
 
-  const signature = req.headers['x-sepay-token'] || req.headers['x-api-key'];
-  if (!signature) {
-    console.warn('[SEPAY] Missing signature header — rejected');
-    return res.status(401).json({ success: false, message: 'Missing webhook signature' });
+  const apiKey = process.env.SEPAY_API_KEY;
+  const hmacSecret = process.env.SEPAY_SECRET_KEY;
+
+  // Nếu chưa cấu hình gì → cho qua
+  if (!apiKey && !hmacSecret) return next();
+
+  // ── Kiểm tra API Key (SePay gửi: Authorization: Apikey <KEY>) ──
+  if (apiKey) {
+    const authHeader = req.headers['authorization'] || '';
+    const incomingKey = authHeader.replace(/^Apikey\s+/i, '').trim();
+    if (incomingKey === apiKey) {
+      console.log('[SEPAY] ✅ API Key verified');
+      return next();
+    }
+    // Cũng kiểm tra header x-api-key
+    if (req.headers['x-api-key'] === apiKey) {
+      console.log('[SEPAY] ✅ API Key (x-api-key) verified');
+      return next();
+    }
+    console.warn('[SEPAY] ❌ API Key mismatch — rejected');
+    return res.status(401).json({ success: false, message: 'Invalid API Key' });
   }
 
-  // Tính HMAC từ raw body
-  const rawBody = JSON.stringify(req.body);
-  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
-
-  if (signature !== expected) {
-    console.warn('[SEPAY] Invalid signature — rejected');
-    return res.status(401).json({ success: false, message: 'Invalid webhook signature' });
+  // ── Kiểm tra HMAC (legacy) ──
+  if (hmacSecret) {
+    const signature = req.headers['x-sepay-token'];
+    if (!signature) {
+      console.warn('[SEPAY] Missing HMAC signature — rejected');
+      return res.status(401).json({ success: false, message: 'Missing webhook signature' });
+    }
+    const rawBody = JSON.stringify(req.body);
+    const expected = crypto.createHmac('sha256', hmacSecret).update(rawBody).digest('hex');
+    if (signature !== expected) {
+      console.warn('[SEPAY] Invalid HMAC signature — rejected');
+      return res.status(401).json({ success: false, message: 'Invalid webhook signature' });
+    }
+    return next();
   }
+
   next();
 }
 
