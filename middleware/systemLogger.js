@@ -47,10 +47,14 @@ function describeAction(method, path, body, responseBody) {
 
   // ── Students ──
   if (p.includes('/students') && method === 'POST') {
-    const sName = body?.name || '';
+    // Ưu tiên tên chi nhánh từ response body (responseBody.data.branchName)
+    // nếu không có thì dùng branchCode từ request, cuối cùng mới dùng branchId
+    const sName  = responseBody?.data?.name  || body?.name  || '';
     const amount = body?.price ? Number(body.price).toLocaleString('vi-VN') + 'đ' : '';
-    const bInfo = (body?.branchCode && body.branchCode !== '') ? body.branchCode : (body?.branchId || '');
-    return { action: 'THÊM HỌC VIÊN', category: 'student', desc: `Thêm học viên: ${sName}${amount ? ` - Học phí: ${amount}` : ''}${bInfo ? ` [Chi nhánh: ${bInfo}]` : ''}` };
+    const branchName = responseBody?.data?.branchName
+                    || responseBody?.data?.branchCode
+                    || (body?.branchCode && body.branchCode !== '' ? body.branchCode : null);
+    return { action: 'THÊM HỌC VIÊN', category: 'student', desc: `Thêm học viên: ${sName}${amount ? ` - Học phí: ${amount}` : ''}${branchName ? ` [Chi nhánh: ${branchName}]` : ''}` };
   }
   if (p.includes('/students') && p.includes('/price')) return { action: 'SỬA HỌC PHÍ', category: 'student', desc: `Điều chỉnh học phí học viên` };
   if (p.includes('/students') && method === 'PUT') {
@@ -150,7 +154,9 @@ const systemLogger = (req, res, next) => {
       if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
         const path = req.originalUrl;
         // ⭐ Bỏ qua log các hành động lặp lại/không quan trọng để đỡ rối nhật ký
+        // Bỏ qua các route không cần ghi nhật ký
         if (path.includes('/notifications/mark-read')) return originalJson.call(this, body);
+        if (path.includes('/messages'))                return originalJson.call(this, body); // Tin nhắn không cần log
 
         const { action, category, desc } = describeAction(req.method, path, req.body, body);
         if (!action) return originalJson.call(this, body);

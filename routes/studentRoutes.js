@@ -358,7 +358,19 @@ router.post('/', [authMiddleware, branchFilter], async (req, res) => {
       io.emit('data:refresh', { type: 'student', action: 'create' });
     }
 
-    res.status(201).json({ success: true, data: student });
+    // Populate branch để logger và frontend có tên chi nhánh (không chỉ ObjectId)
+    const Branch = require('../models/Branch');
+    const branchDoc = student.branchId
+      ? await Branch.findById(student.branchId).select('name code').lean()
+      : null;
+    const studentObj = student.toObject();
+    if (branchDoc) {
+      studentObj.branchName = branchDoc.name || branchDoc.code || '';
+      studentObj.branchCode = studentObj.branchCode || branchDoc.code || '';
+    }
+
+    res.status(201).json({ success: true, data: studentObj });
+
   } catch (error) {
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map(e => e.message);
