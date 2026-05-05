@@ -274,6 +274,7 @@ const AddStudentModal = ({ onAdd, onClose, teachers }) => {
   const TOTAL_PAYMENT_SECS = 900; // 15 phút
 
   const { isSuperAdmin, branches, selectedBranchId } = useBranch();
+  const { socket } = useSocket();
 
   // ── Step: 'form' | 'qr' | 'success' ─────────────────────────────────────
   const [step, setStep] = useState('form');
@@ -396,7 +397,30 @@ const AddStudentModal = ({ onAdd, onClose, teachers }) => {
     return () => { clearInterval(timerRef.current); clearInterval(pollRef.current); };
   }, [step]);
 
-  // Polling mỗi 3s
+  // Real-time Socket.io listener
+  useEffect(() => {
+    if (step !== 'qr' || pollStatus === 'paid' || !socket) return;
+    
+    const handlePaid = (data) => {
+      if (data.sessionId === sessionId || (data.content && data.content.toLowerCase().includes(ckContent.toLowerCase()))) {
+        clearInterval(pollRef.current);
+        clearInterval(timerRef.current);
+        setPollStatus('paid');
+        setStep('success'); // Show success screen (blue check)
+        
+        // Wait 2 seconds before closing and adding student
+        setTimeout(() => {
+          onAdd({ ...form, age: Number(form.age), id: Date.now(), paid: true, studentCode });
+          onClose();
+        }, 2500);
+      }
+    };
+
+    socket.on('tuition:paid', handlePaid);
+    return () => socket.off('tuition:paid', handlePaid);
+  }, [step, sessionId, pollStatus, socket, ckContent]);
+
+  // Polling mỗi 3s (Fallback)
   useEffect(() => {
     if (step !== 'qr' || pollStatus === 'paid') return;
     const sid = sessionId;
@@ -408,15 +432,17 @@ const AddStudentModal = ({ onAdd, onClose, teachers }) => {
           clearInterval(pollRef.current);
           clearInterval(timerRef.current);
           setPollStatus('paid');
-          // Skip setStep('success') to close immediately and show invoice
-          // Lưu học viên (paid=true)
-          onAdd({ ...form, age: Number(form.age), id: Date.now(), paid: true, studentCode });
-          onClose(); 
+          setStep('success'); // Show success screen
+          
+          setTimeout(() => {
+            onAdd({ ...form, age: Number(form.age), id: Date.now(), paid: true, studentCode });
+            onClose(); 
+          }, 2500);
         }
       } catch {}
     }, 3000);
     return () => clearInterval(pollRef.current);
-  }, [step, sessionId, pollStatus]);
+  }, [step, sessionId, pollStatus, ckContent]);
 
   const handleSubmitForm = () => {
     if (!form.name.trim() || !form.phone.trim()) { toast.error('Vui lòng nhập họ tên và số điện thoại!'); return; }
