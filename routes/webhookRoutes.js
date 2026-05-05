@@ -129,20 +129,22 @@ router.post('/sepay', verifySepaySignature, async (req, res) => {
     let matched = false;
 
     // ── 1. Kiểm tra payment sessions (đăng ký mới) ───────────────────────────
-    const pendingSession = await PaymentSession.findOne({ 
-      status: 'pending',
-      $or: [
-        { ref: { $regex: content, $options: 'i' } }, // Nội dung CK chứa ref
-        { ref: content }                             // Hoặc ref chứa nội dung CK (backward match)
-      ]
-    });
+    // Lấy tất cả session đang pending và kiểm tra xem nội dung CK có chứa ref không
+    const pendingSessions = await PaymentSession.find({ status: 'pending' });
+    let pendingSession = null;
+    for (const sess of pendingSessions) {
+      if (content.includes(sess.ref.toLowerCase())) {
+        pendingSession = sess;
+        break;
+      }
+    }
 
     if (pendingSession) {
       pendingSession.status = 'paid';
       pendingSession.paidAmount = amount;
       await pendingSession.save();
 
-      console.log(`[SEPAY] ✅ Session ${pendingSession.sessionId} khớp — đã thanh toán ${amount}đ`);
+      console.log(`[SEPAY] ✅ Session ${pendingSession.sessionId} khớp ref="${pendingSession.ref}" — đã thanh toán ${amount}đ`);
       matched = true;
 
       // Emit socket cho frontend đang chờ
