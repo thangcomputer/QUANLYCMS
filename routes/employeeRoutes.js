@@ -16,9 +16,11 @@ router.get('/', [authMiddleware, isAdmin, branchFilter], async (req, res) => {
     if (req.query.position && req.query.position !== 'all') filter.position = req.query.position;
     if (req.query.status && req.query.status !== 'all')     filter.status   = req.query.status;
     if (req.query.search) {
+      // Escape ký tự đặc biệt regex → chống ReDoS / injection
+      const safeSearch = String(req.query.search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').slice(0, 100);
       filter.$or = [
-        { name:  { $regex: req.query.search, $options: 'i' } },
-        { phone: { $regex: req.query.search, $options: 'i' } },
+        { name:  { $regex: safeSearch, $options: 'i' } },
+        { phone: { $regex: safeSearch, $options: 'i' } },
       ];
     }
     const employees = await Employee.find(filter).sort({ createdAt: -1 }).lean();

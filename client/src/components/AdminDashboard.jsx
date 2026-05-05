@@ -474,7 +474,7 @@ const AddStudentModal = ({ onAdd, onClose, teachers }) => {
               {sessionId && (
                 <button 
                   onClick={() => {
-                    const shareUrl = `${window.location.origin}/#/pay/${sessionId}`;
+                    const shareUrl = `${window.location.origin}/pay/${sessionId}`;
                     navigator.clipboard.writeText(shareUrl);
                     toast.success('Đã copy link thanh toán! Bạn có thể gửi qua Zalo/Facebook cho học viên.');
                   }}

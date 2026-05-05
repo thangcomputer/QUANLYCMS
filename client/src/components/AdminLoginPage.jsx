@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, Lock, User, Eye, EyeOff, AlertTriangle, ChevronRight, Fingerprint, Activity } from 'lucide-react';
+import { ShieldCheck, Lock, User, Eye, EyeOff, AlertTriangle, ChevronRight, Fingerprint, Activity, MonitorX } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { setTokens, API_BASE, SOCKET_BASE } from '../services/api';
+import { getDeviceFingerprint } from '../utils/deviceFingerprint';
 
 const AdminLoginPage = ({ onLogin }) => {
   const navigate = useNavigate();
@@ -11,6 +12,8 @@ const AdminLoginPage = ({ onLogin }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [deviceConflict, setDeviceConflict] = useState(false);
+  const [pendingForce, setPendingForce] = useState(false);
 
   /** Base gốc API (domain backend hoặc '' để dùng proxy Vite /api) */
   const API = SOCKET_BASE;
@@ -44,8 +47,8 @@ const AdminLoginPage = ({ onLogin }) => {
     generateCaptcha();
   }, []);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const handleLogin = async (e, forceDevice = false) => {
+    if (e?.preventDefault) e.preventDefault();
     
     // 1. Kiểm tra trường trống
     if (!username || !password) {
@@ -67,10 +70,11 @@ const AdminLoginPage = ({ onLogin }) => {
     setError(null);
 
     try {
+      const fp = getDeviceFingerprint();
       const response = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: username, password }),
+        body: JSON.stringify({ identifier: username, password, deviceFingerprint: fp, force: forceDevice }),
       });
 
       const raw = await response.text();
@@ -81,7 +85,14 @@ const AdminLoginPage = ({ onLogin }) => {
         throw new Error('INVALID_JSON');
       }
 
+      if (response.status === 409 && data.code === 'DEVICE_CONFLICT') {
+        setDeviceConflict(true);
+        setLoading(false);
+        return;
+      }
+
       if (data.success) {
+        setDeviceConflict(false);
         // Extract real user object from wrapped structure if it exists
         const actualUser = data.data.user || data.data;
         const accessToken = data.data.accessToken || actualUser.token || actualUser.accessToken;
@@ -303,6 +314,50 @@ const AdminLoginPage = ({ onLogin }) => {
           </div>
         </div>
       </div>
+
+      {/* ═══ DIALOG: CẢNH BÁO THIẾT BỊ KHÁC ═══ */}
+      {deviceConflict && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0f172a] rounded-3xl w-full max-w-sm border border-amber-500/30 shadow-2xl overflow-hidden">
+            <div className="bg-gradient-to-r from-amber-600 to-orange-600 px-6 py-5 flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <MonitorX size={20} className="text-white" />
+              </div>
+              <div>
+                <h3 className="text-white font-black text-lg">Phát hiện đăng nhập khác</h3>
+                <p className="text-white/70 text-xs font-medium">Tài khoản đang hoạt động trên thiết bị khác</p>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4">
+                <p className="text-amber-300 text-sm font-bold leading-relaxed">
+                  ⚠️ Tài khoản <strong className="text-white">{username}</strong> hiện đang đăng nhập trên máy tính khác.
+                </p>
+                <p className="text-gray-400 text-xs mt-2">
+                  Nếu tiếp tục, phiên quản trị trên máy kia sẽ bị đăng xuất ngay lập tức.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeviceConflict(false)}
+                  className="flex-1 py-3 border-2 border-white/10 text-gray-400 font-bold rounded-xl hover:border-white/20 transition text-sm"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  onClick={() => { setDeviceConflict(false); handleLogin(null, true); }}
+                  disabled={loading}
+                  className="flex-[2] py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black rounded-xl hover:from-amber-600 disabled:opacity-50 transition text-sm flex items-center justify-center gap-2"
+                >
+                  {loading
+                    ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    : <><MonitorX size={15} /> Đăng nhập, đăng xuất máy kia</>}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

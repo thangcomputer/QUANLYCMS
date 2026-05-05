@@ -137,6 +137,7 @@ const TeacherSchema = new mongoose.Schema(
     refreshToken: { type: String, select: false },
     tokenVersion: { type: Number, default: 0 },   // ⭐ Anti-sharing: tăng mỗi lần login → vô hiệu token cũ
     isFirstLogin: { type: Boolean, default: true },
+    deviceFingerprint: { type: String, default: null, select: false }, // ⭐ Device lock: fingerprint máy đang đăng nhập
   },
   {
     timestamps: true,

@@ -335,6 +335,19 @@ router.post('/login', loginLimiter, async (req, res) => {
       });
     }
 
+    // ⭐ Kiểm tra Device Fingerprint (── 1 máy / 1 tài khoản ──)
+    const { deviceFingerprint: fp1, force: force1 } = req.body;
+    const storedFp1 = await (userRole === 'student' ? Student : Teacher)
+      .findById(user._id).select('deviceFingerprint').lean();
+    if (fp1 && storedFp1?.deviceFingerprint && storedFp1.deviceFingerprint !== fp1 && !force1) {
+      return res.status(409).json({
+        success: false,
+        code: 'DEVICE_CONFLICT',
+        message: 'Tài khoản đang đăng nhập trên máy tính khác. Đăng nhập sẽ đăng xuất phiên đó. Bạn có muốn tiếp tục không?',
+      });
+    }
+    if (fp1) user.deviceFingerprint = fp1;
+
     // ⭐ Fix 1: Increment tokenVersion → vô hiệu token cũ trên thiết bị khác
     const newTokenVersion = (user.tokenVersion || 0) + 1;
     user.tokenVersion = newTokenVersion;
@@ -478,6 +491,19 @@ router.post('/login/public', loginLimiter, async (req, res) => {
       return res.status(401).json({ success: false, message: 'Mật khẩu không đúng' });
     }
 
+    // ⭐ Kiểm tra Device Fingerprint
+    const { deviceFingerprint: fp2, force: force2 } = req.body;
+    const storedFp2 = await (userRole === 'student' ? Student : Teacher)
+      .findById(user._id).select('deviceFingerprint').lean();
+    if (fp2 && storedFp2?.deviceFingerprint && storedFp2.deviceFingerprint !== fp2 && !force2) {
+      return res.status(409).json({
+        success: false,
+        code: 'DEVICE_CONFLICT',
+        message: 'Tài khoản đang đăng nhập trên máy tính khác. Đăng nhập sẽ đăng xuất phiên đó. Bạn có muốn tiếp tục không?',
+      });
+    }
+    if (fp2) user.deviceFingerprint = fp2;
+
     // ⭐ Fix 1: tokenVersion
     const newTokenVersion = (user.tokenVersion || 0) + 1;
     user.tokenVersion = newTokenVersion;
@@ -578,6 +604,18 @@ router.post('/login/internal', loginLimiter, async (req, res) => {
       if (user.incLoginAttempts) await user.incLoginAttempts();
       return res.status(401).json({ success: false, message: 'Mật khẩu không đúng' });
     }
+
+    // ⭐ Kiểm tra Device Fingerprint (internal/admin)
+    const { deviceFingerprint: fp3, force: force3 } = req.body;
+    const storedFp3 = await Teacher.findById(user._id).select('deviceFingerprint').lean();
+    if (fp3 && storedFp3?.deviceFingerprint && storedFp3.deviceFingerprint !== fp3 && !force3) {
+      return res.status(409).json({
+        success: false,
+        code: 'DEVICE_CONFLICT',
+        message: 'Tài khoản đang đăng nhập trên máy tính khác. Đăng nhập sẽ đăng xuất phiên đó. Bạn có muốn tiếp tục không?',
+      });
+    }
+    if (fp3) user.deviceFingerprint = fp3;
 
     // ⭐ Fix 1: tokenVersion
     const newTokenVersion = (user.tokenVersion || 0) + 1;

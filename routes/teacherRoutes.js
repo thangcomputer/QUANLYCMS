@@ -8,6 +8,7 @@ const Teacher  = require('../models/Teacher');
 const Schedule = require('../models/Schedule');
 const Transaction = require('../models/Transaction');
 const { authMiddleware, isAdmin, isTeacher, branchFilter } = require('../middleware/auth');
+const { sanitizeRegex } = require('../middleware/sanitizeRegex');
 
 const router = express.Router();
 
@@ -39,7 +40,7 @@ const upload = multer({
 });
 
 // ─── POST /api/teachers/upload-practical ──────────────────────────────────────
-router.post('/upload-practical', upload.single('file'), (req, res) => {
+router.post('/upload-practical', [authMiddleware, isTeacher], upload.single('file'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Chưa chọn file để tải lên' });
@@ -151,10 +152,11 @@ router.get('/', [authMiddleware, branchFilter], async (req, res) => {
     filter.role = { $in: ['teacher'] };
     if (status) filter.status = status;
     if (search) {
+      const s = sanitizeRegex(search);
       filter.$or = [
-        { name:      { $regex: search, $options: 'i' } },
-        { phone:     { $regex: search, $options: 'i' } },
-        { specialty: { $regex: search, $options: 'i' } },
+        { name:      { $regex: s, $options: 'i' } },
+        { phone:     { $regex: s, $options: 'i' } },
+        { specialty: { $regex: s, $options: 'i' } },
       ];
     }
 

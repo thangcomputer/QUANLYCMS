@@ -4,6 +4,7 @@ const Invoice = require('../models/Invoice');
 const Student = require('../models/Student');
 const { generateInvoicePDF } = require('../modules/pdfInvoice');
 const { authMiddleware, isAdmin, branchFilter } = require('../middleware/auth');
+const sanitizeRegex = require('../middleware/sanitizeRegex');
 
 // ─── GET /api/invoices ─────────────────────────────────────────────────────
 // Admin/Staff: Lấy hóa đơn (STAFF bị giới hạn theo chi nhánh)
@@ -24,10 +25,11 @@ router.get('/', [authMiddleware, branchFilter], async (req, res) => {
       if (to)   filter.createdAt.$lte = new Date(to);
     }
     if (search) {
+      const safeSearch = sanitizeRegex(search);
       filter.$or = [
-        { hoTen:    { $regex: search, $options: 'i' } },
-        { khoaHoc:  { $regex: search, $options: 'i' } },
-        { maHoaDon: { $regex: search, $options: 'i' } },
+        { hoTen:    { $regex: safeSearch, $options: 'i' } },
+        { khoaHoc:  { $regex: safeSearch, $options: 'i' } },
+        { maHoaDon: { $regex: safeSearch, $options: 'i' } },
       ];
     }
 

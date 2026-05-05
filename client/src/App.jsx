@@ -23,6 +23,7 @@ import LoadingScreen                         from './components/LoadingScreen';
 import StaffPopup                            from './components/StaffPopup';
 import { ModalProvider, useModal }           from './utils/Modal.jsx';
 import SecurityGuard                         from './components/SecurityGuard';
+import { useInactivityTimer }                from './utils/useInactivityTimer';
 import './App.css';
 
 // ── Session helpers ──────────────────────────────────────────────────────────
@@ -247,11 +248,70 @@ function AppRoutes({ session, onSessionChange, isAuthLoading, onLogin, onLogout 
   );
 }
 
+// ── Inactivity Warning Overlay ────────────────────────────────────────────────
+function InactivityWarning({ visible, secondsLeft, onExtend, onLogout }) {
+  if (!visible) return null;
+  const mins = Math.floor(secondsLeft / 60);
+  const secs = String(secondsLeft % 60).padStart(2, '0');
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
+      backdropFilter: 'blur(8px)', zIndex: 99999,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem',
+    }}>
+      <div style={{
+        background: '#1e293b', borderRadius: '1.5rem', maxWidth: '400px', width: '100%',
+        border: '1px solid rgba(234,179,8,0.4)', overflow: 'hidden',
+        boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
+      }}>
+        <div style={{ background: 'linear-gradient(135deg,#ca8a04,#b45309)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ width: 40, height: 40, background: 'rgba(255,255,255,0.2)', borderRadius: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem' }}>⏰</div>
+          <div>
+            <h3 style={{ color: '#fff', fontWeight: 900, fontSize: '1rem', margin: 0 }}>Phiên sắp hết hạn</h3>
+            <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.75rem', margin: 0 }}>Bạn không tương tác trong 55 phút qua</p>
+          </div>
+        </div>
+        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div style={{ background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.25)', borderRadius: '1rem', padding: '1rem', textAlign: 'center' }}>
+            <p style={{ color: '#fde047', fontWeight: 900, fontSize: '2.5rem', margin: 0, fontFamily: 'monospace' }}>{mins}:{secs}</p>
+            <p style={{ color: '#94a3b8', fontSize: '0.75rem', margin: '0.25rem 0 0' }}>Tự động đăng xuất sau thời gian trên</p>
+          </div>
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <button onClick={onLogout} style={{
+              flex: 1, padding: '0.75rem', background: 'transparent', border: '2px solid rgba(255,255,255,0.1)',
+              color: '#94a3b8', fontWeight: 700, borderRadius: '0.75rem', cursor: 'pointer', fontSize: '0.875rem',
+            }}>Đăng xuất ngay</button>
+            <button onClick={onExtend} style={{
+              flex: 2, padding: '0.75rem', background: 'linear-gradient(135deg,#ca8a04,#b45309)',
+              border: 'none', color: '#fff', fontWeight: 900, borderRadius: '0.75rem',
+              cursor: 'pointer', fontSize: '0.875rem',
+            }}>✅ Tiếp tục làm việc</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main App ──────────────────────────────────────────────────────────────────
 function App() {
   const [session, setSession]           = useState(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const navigate = useNavigate();
+
+  // ── Inactivity Timer: tự động logout sau 60 phút không dùng ────────────────
+  const handleInactivityLogout = useCallback(() => {
+    api.auth.logout().catch(() => {});
+    clearTokens(session?.role);
+    localStorage.clear();
+    sessionStorage.clear();
+    navigate('/login?msg=inactivity');
+  }, [navigate, session]);
+
+  const { warningVisible, secondsLeft, extendSession } = useInactivityTimer({
+    onLogout: handleInactivityLogout,
+    enabled: !!session, // Chỉ kích hoạt khi đã đăng nhập
+  });
 
   // ── Khôi phục session khi reload ──────────────────────────────────────────
   useEffect(() => {
@@ -334,10 +394,18 @@ function App() {
   return (
     <ErrorBoundary>
         <LoadingScreen />
+        {/* ── Cảnh báo sắp hết phiên (5 phút cuối) ── */}
+        <InactivityWarning
+          visible={warningVisible}
+          secondsLeft={secondsLeft}
+          onExtend={extendSession}
+          onLogout={handleInactivityLogout}
+        />
         <SocketProvider
           userId={session ? (session.id || session._id) : ''}
           role={session?.role || ''}
           name={session?.name || ''}
+          token={session?.token || ''}
         >
           <ModalProvider>
             <SecurityGuard />

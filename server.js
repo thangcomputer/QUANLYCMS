@@ -82,6 +82,19 @@ connectDB();
 // ==========================================
 const onlineUsers = new Map();  // { key: { socketId, userId, role, name, branchId, connectedAt } }
 const lastSeenMap = new Map();  // { userId: ISO timestamp } — lưu khi disconnect
+const jwt = require('jsonwebtoken');
+
+// ✅ Socket.IO Authentication Middleware
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) return next(new Error('Authentication error: Token missing'));
+
+  jwt.verify(token, process.env.JWT_SECRET || 'secret_key', (err, decoded) => {
+    if (err) return next(new Error('Authentication error: Invalid token'));
+    socket.user = decoded; // Lưu thông tin user vào socket
+    next();
+  });
+});
 
 io.on('connection', (socket) => {
   console.log(`🔌 Socket connected: ${socket.id}`);

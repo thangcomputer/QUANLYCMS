@@ -257,6 +257,9 @@ router.get('/search/:userId', async (req, res) => {
 
     if (!q) return res.json({ success: true, data: [] });
 
+    const sanitizeRegex = require('../middleware/sanitizeRegex');
+    const safeQ = sanitizeRegex(q);
+
     // Query toàn bộ dữ liệu thật
     const messages = await Message.find({
       $or: [
@@ -264,7 +267,7 @@ router.get('/search/:userId', async (req, res) => {
         { receiverId: userId },
         ...(['admin', 'staff'].includes(req.user.role) ? [{ senderId: 'admin' }, { receiverId: 'admin' }] : [])
       ],
-      content: { $regex: q, $options: 'i' }
+      content: { $regex: safeQ, $options: 'i' }
     }).sort({ createdAt: -1 }).limit(50);
 
     res.json({ success: true, data: messages });

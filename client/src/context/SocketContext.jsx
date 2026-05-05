@@ -8,7 +8,7 @@ import { API_BASE, SOCKET_BASE, apiFetch } from '../services/api';
 
 const SOCKET_URL = SOCKET_BASE;
 
-export const SocketProvider = ({ userId, role, name, children }) => {
+export const SocketProvider = ({ userId, role, name, token, children }) => {
   const [socket, setSocket]             = useState(null);
   const [isConnected, setIsConnected]   = useState(false);
   const [onlineUsers, setOnlineUsers]   = useState([]);
@@ -68,6 +68,7 @@ export const SocketProvider = ({ userId, role, name, children }) => {
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,
       reconnectionDelay: 2000,
+      auth: { token }
     });
 
     newSocket.on('connect', () => {

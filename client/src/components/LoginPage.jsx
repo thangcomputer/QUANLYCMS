@@ -1,18 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, CheckCircle2, AlertCircle, Phone, Database, BookOpen, Monitor, Lock, User, KeyRound, X, Copy, Check, Clock, ShieldCheck } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Eye, EyeOff, CheckCircle2, AlertCircle, Phone, Database, BookOpen, Monitor, Lock, User, KeyRound, X, Copy, Check, Clock, ShieldCheck, MonitorX } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { setTokens } from '../services/api';
+import { getDeviceFingerprint } from '../utils/deviceFingerprint';
 
 const LoginPage = ({ onLogin }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [role, setRole] = useState('student');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [deviceConflict, setDeviceConflict] = useState(false); // cảnh báo máy khác
+  const pendingLoginRef = useRef(null); // lưu payload để force login
   const [dynamicLogo, setDynamicLogo] = useState('');
+
+  // Hiển thị thông báo nếu bị đăng xuất do không hoạt động
+  const inactivityMsg = new URLSearchParams(location.search).get('msg') === 'inactivity';
+
 
   // ── Forgot Password State ──
   const [showForgot, setShowForgot] = useState(false);
@@ -40,16 +48,23 @@ const LoginPage = ({ onLogin }) => {
       }).catch(() => {});
   }, []);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const doLogin = async (forceDevice = false) => {
     setLoading(true); setError(null);
     try {
+      const fp = getDeviceFingerprint();
       const response = await fetch(`${API}/api/auth/login/public`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: phone, password, role }),
+        body: JSON.stringify({ identifier: phone, password, role, deviceFingerprint: fp, force: forceDevice }),
       });
       const data = await response.json();
+      if (response.status === 409 && data.code === 'DEVICE_CONFLICT') {
+        // Tài khoản đang dùng ở máy khác → hiện cảnh báo
+        pendingLoginRef.current = { phone, password, role };
+        setDeviceConflict(true);
+        return;
+      }
       if (data.success) {
+        setDeviceConflict(false);
         const user = data.data.user ? { ...data.data.user } : { ...data.data };
         user.accessToken = data.data.accessToken || user.accessToken;
         user.refreshToken = data.data.refreshToken || user.refreshToken;
@@ -65,6 +80,9 @@ const LoginPage = ({ onLogin }) => {
     } catch { setError('Không thể kết nối đến máy chủ'); }
     finally { setLoading(false); }
   };
+
+  const handleLogin = (e) => { e.preventDefault(); doLogin(false); };
+  const handleForceLogin = () => { setDeviceConflict(false); doLogin(true); };
 
   // Bước 1: Kiểm tra SĐT tồn tại → chuyển sang nhập OTP
   const handleCheckPhone = async () => {
@@ -176,6 +194,11 @@ const LoginPage = ({ onLogin }) => {
             </div>
 
             <form onSubmit={handleLogin} className="space-y-6 animate-in fade-in slide-in-from-bottom-10 duration-1000 delay-200">
+              {inactivityMsg && (
+                <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-xl flex items-center gap-3 text-amber-400 text-sm font-bold">
+                  <Clock size={18} /> Phiên làm việc đã hết hạn do không hoạt động. Vui lòng đăng nhập lại.
+                </div>
+              )}
               {error && <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-xl flex items-center gap-3 text-red-500 text-sm font-bold"><AlertCircle size={18} /> {error}</div>}
               <div className="space-y-4">
                 <div className="space-y-1.5">
@@ -359,6 +382,50 @@ const LoginPage = ({ onLogin }) => {
                   <button onClick={closeForgotModal} className="w-full py-3 bg-white/5 border border-white/10 text-white font-bold rounded-xl hover:bg-white/10 transition">Đóng & Đăng nhập</button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ DIALOG: CẢNH BÁO THIẾT BỊ KHÁC ═══ */}
+      {deviceConflict && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#1e293b] rounded-3xl w-full max-w-sm border border-amber-500/30 shadow-2xl overflow-hidden">
+            <div className="bg-gradient-to-r from-amber-600 to-orange-600 px-6 py-5 flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <MonitorX size={20} className="text-white" />
+              </div>
+              <div>
+                <h3 className="text-white font-black text-lg">Phát hiện đăng nhập khác</h3>
+                <p className="text-white/70 text-xs font-medium">Tài khoản đang hoạt động trên thiết bị khác</p>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-4">
+                <p className="text-amber-300 text-sm font-bold leading-relaxed">
+                  ⚠️ Tài khoản <strong className="text-white">{phone}</strong> hiện đang đăng nhập trên một máy tính khác.
+                </p>
+                <p className="text-gray-400 text-xs mt-2">
+                  Nếu bạn tiếp tục, phiên đăng nhập trên máy kia sẽ bị đăng xuất ngay lập tức.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setDeviceConflict(false); pendingLoginRef.current = null; }}
+                  className="flex-1 py-3 border-2 border-white/10 text-gray-400 font-bold rounded-xl hover:border-white/20 transition text-sm"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  onClick={handleForceLogin}
+                  disabled={loading}
+                  className="flex-[2] py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black rounded-xl hover:from-amber-600 disabled:opacity-50 transition text-sm flex items-center justify-center gap-2"
+                >
+                  {loading
+                    ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    : <><MonitorX size={15} /> Đăng nhập, đăng xuất máy kia</>}
+                </button>
+              </div>
             </div>
           </div>
         </div>

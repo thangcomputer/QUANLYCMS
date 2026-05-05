@@ -4,6 +4,7 @@ const Student = require('../models/Student');
 const Invoice = require('../models/Invoice');
 const Schedule = require('../models/Schedule');
 const { authMiddleware, isAdmin, isTeacher, branchFilter } = require('../middleware/auth');
+const { sanitizeRegex } = require('../middleware/sanitizeRegex');
 
 // ─── GET /api/students ─────────────────────────────────────────────────────────
 // Lấy danh sách học viên (Admin / Teacher) — hỗ trợ Server-side Pagination
@@ -33,13 +34,14 @@ router.get('/', [authMiddleware, branchFilter], async (req, res) => {
     if (teacherId) filter.teacherId = teacherId;
     if (paid !== undefined) filter.paid = paid === 'true';
     if (status) filter.status = status;
-    if (course) filter.course = { $regex: course, $options: 'i' };
+    if (course) filter.course = { $regex: sanitizeRegex(course), $options: 'i' };
     if (search) {
+      const s = sanitizeRegex(search);
       filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { zalo: { $regex: search, $options: 'i' } },
-        { phone: { $regex: search, $options: 'i' } },
-        { course: { $regex: search, $options: 'i' } },
+        { name: { $regex: s, $options: 'i' } },
+        { zalo: { $regex: s, $options: 'i' } },
+        { phone: { $regex: s, $options: 'i' } },
+        { course: { $regex: s, $options: 'i' } },
       ];
     }
 
@@ -333,31 +335,11 @@ router.post('/', [authMiddleware, branchFilter], async (req, res) => {
     if (req.userBranchId) {
       req.body.branchId = req.userBranchId;
       req.body.branchCode = req.userBranchCode || '';
-    } else if (!req.body.branchCode && req.body.branchId) {
-      // SUPER_ADMIN case: lookup code if not sent
-      try {
-        const Branch = require('../models/Branch');
-        const br = await Branch.findById(req.body.branchId);
-        if (br) req.body.branchCode = br.code;
-      } catch (e) {}
     }
 
     // Nếu lúc tạo có gán Giảng viên luôn thì chuyển trạng thái thành Đang học
     if (req.body.teacherId && (!req.body.status || req.body.status === 'Chờ xếp lớp')) {
       req.body.status = 'Đang học';
-    }
-    
-    // ⭐ Audit: Ghi nhận người tạo
-    req.body.createdBy = req.user.id;
-    req.body.createdByName = req.user.name || 'Admin';
-    
-    // Lấy tên chi nhánh người tạo
-    if (req.userBranchId) {
-      const Branch = require('../models/Branch');
-      const br = await Branch.findById(req.userBranchId);
-      if (br) req.body.createdByBranch = br.name;
-    } else {
-      req.body.createdByBranch = 'Hệ Thống (Super Admin)';
     }
 
     const student = new Student(req.body);
@@ -366,7 +348,7 @@ router.post('/', [authMiddleware, branchFilter], async (req, res) => {
     const io = req.app.get('io');
     if (io) {
       const NotificationService = require('../services/NotificationService');
-      NotificationService.notifyAdmins(io, '🆕 Học viên mới đăng ký', `Học viên ${student.name} đã đăng ký khóa học ${student.course}.`, { studentId: student._id }, '/admin#students');
+      NotificationService.notifyAdmins(io, '🆕 Học viên mới đăng ký', `Học viên ${student.name} đã đăng ký khóa học ${student.course}.`, { studentId: student._id }, '/admin/students');
       
       io.emit('student:new', {
         studentId: student._id,
@@ -530,7 +512,7 @@ router.put('/:id/pay', authMiddleware, isAdmin, async (req, res) => {
       const NotificationService = require('../services/NotificationService');
       
       // Notify Admin: doanh thu mới
-      NotificationService.notifyAdmins(io, '💰 Thu học phí', `Đã thu ${student.price.toLocaleString('vi-VN')}đ từ ${student.name}`, { studentId: student._id }, '/admin#analytics');
+      NotificationService.notifyAdmins(io, '💰 Thu học phí', `Đã thu ${student.price.toLocaleString('vi-VN')}đ từ ${student.name}`, { studentId: student._id }, '/admin/invoices');
       
       // Notify học viên: xác nhận đã thanh toán
       NotificationService.send(io, {
