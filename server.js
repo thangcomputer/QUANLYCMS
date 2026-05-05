@@ -15,10 +15,8 @@ dotenv.config();
 const app    = express();
 const server = http.createServer(app);
 
-// Sau reverse proxy (Nginx, Cloudflare): đặt TRUST_PROXY=1 để rate limit theo IP client đúng
-if (process.env.TRUST_PROXY === '1') {
-  app.set('trust proxy', 1);
-}
+// Sau reverse proxy (Nginx, Cloudflare): đặt trust proxy để rate limit theo IP client đúng
+app.set('trust proxy', 1);
 
 // Cấu hình các domain được phép truy cập (CORS)
 const viteLocalOrigins = [5173, 5174, 5175, 5176, 5177].map((p) => `http://localhost:${p}`);

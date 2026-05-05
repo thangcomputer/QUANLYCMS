@@ -13,6 +13,8 @@ const crypto = require('crypto');
 const Student = require('../models/Student');
 const { authMiddleware } = require('../middleware/auth');
 
+const PaymentSession = require('../models/PaymentSession');
+
 // ── SePay HMAC signature verification ────────────────────────────────────────
 // SePay gửi x-sepay-token header = HMAC-SHA256(requestBody, SEPAY_SECRET_KEY)
 // Nếu SEPAY_SECRET_KEY chưa set trong .env → bỏ qua (backward compat)
@@ -37,79 +39,79 @@ function verifySepaySignature(req, res, next) {
   next();
 }
 
-// ── In-memory payment sessions (5 phút tự xóa) ───────────────────────────────
-// Map<sessionId, { ref, amount, status, createdAt }>
-const paymentSessions = new Map();
-const SESSION_TTL = 5 * 60 * 1000; // 5 phút
-
-function cleanExpiredSessions() {
-  const now = Date.now();
-  for (const [id, session] of paymentSessions) {
-    if (now - session.createdAt > SESSION_TTL) {
-      paymentSessions.delete(id);
-    }
-  }
-}
-// Dọn mỗi 2 phút
-setInterval(cleanExpiredSessions, 2 * 60 * 1000);
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
 // ── POST /api/webhooks/payment-session & /api/webhooks/create-session ──
-const handleCreateSession = (req, res) => {
-  const { ref, content, amount, studentName, courseName } = req.body;
-  const finalRef = (ref || content || '').toLowerCase().trim();
-  if (!finalRef) return res.status(400).json({ success: false, message: 'Thiếu nội dung chuyển khoản (ref/content)' });
+const handleCreateSession = async (req, res) => {
+  try {
+    const { ref, content, amount, studentName, courseName } = req.body;
+    const finalRef = (ref || content || '').toLowerCase().trim();
+    if (!finalRef) return res.status(400).json({ success: false, message: 'Thiếu nội dung chuyển khoản (ref/content)' });
 
-  const sessionId = `ps_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  paymentSessions.set(sessionId, {
-    ref: finalRef,
-    amount: Number(amount) || 0,
-    status: 'pending',
-    studentName: studentName || '',
-    courseName: courseName || '',
-    createdAt: Date.now(),
-  });
+    const sessionId = `ps_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    
+    await PaymentSession.create({
+      sessionId,
+      ref: finalRef,
+      amount: Number(amount) || 0,
+      status: 'pending',
+      studentName: studentName || '',
+      courseName: courseName || '',
+    });
 
-  console.log(`[PAYMENT SESSION] Tạo mới: ${sessionId} — ref: "${finalRef}"`);
-  return res.json({ success: true, sessionId, expiresIn: SESSION_TTL / 1000 });
+    console.log(`[PAYMENT SESSION] Tạo mới (DB): ${sessionId} — ref: "${finalRef}"`);
+    return res.json({ success: true, sessionId, expiresIn: SESSION_TTL_MS / 1000 });
+  } catch (err) {
+    console.error('[CREATE SESSION ERROR]', err);
+    return res.status(500).json({ success: false, message: 'Lỗi server khi tạo phiên' });
+  }
 };
 
 router.post('/payment-session', authMiddleware, handleCreateSession);
 router.post('/create-session', authMiddleware, handleCreateSession);
 
 // ── GET /api/webhooks/payment-session/:id & /api/webhooks/payment-status ── Polling
-const handleCheckSession = (req, res) => {
-  const sessionId = req.params.id || req.query.sessionId;
-  if (!sessionId) {
-     return res.status(400).json({ success: false, message: 'Missing sessionId' });
+const handleCheckSession = async (req, res) => {
+  try {
+    const sessionId = req.params.id || req.query.sessionId;
+    if (!sessionId) {
+       return res.status(400).json({ success: false, message: 'Missing sessionId' });
+    }
+
+    const session = await PaymentSession.findOne({ sessionId });
+    if (!session) {
+      return res.json({ success: true, status: 'not_found', paid: false });
+    }
+
+    const elapsed = Date.now() - session.createdAt.getTime();
+    const remaining = Math.max(0, Math.floor((SESSION_TTL_MS - elapsed) / 1000));
+
+    // Logic kiểm tra hết hạn (nếu cần thiết ngoài TTL của Mongo)
+    if (session.status !== 'paid' && elapsed > SESSION_TTL_MS) {
+      session.status = 'expired';
+      await session.save();
+    }
+
+    return res.json({
+      success: true,
+      status: session.status,   // 'pending' | 'paid' | 'expired'
+      paid: session.status === 'paid',
+      studentName: session.studentName,
+      courseName: session.courseName,
+      amount: session.amount,
+      ref: session.ref,
+      remaining,
+      paidAmount: session.paidAmount || 0,
+    });
+  } catch (err) {
+    console.error('[CHECK SESSION ERROR]', err);
+    return res.status(500).json({ success: false, message: 'Lỗi server khi kiểm tra phiên' });
   }
-
-  const session = paymentSessions.get(sessionId);
-  if (!session) {
-    return res.json({ success: true, status: 'not_found', paid: false });
-  }
-
-  const elapsed = Date.now() - session.createdAt;
-  const remaining = Math.max(0, Math.floor((SESSION_TTL - elapsed) / 1000));
-
-  if (session.status !== 'paid' && elapsed > SESSION_TTL) {
-    session.status = 'expired';
-  }
-
-  return res.json({
-    success: true,
-    status: session.status,   // 'pending' | 'paid' | 'expired'
-    paid: session.status === 'paid',
-    studentName: session.studentName,
-    courseName: session.courseName,
-    amount: session.amount,
-    ref: session.ref,
-    remaining,
-    paidAmount: session.paidAmount || 0,
-  });
 };
 
 router.get('/payment-session/:id', handleCheckSession);
 router.get('/payment-status', handleCheckSession);
+
 
 // ── POST /api/webhooks/sepay ── SePay Webhook (HMAC verified) ──────────────────
 router.post('/sepay', verifySepaySignature, async (req, res) => {
@@ -127,23 +129,30 @@ router.post('/sepay', verifySepaySignature, async (req, res) => {
     let matched = false;
 
     // ── 1. Kiểm tra payment sessions (đăng ký mới) ───────────────────────────
-    for (const [id, session] of paymentSessions) {
-      if (session.status === 'pending' && content.includes(session.ref)) {
-        session.status    = 'paid';
-        session.paidAmount = amount;
-        console.log(`[SEPAY] ✅ Session ${id} khớp — đã thanh toán ${amount}đ`);
-        matched = true;
+    const pendingSession = await PaymentSession.findOne({ 
+      status: 'pending',
+      $or: [
+        { ref: { $regex: content, $options: 'i' } }, // Nội dung CK chứa ref
+        { ref: content }                             // Hoặc ref chứa nội dung CK (backward match)
+      ]
+    });
 
-        // Emit socket cho frontend đang chờ
-        const io = req.app.get('io');
-        if (io) {
-          io.emit('tuition:paid', {
-            sessionId: id,
-            amount,
-            message: `✅ Đã nhận ${amount.toLocaleString('vi-VN')}đ`,
-          });
-        }
-        break;
+    if (pendingSession) {
+      pendingSession.status = 'paid';
+      pendingSession.paidAmount = amount;
+      await pendingSession.save();
+
+      console.log(`[SEPAY] ✅ Session ${pendingSession.sessionId} khớp — đã thanh toán ${amount}đ`);
+      matched = true;
+
+      // Emit socket cho frontend đang chờ
+      const io = req.app.get('io');
+      if (io) {
+        io.emit('tuition:paid', {
+          sessionId: pendingSession.sessionId,
+          amount,
+          message: `✅ Đã nhận ${amount.toLocaleString('vi-VN')}đ`,
+        });
       }
     }
 
