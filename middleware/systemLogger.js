@@ -59,7 +59,15 @@ function describeAction(method, path, body, responseBody) {
   if (p.includes('/students') && p.includes('/price')) return { action: 'SỬA HỌC PHÍ', category: 'student', desc: `Điều chỉnh học phí học viên` };
   if (p.includes('/students') && method === 'PUT') {
     const sName = responseBody?.data?.name || body?.name || '';
-    return { action: 'CẬP NHẬT HV', category: 'student', desc: `Cập nhật thông tin học viên${sName ? ': ' + sName : ''}` };
+    let details = [];
+    if (body?.studentExamUnlocked !== undefined) details.push(body.studentExamUnlocked ? 'Mở khóa thi toàn bộ' : 'Tắt khóa thi toàn bộ');
+    if (body?.requireWebcam !== undefined) details.push(body.requireWebcam ? 'Bật yêu cầu Camera' : 'Tắt yêu cầu Camera');
+    if (body?.examProgress) details.push('Cập nhật tiến độ thi / Cho thi lại');
+    if (body?.status) details.push(`Đổi trạng thái -> ${body.status}`);
+    if (body?.teacherId) details.push('Phân công Giảng viên');
+
+    const detailStr = details.length > 0 ? ` (${details.join(', ')})` : '';
+    return { action: 'CẬP NHẬT HV', category: 'student', desc: `Cập nhật thông tin học viên${sName ? ': ' + sName : ''}${detailStr}` };
   }
   if (p.includes('/students') && method === 'DELETE')  return { action: 'XÓA HỌC VIÊN', category: 'student', desc: `Xóa học viên khỏi hệ thống` };
 

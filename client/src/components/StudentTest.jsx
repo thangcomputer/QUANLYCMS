@@ -109,6 +109,13 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
   const [phase, setPhase]       = useState('hardware_check'); // hardware_check | test | result | banned
   const [banReason, setBanReason] = useState('');
 
+  // ── BỎ QUA YÊU CẦU CAMERA NẾU ADMIN ĐÃ TẮT ──
+  useEffect(() => {
+    if (student?.requireWebcam === false && phase === 'hardware_check') {
+      setPhase('test');
+    }
+  }, [student?.requireWebcam, phase]);
+
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const previewRef = useRef(null);

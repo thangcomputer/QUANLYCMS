@@ -69,7 +69,7 @@ const MENU_CONFIG = {
       { key: 'evaluations',      icon: AlertTriangle, label: 'Đánh giá nội bộ',    path: '/admin', hash: 'evaluations',         permission: PERMISSIONS.VIEW_EVALUATIONS },
       { key: 'finance',          icon: DollarSign,    label: 'Tài chính',           path: '/admin', hash: 'finance',             permission: PERMISSIONS.MANAGE_FINANCE   },
       { key: 'training',         icon: BookOpen,      label: 'Đào tạo GV',          path: '/admin', hash: 'training',            permission: PERMISSIONS.MANAGE_TRAINING  },
-      { key: 'student-training', icon: BookOpen,      label: 'Đào tạo HV',          path: '/admin', hash: 'student-training',    permission: PERMISSIONS.MANAGE_TRAINING  },
+      { key: 'student-training', icon: BookOpen,      label: 'Đào tạo HV',          path: '/admin', hash: 'student-training',    permission: PERMISSIONS.MANAGE_STUDENT_TRAINING  },
       { key: 'logs',             icon: Lock,          label: 'Nhật ký hệ thống',    path: '/admin', hash: 'logs',               permission: PERMISSIONS.VIEW_LOGS        },
       { key: 'settings',         icon: Settings,      label: 'Cài đặt hệ thống',    path: '/admin', hash: 'settings',            permission: PERMISSIONS.SYSTEM_SETTINGS  },
       { key: 'staff',            icon: Users,         label: 'Phân quyền NV',       path: '/admin', hash: 'staff',  superAdminOnly: true, permission: PERMISSIONS.MANAGE_STAFF },
