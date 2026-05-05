@@ -40,6 +40,23 @@ export default function StudentDetailModal({ studentId, onClose }) {
     } catch (err) {}
   };
 
+  const toggleWebcam = async () => {
+    if (!updateStudent || !data?.student) return;
+    const newVal = data.student.requireWebcam === false ? true : false;
+    try {
+      await updateStudent(data.student._id || data.student.id, { requireWebcam: newVal });
+      setData({ ...data, student: { ...data.student, requireWebcam: newVal } });
+    } catch (err) {}
+  };
+
+  const toggleExamUnlocked = async () => {
+    if (!updateStudent || !data?.student) return;
+    const newVal = !data.student.studentExamUnlocked;
+    try {
+      await updateStudent(data.student._id || data.student.id, { studentExamUnlocked: newVal });
+      setData({ ...data, student: { ...data.student, studentExamUnlocked: newVal } });
+    } catch (err) {}
+  };
 
   useEffect(() => {
     if (!studentId) return;
@@ -266,7 +283,7 @@ export default function StudentDetailModal({ studentId, onClose }) {
                                 />
                              </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-4 pt-4">
+                           <div className="grid grid-cols-2 gap-4 pt-4">
                              <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100/50">
                                 <p className="text-[10px] font-black text-indigo-900/40 uppercase mb-1">Giảng viên phụ trách</p>
                                 <p className="text-sm font-black text-indigo-900">{data.student.teacherId?.name || 'Chưa gán'}</p>
@@ -274,6 +291,37 @@ export default function StudentDetailModal({ studentId, onClose }) {
                              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
                                 <p className="text-[10px] font-black text-slate-400 uppercase mb-1">Trạng thái hiện tại</p>
                                 <p className="text-sm font-black text-slate-700">{data.student.status}</p>
+                             </div>
+                          </div>
+
+                          <div className="pt-6 mt-4 border-t border-slate-100">
+                             <h4 className="font-black text-slate-800 text-[11px] uppercase tracking-wider mb-4 flex items-center gap-2">
+                               <ShieldCheck size={14} className="text-indigo-500" /> QUYỀN HẠN HỌC VIÊN
+                             </h4>
+                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <button onClick={toggleWebcam} className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between h-full ${data.student.requireWebcam === false ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                                   <div className="flex items-center justify-between w-full mb-2">
+                                      <p className={`text-xs font-black uppercase tracking-tighter ${data.student.requireWebcam === false ? 'text-amber-700' : 'text-emerald-700'}`}>YÊU CẦU CAMERA</p>
+                                      <div className={`w-8 h-4 rounded-full flex items-center p-0.5 transition-colors ${data.student.requireWebcam === false ? 'bg-amber-200' : 'bg-emerald-500'}`}>
+                                        <div className={`w-3 h-3 bg-white rounded-full transition-transform ${data.student.requireWebcam === false ? 'translate-x-0' : 'translate-x-4'}`} />
+                                      </div>
+                                   </div>
+                                   <p className={`text-[10px] font-bold ${data.student.requireWebcam === false ? 'text-amber-600/70' : 'text-emerald-600/70'}`}>
+                                      {data.student.requireWebcam === false ? 'Đã tắt. Học viên có thể thi mà không cần webcam.' : 'Đang bật. Yêu cầu bật webcam khi thi.'}
+                                   </p>
+                                </button>
+                                
+                                <button onClick={toggleExamUnlocked} className={`p-4 rounded-2xl border text-left transition-all flex flex-col justify-between h-full ${data.student.studentExamUnlocked ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
+                                   <div className="flex items-center justify-between w-full mb-2">
+                                      <p className={`text-xs font-black uppercase tracking-tighter ${data.student.studentExamUnlocked ? 'text-emerald-700' : 'text-slate-600'}`}>MỞ KHÓA THI TOÀN BỘ</p>
+                                      <div className={`w-8 h-4 rounded-full flex items-center p-0.5 transition-colors ${data.student.studentExamUnlocked ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                                        <div className={`w-3 h-3 bg-white rounded-full transition-transform ${!data.student.studentExamUnlocked ? 'translate-x-0' : 'translate-x-4'}`} />
+                                      </div>
+                                   </div>
+                                   <p className={`text-[10px] font-bold ${data.student.studentExamUnlocked ? 'text-emerald-600/70' : 'text-slate-500/70'}`}>
+                                      {data.student.studentExamUnlocked ? 'Đã mở khóa. Có thể làm mọi bài thi.' : 'Đang tắt. Phải tuân theo lộ trình.'}
+                                   </p>
+                                </button>
                              </div>
                           </div>
                        </div>
@@ -579,10 +627,17 @@ export default function StudentDetailModal({ studentId, onClose }) {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     {/* Kết quả thi cử */}
                     <div className="space-y-4">
-                       <h3 className="font-black text-slate-900 text-sm uppercase tracking-wider flex items-center gap-2">
-                         <Trophy size={16} className="text-amber-500" /> Kết quả thi tốt nghiệp
-                       </h3>
-                       <div className="space-y-4">
+                       <div className="flex items-center justify-between">
+                         <h3 className="font-black text-slate-900 text-sm uppercase tracking-wider flex items-center gap-2">
+                           <Trophy size={16} className="text-amber-500" /> Kết quả thi tốt nghiệp
+                         </h3>
+                         {(data.student.examProgress || []).some(ep => ep.lockUntil && ep.lockUntil > Date.now()) && (
+                           <button onClick={handleUnlockExams} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider shadow-sm transition-all flex items-center gap-1">
+                             <Clock size={12} /> MỞ KHÓA THI LẠI
+                           </button>
+                         )}
+                       </div>
+                       <div className="space-y-4 pt-2">
                           {(data.student.examProgress || []).filter(ep => ep.status && ep.status !== 'chua_thi').length === 0 ? (
                             <div className="bg-slate-50 rounded-3xl p-8 border border-slate-100 border-dashed text-center">
                                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest italic">Học viên chưa tham gia kỳ thi nào</p>

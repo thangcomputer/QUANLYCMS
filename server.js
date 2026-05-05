@@ -265,12 +265,13 @@ io.on('connection', (socket) => {
 
 // ── Hàm gửi notification real-time ──
 app.notifyUser = (role, userId, eventName, data) => {
-  let key = `${role}_${userId}`;
+  const strUserId = String(userId);
+  let key = `${role}_${strUserId}`;
   let user = onlineUsers.get(key);
   
   if (!user && (role === 'admin' || role === 'staff')) {
     const altRole = role === 'admin' ? 'staff' : 'admin';
-    user = onlineUsers.get(`${altRole}_${userId}`);
+    user = onlineUsers.get(`${altRole}_${strUserId}`);
   }
   
   if (user) {
@@ -279,7 +280,7 @@ app.notifyUser = (role, userId, eventName, data) => {
   }
   
   // Fallback: Nếu không tìm thấy role_id, thử join room theo userId
-  io.to(userId).emit(eventName, data);
+  io.to(strUserId).emit(eventName, data);
   return true;
 };
 

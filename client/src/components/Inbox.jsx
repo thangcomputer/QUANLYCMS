@@ -258,8 +258,34 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
 
   // ─── Socket real-time listeners ──────────────────────────────────────────────
   useEffect(() => {
-    let unsubRecall, unsubReaction;
+    let unsubRecall, unsubReaction, unsubMsg;
 
+    if (onMessageReceive) {
+      unsubMsg = onMessageReceive((data) => {
+        // Chỉ cập nhật nếu tin nhắn thuộc cuộc trò chuyện đang chọn
+        if (activeConv && (String(data.conversationId) === String(activeConv.id))) {
+          setMessages(prev => {
+            if (prev.some(m => String(m.id) === String(data._id))) return prev;
+            const mappedMsg = {
+              id: data._id,
+              senderId: data.senderId,
+              senderName: data.senderName,
+              senderRole: data.senderRole,
+              content: data.content,
+              time: new Date(data.createdAt || Date.now()),
+              isRead: data.isRead || false,
+              isRecalled: data.isRecalled || false,
+              messageType: data.messageType || 'text',
+              fileName: data.fileName,
+              fileUrl: data.fileUrl,
+              reactions: data.reactions || [],
+            };
+            return [...prev, mappedMsg];
+          });
+          markMessagesRead(activeConv.id, currentUserId);
+        }
+      });
+    }
 
     if (onRecallReceive) {
       unsubRecall = onRecallReceive((data) => {
@@ -280,11 +306,11 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
     }
 
     return () => {
-      
+      if (unsubMsg) unsubMsg();
       if (unsubRecall) unsubRecall();
       if (unsubReaction) unsubReaction();
     };
-  }, [activeConv, onMessageReceive, onRecallReceive, onReactionReceive]);
+  }, [activeConv, onMessageReceive, onRecallReceive, onReactionReceive, currentUserId, markMessagesRead]);
 
   // ─── Thu hồi tin nhắn ────────────────────────────────────────────────────────
   const handleRecall = useCallback(async (msgId) => {

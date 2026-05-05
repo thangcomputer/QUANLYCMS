@@ -149,6 +149,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
   // ── YÊU CẦU CAMERA Ở BƯỚC HARDWARE CHECK TRƯỚC KHI VÀO THI ──
   useEffect(() => {
     if (phase !== 'hardware_check') return;
+    if (student?.requireWebcam === false) return;
 
     let stream = null;
     navigator.mediaDevices.getUserMedia({ video: true, audio: false })
@@ -166,7 +167,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
     return () => {
       if (stream) stream.getTracks().forEach(t => t.stop());
     };
-  }, [phase]);
+  }, [phase, student?.requireWebcam]);
 
   // ── Timer ──
   useEffect(() => {
