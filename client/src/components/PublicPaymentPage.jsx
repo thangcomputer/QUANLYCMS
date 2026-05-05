@@ -207,7 +207,7 @@ const PublicPaymentPage = () => {
               <div className="h-3 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-50">
                 <div 
                   className={`h-full rounded-full transition-all duration-1000 ${timeLeft < 60 ? 'bg-gradient-to-r from-red-500 to-rose-600' : 'bg-gradient-to-r from-emerald-500 to-teal-600'}`} 
-                  style={{ width: `${(timeLeft / 300) * 100}%` }} 
+                  style={{ width: `${(timeLeft / 900) * 100}%` }} 
                 />
               </div>
             </div>

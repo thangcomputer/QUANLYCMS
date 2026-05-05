@@ -271,7 +271,7 @@ const Avatar = ({ initials, color = 'bg-red-500' }) => (
 const AddStudentModal = ({ onAdd, onClose, teachers }) => {
   const toast    = useToast();
   const API      = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || "");
-  const TOTAL_PAYMENT_SECS = 300; // 5 phút
+  const TOTAL_PAYMENT_SECS = 900; // 15 phút
 
   const { isSuperAdmin, branches, selectedBranchId } = useBranch();
 

@@ -39,7 +39,7 @@ function verifySepaySignature(req, res, next) {
   next();
 }
 
-const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+const SESSION_TTL_MS = 15 * 60 * 1000; // 15 phút
 
 // ── POST /api/webhooks/payment-session & /api/webhooks/create-session ──
 const handleCreateSession = async (req, res) => {
