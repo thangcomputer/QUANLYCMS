@@ -201,13 +201,33 @@ router.get('/conversations/:userId', async (req, res) => {
       return res.status(403).json({ success: false, message: 'Bạn không có quyền xem thông tin này' });
     }
 
-    const messages = await Message.aggregate([
-      { $match: { $or: [
+    // Branch Filtering logic
+    const isSuperAdmin = req.user.role === 'admin' || req.user.adminRole === 'SUPER_ADMIN';
+    const userBranch = req.user.branchCode || '';
+
+    const matchQuery = { 
+      $or: [
         { senderId: userId },
         { receiverId: userId },
-        // Fallback cho legacy Admin messages (cho cả SuperAdmin và Staff)
+        // Unified 'admin' ID check
         ...(['admin', 'staff'].includes(req.user.role) ? [{ senderId: 'admin' }, { receiverId: 'admin' }] : [])
-      ]}},
+      ]
+    };
+
+    // If STAFF or TEACHER, filter by their branch
+    if (!isSuperAdmin && userBranch) {
+      matchQuery.$and = [
+        { $or: [
+          { senderBranchCode: userBranch },
+          { receiverBranchCode: userBranch },
+          { senderId: 'admin' }, // Allow viewing messages sent by/to system
+          { receiverId: 'admin' }
+        ]}
+      ];
+    }
+
+    const messages = await Message.aggregate([
+      { $match: matchQuery },
       { $sort: { createdAt: -1 }},
       { $group: {
         _id: '$conversationId',
@@ -260,15 +280,28 @@ router.get('/search/:userId', async (req, res) => {
     const sanitizeRegex = require('../middleware/sanitizeRegex');
     const safeQ = sanitizeRegex(q);
 
-    // Query toàn bộ dữ liệu thật
-    const messages = await Message.find({
+    const isSuperAdmin = req.user.role === 'admin' || req.user.adminRole === 'SUPER_ADMIN';
+    const userBranch = req.user.branchCode || '';
+
+    const searchQuery = {
       $or: [
         { senderId: userId }, 
         { receiverId: userId },
         ...(['admin', 'staff'].includes(req.user.role) ? [{ senderId: 'admin' }, { receiverId: 'admin' }] : [])
       ],
       content: { $regex: safeQ, $options: 'i' }
-    }).sort({ createdAt: -1 }).limit(50);
+    };
+
+    if (!isSuperAdmin && userBranch) {
+      searchQuery.$and = [
+        { $or: [
+          { senderBranchCode: userBranch },
+          { receiverBranchCode: userBranch }
+        ]}
+      ];
+    }
+
+    const messages = await Message.find(searchQuery).sort({ createdAt: -1 }).limit(50);
 
     res.json({ success: true, data: messages });
   } catch (err) {
@@ -283,7 +316,10 @@ router.get('/:conversationId', async (req, res) => {
 
     // Bảo vệ: Phải là một trong hai bên trong conversationId (hoặc Admin)
     // conversationId format: role_id__role_id (sorted)
-    if (req.user.role !== 'admin' && !conversationId.includes(req.user.id)) {
+    const isStaffOrAdmin = req.user.role === 'admin' || req.user.role === 'staff';
+    const isParticipant = conversationId.includes(req.user.id) || (isStaffOrAdmin && conversationId.includes('admin'));
+
+    if (!isParticipant) {
       return res.status(403).json({ success: false, message: 'Bạn không thuộc cuộc hội thoại này' });
     }
     const messages = await Message.find({ 
@@ -424,12 +460,24 @@ router.post('/', async (req, res) => {
       }
     }
 
+    // ⭐ CHỐNG CHÉO CHI NHÁNH (Cross-Branch Protection)
+    const isSuperAdmin = req.user.role === 'admin' || req.user.adminRole === 'SUPER_ADMIN';
+    if (!isSuperAdmin && (senderRole === 'admin' || senderRole === 'staff') && receiverRole === 'student') {
+        // Staff messaging student
+        if (sBranch && rBranch && sBranch !== rBranch) {
+            return res.status(403).json({ success: false, message: 'Bạn không được phép nhắn tin cho học viên chi nhánh khác' });
+        }
+    }
+
     // Unified 'admin' ID and name logic for messages to students
     const finalSenderId = ((senderRole === 'admin' || senderRole === 'staff') && receiverRole === 'student') ? 'admin' : senderId;
     const finalSenderName = ((senderRole === 'admin' || senderRole === 'staff') && receiverRole === 'student') ? 'Phòng Giáo Vụ' : senderName;
     
-    const finalReceiverId = isGroup ? groupId : (((receiverRole === 'admin' || receiverRole === 'staff') && senderRole === 'student') ? 'admin' : receiverId);
-    const finalReceiverName = isGroup ? 'Group' : (((receiverRole === 'admin' || receiverRole === 'staff') && senderRole === 'student') ? 'Phòng Giáo Vụ' : receiverName);
+    // Broadcast support
+    const isBroadcast = receiverId === 'ALL_USERS' || receiverId === 'ALL_STUDENTS' || receiverId === 'ALL_TEACHERS';
+
+    const finalReceiverId = isBroadcast ? receiverId : (isGroup ? groupId : (((receiverRole === 'admin' || receiverRole === 'staff') && senderRole === 'student') ? 'admin' : receiverId));
+    const finalReceiverName = isBroadcast ? 'Thông báo hệ thống' : (isGroup ? 'Group' : (((receiverRole === 'admin' || receiverRole === 'staff') && senderRole === 'student') ? 'Phòng Giáo Vụ' : receiverName));
 
     const message = await Message.create({
       conversationId, 
@@ -439,7 +487,7 @@ router.post('/', async (req, res) => {
       senderBranchCode: sBranch,
       receiverId: finalReceiverId, 
       receiverName: finalReceiverName, 
-      receiverRole: isGroup ? 'admin' : receiverRole, // Dummy for groups
+      receiverRole: isBroadcast ? 'system' : (isGroup ? 'admin' : receiverRole), 
       receiverBranchCode: rBranch,
       content,
       messageType: messageType || 'text',
@@ -526,7 +574,10 @@ router.put('/read/:conversationId', async (req, res) => {
     const { conversationId } = req.params;
     const readerId = req.user.id;
 
-    if (!conversationId.includes(readerId)) {
+    const isStaffOrAdmin = req.user.role === 'admin' || req.user.role === 'staff';
+    const isParticipant = conversationId.includes(readerId) || (isStaffOrAdmin && conversationId.includes('admin'));
+    
+    if (!isParticipant) {
         return res.status(403).json({ success: false, message: 'Thao tác không hợp lệ' });
     }
 
@@ -764,19 +815,19 @@ router.post('/broadcast', async (req, res) => {
     }
 
     // Lấy branchId của người gửi (nếu là STAFF thì chỉ gửi trong branch đó)
-    const senderDoc = await Teacher.findById(userId).select('branchId').lean();
+    const senderDoc = await Teacher.findById(userId).select('branchId branchCode').lean();
     const branchFilter = (adminRole === 'STAFF' && senderDoc?.branchId) 
       ? { branchId: senderDoc.branchId } 
       : {};
 
     let targets = [];
     if (targetRole === 'student') {
-      targets = await Student.find(branchFilter, '_id name phone').lean();
+      targets = await Student.find(branchFilter, '_id name phone branchCode').lean();
     } else if (targetRole === 'teacher') {
-      targets = await Teacher.find({ role: 'teacher', status: 'active', ...branchFilter }, '_id name phone').lean();
+      targets = await Teacher.find({ role: 'teacher', status: 'active', ...branchFilter }, '_id name phone branchCode').lean();
     } else if (targetRole === 'admin') {
       // Gửi cho toàn bộ Admin/Staff
-      targets = await Teacher.find({ role: { $in: ['admin', 'staff'] }, ...branchFilter }, '_id name phone adminRole').lean();
+      targets = await Teacher.find({ role: { $in: ['admin', 'staff'] }, ...branchFilter }, '_id name phone adminRole branchCode').lean();
     }
 
     const io = req.app.get('io');
@@ -793,23 +844,34 @@ router.post('/broadcast', async (req, res) => {
         ? (target.adminRole === 'STAFF' ? 'staff' : 'admin') 
         : targetRole;
 
-      // CHẾ ĐỘ RIÊNG TƯ TUYỆT ĐỐI: Luôn dùng ID thật của từng người
+      // CHẾ ĐỘ RIÊNG TƯ TUYỆT ĐỐI: Dùng logic thống nhất ID 'admin' khi chat với student
+      const isOneSideAdmin = true; // Luôn là admin/staff gửi broadcast
+      const isOneSideStudent = (receiverRole === 'student');
+
+      const sIdForConv = (isOneSideStudent) ? 'admin' : userId;
+      const rIdForConv = (receiverRole === 'admin' || receiverRole === 'staff') ? 'admin' : receiverId;
+
       const sRoleForConv = 'admin';
       const rRoleForConv = (receiverRole === 'admin' || receiverRole === 'staff') ? 'admin' : receiverRole;
 
       const conversationId = [
-        `${sRoleForConv}_${userId}`,
-        `${rRoleForConv}_${receiverId}`,
+        `${sRoleForConv}_${sIdForConv}`,
+        `${rRoleForConv}_${rIdForConv}`,
       ].sort().join('__');
+
+      const finalSenderId = (receiverRole === 'student') ? 'admin' : userId;
+      const finalSenderName = (receiverRole === 'student') ? 'Phòng Giáo Vụ' : userName;
 
       const newMsg = new Message({
         conversationId,
-        senderId: userId,
-        senderName: userName,
+        senderId: finalSenderId,
+        senderName: finalSenderName,
         senderRole: userRole,
+        senderBranchCode: senderDoc?.branchCode || '',
         receiverId,
         receiverName,
         receiverRole,
+        receiverBranchCode: target.branchCode || '',
         content,
         messageType,
         fileUrl,
