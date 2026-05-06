@@ -815,7 +815,11 @@ router.post('/broadcast', async (req, res) => {
     }
 
     // Lấy branchId của người gửi (nếu là STAFF thì chỉ gửi trong branch đó)
-    const senderDoc = await Teacher.findById(userId).select('branchId branchCode').lean();
+    let senderDoc = null;
+    const mongoose = require('mongoose');
+    if (mongoose.Types.ObjectId.isValid(userId)) {
+      senderDoc = await Teacher.findById(userId).select('branchId branchCode').lean();
+    }
     const branchFilter = (adminRole === 'STAFF' && senderDoc?.branchId) 
       ? { branchId: senderDoc.branchId } 
       : {};
