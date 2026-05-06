@@ -408,7 +408,7 @@ function App() {
           userId={session ? (session.id || session._id) : ''}
           role={session?.role || ''}
           name={session?.name || ''}
-          token={session?.token || ''}
+          token={session?.token || session?.accessToken || ''}
         >
           <ModalProvider>
             <SecurityGuard />

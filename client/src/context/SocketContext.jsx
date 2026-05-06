@@ -64,11 +64,23 @@ export const SocketProvider = ({ userId, role, name, token, children }) => {
   }, []);
 
   useEffect(() => {
+    // Resilience: If token is missing (old session), try to pull from localStorage
+    let effectiveToken = token;
+    if (!effectiveToken && role) {
+      const storedUser = localStorage.getItem(`${role}_user`);
+      if (storedUser) {
+        try {
+          const userObj = JSON.parse(storedUser);
+          effectiveToken = userObj.token || userObj.accessToken;
+        } catch (e) {}
+      }
+    }
+
     const newSocket = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
       reconnectionAttempts: 5,
       reconnectionDelay: 2000,
-      auth: { token }
+      auth: { token: effectiveToken }
     });
 
     newSocket.on('connect', () => {
