@@ -1021,9 +1021,9 @@ export const DataProvider = ({ children, user, onLogout }) => {
   // Gửi tin nhắn qua API → lưu MongoDB → phát Socket.io
   const sendMessage = useCallback(async (msg) => {
     const tempId = `temp_${Date.now()}`;
-    const convId = msg.isGroup && msg.groupId
+    const convId = msg.conversationId || (msg.isGroup && msg.groupId
       ? `group_${msg.groupId}`
-      : makeConvId(msg.senderRole, msg.senderId, msg.receiverRole, msg.receiverId);
+      : makeConvId(msg.senderRole, msg.senderId, msg.receiverRole, msg.receiverId));
     const newMsg = {
       id: tempId,
       convId,
@@ -1047,6 +1047,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
     // Gửi lên backend lưu vào MongoDB → thay tempId bằng _id thật
     try {
       const res = await api.messages.send({
+        conversationId: convId,
         senderId: String(msg.senderId),
         senderName: msg.senderName,
         senderRole: msg.senderRole,

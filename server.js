@@ -266,6 +266,14 @@ io.on('connection', (socket) => {
 // ── Hàm gửi notification real-time ──
 app.notifyUser = (role, userId, eventName, data) => {
   const strUserId = String(userId);
+  
+  if (strUserId === 'admin') {
+    // Nếu gửi cho admin (tài khoản hardcode hệ thống), phát cho tất cả admin và staff
+    io.to('ALL_ADMIN').emit(eventName, data);
+    io.to('ALL_STAFF').emit(eventName, data);
+    return true;
+  }
+
   let key = `${role}_${strUserId}`;
   let user = onlineUsers.get(key);
   

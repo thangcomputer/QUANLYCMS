@@ -379,6 +379,7 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
   const handleSend = async () => {
     if (!newMsg.trim() || !activeConv) return;
     const msgData = {
+      conversationId: activeConv.id,
       senderId: currentUserId,
       senderName: currentUserName,
       senderRole: currentUserRole,
@@ -418,6 +419,7 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
       if (!uploadRes.success) throw new Error(uploadRes.message || 'Lỗi hệ thống lưu trữ');
 
       const msgData = {
+        conversationId: activeConv.id,
         senderId: currentUserId,
         senderName: currentUserName,
         senderRole: currentUserRole,

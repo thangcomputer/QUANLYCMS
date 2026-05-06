@@ -380,6 +380,9 @@ function App() {
        }
     });
 
+    // Xóa thời gian không hoạt động cũ để tránh bị văng ngay lần đăng nhập đầu tiên
+    localStorage.removeItem('last_activity_at');
+
     saveSession(account);
     setSession(account);
     const redirects = { admin: '/admin', staff: '/admin', teacher: '/teacher', student: '/student' };

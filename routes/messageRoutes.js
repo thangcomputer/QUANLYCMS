@@ -368,18 +368,20 @@ router.post('/', async (req, res) => {
 
     const { receiverId, receiverName, receiverRole, content, isGroup, groupId, messageType, fileUrl, fileName } = req.body;
 
-    let conversationId;
-    if (isGroup && groupId) {
-      conversationId = `group_${groupId}`;
-    } else {
-      // CHẾ ĐỘ RIÊNG TƯ TUYỆT ĐỐI: Luôn dùng ID thật của từng người
-      const sRoleForConv = (senderRole === 'admin' || senderRole === 'staff') ? 'admin' : senderRole;
-      const rRoleForConv = (receiverRole === 'admin' || receiverRole === 'staff') ? 'admin' : receiverRole;
+    let conversationId = req.body.conversationId;
+    if (!conversationId) {
+      if (isGroup && groupId) {
+        conversationId = `group_${groupId}`;
+      } else {
+        // CHẾ ĐỘ RIÊNG TƯ TUYỆT ĐỐI: Luôn dùng ID thật của từng người
+        const sRoleForConv = (senderRole === 'admin' || senderRole === 'staff') ? 'admin' : senderRole;
+        const rRoleForConv = (receiverRole === 'admin' || receiverRole === 'staff') ? 'admin' : receiverRole;
 
-      conversationId = [
-        `${sRoleForConv}_${senderId}`,
-        `${rRoleForConv}_${receiverId}`,
-      ].sort().join('__');
+        conversationId = [
+          `${sRoleForConv}_${senderId}`,
+          `${rRoleForConv}_${receiverId}`,
+        ].sort().join('__');
+      }
     }
 
     // Tìm branchCode của cả 2 bên để lưu vào Message (Cần check ID hợp lệ tránh lỗi findById('admin'))
