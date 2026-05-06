@@ -373,13 +373,20 @@ router.post('/', async (req, res) => {
       if (isGroup && groupId) {
         conversationId = `group_${groupId}`;
       } else {
-        // CHẾ ĐỘ RIÊNG TƯ TUYỆT ĐỐI: Luôn dùng ID thật của từng người
+        // CHẾ ĐỘ RIÊNG TƯ TUYỆT ĐỐI: 
+        // Nếu là Admin/Staff nhắn với Học viên -> Luôn dùng ID 'admin' để gộp vào 1 luồng duy nhất
+        const isOneSideAdmin = (senderRole === 'admin' || senderRole === 'staff') || (receiverRole === 'admin' || receiverRole === 'staff');
+        const isOneSideStudent = (senderRole === 'student' || receiverRole === 'student');
+        
+        const sIdForConv = ((senderRole === 'admin' || senderRole === 'staff') && isOneSideStudent) ? 'admin' : senderId;
+        const rIdForConv = ((receiverRole === 'admin' || receiverRole === 'staff') && isOneSideStudent) ? 'admin' : receiverId;
+
         const sRoleForConv = (senderRole === 'admin' || senderRole === 'staff') ? 'admin' : senderRole;
         const rRoleForConv = (receiverRole === 'admin' || receiverRole === 'staff') ? 'admin' : receiverRole;
 
         conversationId = [
-          `${sRoleForConv}_${senderId}`,
-          `${rRoleForConv}_${receiverId}`,
+          `${sRoleForConv}_${sIdForConv}`,
+          `${rRoleForConv}_${rIdForConv}`,
         ].sort().join('__');
       }
     }
@@ -417,10 +424,17 @@ router.post('/', async (req, res) => {
       }
     }
 
+    // Unified 'admin' ID logic for messages to students
+    const finalSenderId = ((senderRole === 'admin' || senderRole === 'staff') && receiverRole === 'student') ? 'admin' : senderId;
+    const finalReceiverId = isGroup ? groupId : (((receiverRole === 'admin' || receiverRole === 'staff') && senderRole === 'student') ? 'admin' : receiverId);
+
     const message = await Message.create({
-      conversationId, senderId, senderName, senderRole,
+      conversationId, 
+      senderId: finalSenderId, 
+      senderName, 
+      senderRole,
       senderBranchCode: sBranch,
-      receiverId: isGroup ? groupId : receiverId, 
+      receiverId: finalReceiverId, 
       receiverName: isGroup ? 'Group' : receiverName, 
       receiverRole: isGroup ? 'admin' : receiverRole, // Dummy for groups
       receiverBranchCode: rBranch,
@@ -454,10 +468,17 @@ router.post('/', async (req, res) => {
         // Phát cho cả room group
         io.to(`group_${groupId}`).emit('message:receive', message);
       } else {
-        // Gửi cho người nhận
+        // 1. Gửi cho người nhận
         req.app.notifyUser(receiverRole, receiverId, 'message:receive', message);
-        // Gửi confirm lại cho người gửi  
-        req.app.notifyUser(senderRole, senderId, 'message:sent', message);
+
+        // 2. Nếu là Admin/Staff gửi -> Đồng bộ cho TẤT CẢ Admin/Staff khác thấy
+        if (senderRole === 'admin' || senderRole === 'staff') {
+          req.app.notifyUser('admin', 'admin', 'message:receive', message);
+        } else {
+          // Nếu là HV/GV gửi cho Admin -> notifyUser('admin','admin') đã xử lý ở bước 1 rồi
+          // Chỉ cần gửi confirm lại cho người gửi
+          req.app.notifyUser(senderRole, senderId, 'message:sent', message);
+        }
       }
     }
 

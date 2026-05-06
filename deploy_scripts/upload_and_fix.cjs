@@ -13,7 +13,7 @@ function getVpsConnection() {
 async function upload() {
   await ssh.connect(getVpsConnection());
 
-  const localDist = path.join(__dirname, 'QUANLYCMS', 'client', 'dist');
+  const localDist = path.join(__dirname, '..', 'client', 'dist');
 
   // 1. Remove old dist
   console.log('=== 1. REMOVE OLD DIST ===');
