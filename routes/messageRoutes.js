@@ -424,18 +424,21 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // Unified 'admin' ID logic for messages to students
+    // Unified 'admin' ID and name logic for messages to students
     const finalSenderId = ((senderRole === 'admin' || senderRole === 'staff') && receiverRole === 'student') ? 'admin' : senderId;
+    const finalSenderName = ((senderRole === 'admin' || senderRole === 'staff') && receiverRole === 'student') ? 'Phòng Giáo Vụ' : senderName;
+    
     const finalReceiverId = isGroup ? groupId : (((receiverRole === 'admin' || receiverRole === 'staff') && senderRole === 'student') ? 'admin' : receiverId);
+    const finalReceiverName = isGroup ? 'Group' : (((receiverRole === 'admin' || receiverRole === 'staff') && senderRole === 'student') ? 'Phòng Giáo Vụ' : receiverName);
 
     const message = await Message.create({
       conversationId, 
       senderId: finalSenderId, 
-      senderName, 
+      senderName: finalSenderName, 
       senderRole,
       senderBranchCode: sBranch,
       receiverId: finalReceiverId, 
-      receiverName: isGroup ? 'Group' : receiverName, 
+      receiverName: finalReceiverName, 
       receiverRole: isGroup ? 'admin' : receiverRole, // Dummy for groups
       receiverBranchCode: rBranch,
       content,

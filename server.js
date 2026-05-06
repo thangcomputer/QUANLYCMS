@@ -19,12 +19,13 @@ const server = http.createServer(app);
 app.set('trust proxy', 1);
 
 // Cấu hình các domain được phép truy cập (CORS)
-const viteLocalOrigins = [5173, 5174, 5175, 5176, 5177].map((p) => `http://localhost:${p}`);
+const viteLocalOrigins = [5173, 5174, 5175, 5176, 5177].flatMap((p) => [`http://localhost:${p}`, `http://127.0.0.1:${p}`]);
 const allowedOrigins = [
   process.env.CLIENT_URL,
   process.env.FRONTEND_URL,
   ...viteLocalOrigins,
   'http://localhost:3000',
+  'http://127.0.0.1:3000',
 ].filter(Boolean);
 
 const io = new Server(server, {
@@ -82,13 +83,18 @@ const onlineUsers = new Map();  // { key: { socketId, userId, role, name, branch
 const lastSeenMap = new Map();  // { userId: ISO timestamp } — lưu khi disconnect
 const jwt = require('jsonwebtoken');
 
-// ✅ Socket.IO Authentication Middleware
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token;
-  if (!token) return next(new Error('Authentication error: Token missing'));
+  if (!token) {
+    console.error(`❌ Socket Auth Failed: Token missing for socket ${socket.id}`);
+    return next(new Error('Authentication error: Token missing'));
+  }
 
   jwt.verify(token, process.env.JWT_SECRET || 'secret_key', (err, decoded) => {
-    if (err) return next(new Error('Authentication error: Invalid token'));
+    if (err) {
+      console.error(`❌ Socket Auth Failed: Invalid token for socket ${socket.id}. Error: ${err.message}`);
+      return next(new Error('Authentication error: Invalid token'));
+    }
     socket.user = decoded; // Lưu thông tin user vào socket
     next();
   });

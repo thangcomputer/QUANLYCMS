@@ -162,7 +162,17 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
     contacts.forEach(c => {
       if (c.id === currentUserId) return;
       const existingConv = dataContextConvs.find(dc => !dc.isGroup && String(dc.user.id) === String(c.id));
-      const convId = existingConv ? existingConv.id : [ `${currentUserRole}_${currentUserId}`, `${c.role}_${c.id}` ].sort().join('__');
+      
+      // Calculate proper conversation ID consistent with backend
+      const r1 = (currentUserRole === 'admin' || currentUserRole === 'staff') ? 'admin' : currentUserRole;
+      const r2 = (c.role === 'admin' || c.role === 'staff') ? 'admin' : c.role;
+      const isOneSideAdmin = (r1 === 'admin' || r2 === 'admin');
+      const isOneSideStudent = (r1 === 'student' || r2 === 'student');
+
+      const sIdForConv = (r1 === 'admin' && isOneSideStudent) ? 'admin' : currentUserId;
+      const rIdForConv = (r2 === 'admin' && isOneSideStudent) ? 'admin' : c.id;
+
+      const convId = existingConv ? existingConv.id : [ `${r1}_${sIdForConv}`, `${r2}_${rIdForConv}` ].sort().join('__');
       
       list.push({
         id: convId,
@@ -373,7 +383,29 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
 
   // ─── Gửi tin nhắn ────────────────────────────────────────────────────────────
   const selectConversation = (conv) => {
-    setActiveConv(conv);
+    // Nếu conv truyền vào là object từ danh bạ (chưa có id hoặc id kiểu r_i__r_i)
+    if (conv.user && !conv.lastMessage) {
+      // Tính toán ID chuẩn đồng bộ với backend
+      const r1 = (currentUserRole === 'admin' || currentUserRole === 'staff') ? 'admin' : currentUserRole;
+      const r2 = (conv.user.role === 'admin' || conv.user.role === 'staff') ? 'admin' : conv.user.role;
+      const isOneSideAdmin = (r1 === 'admin' || r2 === 'admin');
+      const isOneSideStudent = (r1 === 'student' || r2 === 'student');
+
+      const sIdForConv = (r1 === 'admin' && isOneSideStudent) ? 'admin' : currentUserId;
+      const rIdForConv = (r2 === 'admin' && isOneSideStudent) ? 'admin' : conv.user.id;
+
+      const properId = [ `${r1}_${sIdForConv}`, `${r2}_${rIdForConv}` ].sort().join('__');
+      
+      // Kiểm tra xem đã có conv này trong dataContext chưa
+      const existing = dataContextConvs.find(dc => dc.id === properId);
+      if (existing) {
+        setActiveConv(existing);
+      } else {
+        setActiveConv({ ...conv, id: properId });
+      }
+    } else {
+      setActiveConv(conv);
+    }
   };
 
   const handleSend = async () => {

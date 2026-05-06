@@ -66,11 +66,16 @@ const LoginPage = ({ onLogin }) => {
       if (data.success) {
         setDeviceConflict(false);
         const user = data.data.user ? { ...data.data.user } : { ...data.data };
-        user.accessToken = data.data.accessToken || user.accessToken;
-        user.refreshToken = data.data.refreshToken || user.refreshToken;
+        const accessToken = data.data.accessToken || user.accessToken;
+        const refreshToken = data.data.refreshToken || user.refreshToken;
+        
+        user.accessToken = accessToken;
+        user.token = accessToken; // Ensure compatibility with SocketProvider
+        user.refreshToken = refreshToken;
+        
         if (!user.id && user._id) user.id = user._id;
         localStorage.setItem(`${role}_user`, JSON.stringify(user));
-        setTokens(user.token || user.accessToken, user.refreshToken, role);
+        setTokens(accessToken, refreshToken, role);
         onLogin(user);
         toast.success(`Chào mừng ${role === 'teacher' ? 'Giảng viên' : 'Học viên'}: ${user.name}!`);
         navigate(role === 'teacher' ? '/teacher' : '/student');
