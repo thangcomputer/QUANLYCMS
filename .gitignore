@@ -25,3 +25,17 @@ tmp/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Build artifacts
+client/dist/
+
+# Local k6 binary (download separately, see tests/load-test/README)
+tests/load-test/k6-bin/
+
+# Test artifacts
+tests/reports/
+tests/videos/
+
+# Editor
+.vscode/
+.idea/
