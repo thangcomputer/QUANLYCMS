@@ -95,43 +95,114 @@ export const getRefreshToken = (role = null) => {
 };
 
 /**
+ * Refresh access token bằng refresh token đang lưu (rotate cả refresh token).
+ * Gọi đồng thời nhiều request → chia sẻ chung 1 promise để chỉ refresh 1 lần.
+ */
+let _refreshPromise = null;
+
+const redirectToLogin = (prefix) => {
+  if (typeof window === 'undefined') return;
+  const target = prefix === 'admin' || prefix === 'staff' ? '/admin/login' : '/login';
+  if (window.location.pathname !== target) {
+    window.location.href = target;
+  }
+};
+
+const tryRefreshAccessToken = async () => {
+  if (_refreshPromise) return _refreshPromise;
+
+  _refreshPromise = (async () => {
+    const role = getRolePrefix();
+    const refresh = getRefreshToken(role);
+    if (!refresh) return null;
+
+    try {
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: refresh }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body?.success || !body.accessToken) return null;
+
+      const nextRefresh = body.refreshToken || refresh;
+      setTokens(body.accessToken, nextRefresh, role);
+
+      try {
+        const userKey = `${role}_user`;
+        const userStr = localStorage.getItem(userKey);
+        if (userStr) {
+          const user = JSON.parse(userStr);
+          user.token = body.accessToken;
+          user.accessToken = body.accessToken;
+          user.refreshToken = nextRefresh;
+          localStorage.setItem(userKey, JSON.stringify(user));
+        }
+      } catch { /* noop */ }
+
+      return body.accessToken;
+    } catch {
+      return null;
+    }
+  })();
+
+  try {
+    return await _refreshPromise;
+  } finally {
+    _refreshPromise = null;
+  }
+};
+
+const FATAL_AUTH_CODES = new Set([
+  'TOKEN_VERSION_MISMATCH',
+  'UNAUTHORIZED',
+  'TOKEN_REVOKED',
+  'REFRESH_REUSE',
+  'DEVICE_CONFLICT',
+]);
+
+/**
  * CORE FETCH HELPER: Tự động đính kèm Auth Header và xử lý lỗi hệ thống.
+ * Tự động refresh token khi nhận 401/TOKEN_EXPIRED và retry 1 lần.
  */
 export const apiFetch = async (endpoint, options = {}) => {
   const url     = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
-  const headers = { 'Content-Type': 'application/json', ...options.headers };
+  const buildHeaders = (token) => ({
+    'Content-Type': 'application/json',
+    ...options.headers,
+    ...(token && !options.skipAuth ? { Authorization: `Bearer ${token}` } : {}),
+  });
 
   const activeToken = getAccessToken();
-  if (activeToken && !options.skipAuth) {
-    headers['Authorization'] = `Bearer ${activeToken}`;
-  }
+  let res = await fetch(url, { ...options, headers: buildHeaders(activeToken) });
 
-  try {
-    const res = await fetch(url, { ...options, headers });
-
-    // Xử lý khi Token hết hạn (401)
-    if (res.status === 401 && !options.skipAuth) {
-      const cloned = res.clone();
-      try {
-        const errBody = await cloned.json();
-        if (errBody.code === 'TOKEN_VERSION_MISMATCH' || errBody.code === 'UNAUTHORIZED') {
-          const prefix = getRolePrefix();
-          clearTokens(prefix);
-          // Redirect về trang login tương ứng
-          window.location.href = prefix === 'admin' || prefix === 'staff' ? '/admin/login' : '/login';
-        }
-      } catch (e) {
-        // Fallback: Nếu 401 mà không có body JSON, cũng coi như phiên hết hạn
-        const prefix = getRolePrefix();
-        clearTokens(prefix);
-        window.location.href = prefix === 'admin' || prefix === 'staff' ? '/admin/login' : '/login';
-      }
-    }
-
+  if (res.status !== 401 || options.skipAuth || options._retried) {
     return res;
-  } catch (err) {
-    throw err;
   }
+
+  let errBody = null;
+  try {
+    errBody = await res.clone().json();
+  } catch { /* noop */ }
+
+  const code = errBody?.code;
+  if (code && FATAL_AUTH_CODES.has(code)) {
+    const prefix = getRolePrefix();
+    clearTokens(prefix);
+    redirectToLogin(prefix);
+    return res;
+  }
+
+  // TOKEN_EXPIRED hoặc 401 thường → thử refresh
+  const newToken = await tryRefreshAccessToken();
+  if (!newToken) {
+    const prefix = getRolePrefix();
+    clearTokens(prefix);
+    redirectToLogin(prefix);
+    return res;
+  }
+
+  return fetch(url, { ...options, headers: buildHeaders(newToken), _retried: true });
 };
 
 // ─── AUTH API ───────────────────────────────────────────────────────────────
@@ -152,7 +223,11 @@ export const authAPI = {
 
   logout: async () => {
     const role = getRolePrefix();
-    const res = await apiFetch('/auth/logout', { method: 'POST' });
+    const refresh = getRefreshToken(role);
+    const res = await apiFetch('/auth/logout', {
+      method: 'POST',
+      body: JSON.stringify({ refreshToken: refresh || undefined }),
+    });
     clearTokens(role);
     return res;
   },
@@ -199,13 +274,6 @@ export const authAPI = {
     return res.json();
   },
 
-  changePassword: async (oldPassword, newPassword) => {
-    const res = await apiFetch('/auth/change-password', {
-      method: 'POST',
-      body: JSON.stringify({ oldPassword, newPassword }),
-    });
-    return res.json();
-  },
 };
 
 // ─── STUDENT API ────────────────────────────────────────────────────────────
@@ -264,6 +332,20 @@ export const studentsAPI = {
     const res = await apiFetch(`/students/${id}/reset-today-attendance`, { method: 'POST' });
     return res.json();
   },
+  assignTeacher: async (id, teacherId) => {
+    const res = await apiFetch(`/students/${id}/assign-teacher`, {
+      method: 'PUT',
+      body: JSON.stringify({ teacherId }),
+    });
+    return res.json();
+  },
+  pay: async (id, data) => {
+    const res = await apiFetch(`/students/${id}/pay`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
 };
 
 // ─── TEACHER API ────────────────────────────────────────────────────────────
@@ -310,6 +392,10 @@ export const teachersAPI = {
     const res = await apiFetch(`/teachers/${teacherId}/finance`);
     return res.json();
   },
+  approve: async (id) => {
+    const res = await apiFetch(`/teachers/${id}/approve`, { method: 'POST' });
+    return res.json();
+  },
   uploadPractical: async (file) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -345,6 +431,45 @@ export const transactionsAPI = {
   },
   getByTeacher: async (teacherId) => {
     const res = await apiFetch(`/transactions/teacher/${teacherId}`);
+    return res.json();
+  },
+  create: async (data) => {
+    const res = await apiFetch('/transactions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+  confirm: async (id, status) => {
+    const res = await apiFetch(`/transactions/${id}/confirm`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+    return res.json();
+  },
+};
+
+export const staffAPI = {
+  getAll: async () => {
+    const res = await apiFetch('/staff');
+    return res.json();
+  },
+  create: async (data) => {
+    const res = await apiFetch('/staff', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+  update: async (id, data) => {
+    const res = await apiFetch(`/staff/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+  remove: async (id) => {
+    const res = await apiFetch(`/staff/${id}`, { method: 'DELETE' });
     return res.json();
   },
 };
@@ -409,10 +534,6 @@ export const messagesAPI = {
   },
   softDelete: async (messageId) => {
     const res = await apiFetch(`/messages/${messageId}/soft-delete`, { method: 'PATCH' });
-    return res.json();
-  },
-  getGroups: async (userId) => {
-    const res = await apiFetch(`/messages/groups/user/${userId}`);
     return res.json();
   },
   createGroup: async (name, participants) => {
@@ -572,6 +693,24 @@ export const examResultsAPI = {
     const data = await res.json();
     return data.data || [];
   },
+  create: async (data) => {
+    const res = await apiFetch('/exam-results', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+  update: async (id, data) => {
+    const res = await apiFetch(`/exam-results/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  },
+  remove: async (id) => {
+    const res = await apiFetch(`/exam-results/${id}`, { method: 'DELETE' });
+    return res.json();
+  },
 };
 
 // ─── SETTINGS API ───────────────────────────────────────────────────────────
@@ -688,4 +827,5 @@ export default {
   examResults:  examResultsAPI,
   settings:     settingsAPI,
   systemLogs:   systemLogsAPI,
+  staff:        staffAPI,
 };

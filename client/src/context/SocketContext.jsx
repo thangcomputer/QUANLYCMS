@@ -268,7 +268,7 @@ export const SocketProvider = ({ userId, role, name, token, children }) => {
       newSocket.offAny(onAnyEvent);
       newSocket.disconnect();
     };
-  }, [userId, role, name]);
+  }, [userId, role, name, token]);
 
   // Gửi tin nhắn
   const sendMessage = useCallback((data) => {

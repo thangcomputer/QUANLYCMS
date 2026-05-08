@@ -3,7 +3,7 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import AppSidebar from './AppSidebar';
 import BranchFilterDropdown from './BranchFilterDropdown';
 import { useData } from '../context/DataContext';
-import api from '../services/api';
+import api, { setTokens } from '../services/api';
 import { 
   Bell, LogOut, CheckCircle2, Clock, X, ChevronRight, Lock,
   Calendar, DollarSign, UserPlus, Zap, BookOpen, Award, Activity
@@ -62,7 +62,9 @@ const DashboardLayout = ({ role, session, onLogout }) => {
             body: JSON.stringify({ refreshToken: stored.refreshToken }),
           }).then(r => r.json()).then(res => {
             if (res.success && res.accessToken) {
-              localStorage.setItem(key, JSON.stringify({ ...stored, token: res.accessToken }));
+              const nextRefresh = res.refreshToken || stored.refreshToken;
+              localStorage.setItem(key, JSON.stringify({ ...stored, token: res.accessToken, accessToken: res.accessToken, refreshToken: nextRefresh }));
+              setTokens(res.accessToken, nextRefresh, role);
             }
           }).catch(() => {});
         }
