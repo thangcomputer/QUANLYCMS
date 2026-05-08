@@ -1,0 +1,12 @@
+node_modules
+client/node_modules
+client/dist
+.git
+.env
+.env.*
+*.log
+uploads
+temp
+tmp
+tests/reports
+.github
