@@ -6,6 +6,7 @@ const fs = require('fs');
 
 const SystemSettings = require('../models/SystemSettings');
 const { authMiddleware, isAdmin } = require('../middleware/auth');
+const logger = require('../config/logger');
 
 // ── Multer config cho upload banner popup ─────────────────────────────────────
 const uploadDir = path.join(__dirname, '..', 'uploads', 'popup');
@@ -475,7 +476,7 @@ router.post('/reset-data', authMiddleware, isAdmin, async (req, res) => {
     return res.json({ success: true, message: 'Làm mới dữ liệu hệ thống thành công' });
 
   } catch (err) {
-    console.error('[RESET DATA ERROR]', err);
+    logger.error('[RESET DATA ERROR]', err);
     return res.status(500).json({ success: false, message: 'Lỗi server khi reset data: ' + err.message });
   }
 });

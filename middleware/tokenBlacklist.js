@@ -31,6 +31,8 @@ class TokenBlacklist {
           if (expiresAt <= now) this._store.delete(token);
         }
       }, 60_000);
+      // Don't keep the event loop alive just for the cleaner
+      if (typeof this._cleaner.unref === 'function') this._cleaner.unref();
     }
   }
 
@@ -96,4 +98,7 @@ class TokenBlacklist {
   }
 }
 
-module.exports = new TokenBlacklist();
+const singleton = new TokenBlacklist();
+module.exports = singleton;
+module.exports.TokenBlacklist = TokenBlacklist;
+module.exports.hashToken = hashToken;

@@ -58,6 +58,7 @@ passport.deserializeUser((user, done) => done(null, user));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const svgCaptcha = require('svg-captcha');
+const logger = require('../config/logger');
 
 // In-memory CAPTCHA store (cid → { text, expiresAt })
 // Tự động dọn dẹp sau 5 phút
@@ -209,7 +210,7 @@ router.post('/refresh', refreshTokenLimiter, async (req, res) => {
 
     return res.json({ success: true, accessToken, refreshToken: newRefresh });
   } catch (err) {
-    console.error('[AUTH] refresh', err);
+    logger.error('[AUTH] refresh', err);
     return res.status(401).json({ success: false, message: 'refreshToken không hợp lệ hoặc đã hết hạn' });
   }
 });
@@ -285,7 +286,7 @@ router.get('/google/callback',
       }
       res.redirect(`${clientUrl}/login?socialToken=${accessToken}&socialRefresh=${refreshToken}&socialRole=${userRole}&socialName=${encodeURIComponent(user.name)}&socialId=${tid}`);
     } catch (err) {
-      console.error('[AUTH] Google callback', err);
+      logger.error('[AUTH] Google callback', err);
       res.redirect(`${clientUrl}/login?error=token_failed`);
     }
   }
@@ -353,7 +354,7 @@ router.get('/zalo/callback', async (req, res) => {
     await Student.findByIdAndUpdate(student._id, { refreshToken });
     res.redirect(`${clientUrl}/login?socialToken=${accessToken}&socialRefresh=${refreshToken}&socialRole=student&socialName=${encodeURIComponent(student.name)}&socialId=${student._id}`);
   } catch (err) {
-    console.error('[ZALO OAuth]', err.message);
+    logger.error('[ZALO OAuth]', err.message);
     res.redirect(`${clientUrl}/login?error=zalo_server_error`);
   }
 });
@@ -528,7 +529,7 @@ router.post('/login', loginLimiter, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[AUTH] Login error:', error);
+    logger.error('[AUTH] Login error:', error);
     return res.status(500).json({
       success: false,
       message: 'Lỗi server. Vui lòng thử lại sau.',
@@ -644,7 +645,7 @@ router.post('/login/public', loginLimiter, async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[AUTH] login/public error:', err);
+    logger.error('[AUTH] login/public error:', err);
     res.status(500).json({ success: false, message: 'Lỗi server. Vui lòng thử lại.' });
   }
 });
@@ -767,7 +768,7 @@ router.post('/login/internal', loginLimiter, async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[AUTH] login/internal error:', err);
+    logger.error('[AUTH] login/internal error:', err);
     res.status(500).json({ success: false, message: 'Lỗi server. Vui lòng thử lại.' });
   }
 });
@@ -877,7 +878,7 @@ router.post('/register-teacher', sensitiveFlowLimiter, async (req, res) => {
     if (error.code === 11000) {
       return res.status(409).json({ success: false, message: 'Số điện thoại đã tồn tại' });
     }
-    console.error('[AUTH] Register error:', error);
+    logger.error('[AUTH] Register error:', error);
     return res.status(500).json({ success: false, message: error.message || 'Lỗi server' });
   }
 });
@@ -923,7 +924,7 @@ router.post('/change-password', authMiddleware, async (req, res) => {
     return res.status(200).json({ success: true, message: 'Đổi mật khẩu thành công' });
 
   } catch (error) {
-    console.error('[AUTH] Change password error:', error);
+    logger.error('[AUTH] Change password error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
@@ -1003,7 +1004,7 @@ router.get('/me', authMiddleware, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('[AUTH] /me error:', error);
+    logger.error('[AUTH] /me error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
@@ -1037,11 +1038,11 @@ async function getZaloOAToken() {
       const expiresIn = (resp.data?.expires_in || 3600) * 1000;
       if (newToken) {
         _zaloOATokenCache = { token: newToken, expiresAt: Date.now() + expiresIn };
-        console.log('[Zalo OA] Token refreshed, expires in', Math.round(expiresIn / 60000), 'phút');
+        logger.info('[Zalo OA] Token refreshed, expires in', Math.round(expiresIn / 60000), 'phút');
         return newToken;
       }
     } catch (e) {
-      console.warn('[Zalo OA] Refresh token thất bại:', e.response?.data || e.message);
+      logger.warn('[Zalo OA] Refresh token thất bại:', e.response?.data || e.message);
     }
   }
 
@@ -1055,10 +1056,10 @@ async function getZaloOAToken() {
 }
 
 async function sendZaloOTP(phoneOrZalo, otp, userName) {
-  console.log(`[OTP] Gửi OTP ${otp} tới ${userName} (SĐT/Zalo: ${phoneOrZalo})`);
+  logger.info(`[OTP] Gửi OTP ${otp} tới ${userName} (SĐT/Zalo: ${phoneOrZalo})`);
   const token = await getZaloOAToken();
   if (!token) {
-    console.warn('[OTP] Chưa cấu hình Zalo OA Token');
+    logger.warn('[OTP] Chưa cấu hình Zalo OA Token');
     return;
   }
   try {
@@ -1079,9 +1080,9 @@ async function sendZaloOTP(phoneOrZalo, otp, userName) {
         }, { headers: { access_token: newToken } });
       }
     }
-    console.log(`[OTP] ✅ Đã gửi Zalo OA tới ${phoneOrZalo}`, resp.data);
+    logger.info(`[OTP] ✅ Đã gửi Zalo OA tới ${phoneOrZalo}`, resp.data);
   } catch (e) {
-    console.warn('[OTP] Gửi Zalo OA thất bại:', e.response?.data || e.message);
+    logger.warn('[OTP] Gửi Zalo OA thất bại:', e.response?.data || e.message);
   }
 }
 
@@ -1123,7 +1124,7 @@ router.post('/forgot-password/request', sensitiveFlowLimiter, async (req, res) =
         global.io.emit('new-notification');
       }
     } catch (err) {
-      console.warn('[AUTH] Cannot create notification:', err.message);
+      logger.warn('[AUTH] Cannot create notification:', err.message);
     }
 
     // Che một phần số điện thoại
@@ -1135,7 +1136,7 @@ router.post('/forgot-password/request', sensitiveFlowLimiter, async (req, res) =
       data: { masked, name: user.name }
     });
   } catch (error) {
-    console.error('[AUTH] forgot-password/request error:', error);
+    logger.error('[AUTH] forgot-password/request error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
@@ -1191,7 +1192,7 @@ router.post('/forgot-password/verify', sensitiveFlowLimiter, async (req, res) =>
       data: { name: user.name } // Không trả password về đây
     });
   } catch (error) {
-    console.error('[AUTH] forgot-password/verify error:', error);
+    logger.error('[AUTH] forgot-password/verify error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
@@ -1230,14 +1231,14 @@ router.post('/admin/generate-otp', authMiddleware, async (req, res) => {
     });
     setTimeout(() => otpStore.delete(key), 125000);
 
-    console.log(`[ADMIN OTP] Sinh OTP ${otp} cho ${user.name} (${phone}) - 120s`);
+    logger.info(`[ADMIN OTP] Sinh OTP ${otp} cho ${user.name} (${phone}) - 120s`);
 
     return res.json({
       success: true,
       data: { otp, phone, zalo: user.zalo || phone, name: user.name, expiresIn: 120 }
     });
   } catch (error) {
-    console.error('[AUTH] admin/generate-otp error:', error);
+    logger.error('[AUTH] admin/generate-otp error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
@@ -1289,7 +1290,7 @@ router.post('/admin/reset-password', authMiddleware, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[AUTH] Admin reset password error:', error);
+    logger.error('[AUTH] Admin reset password error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
@@ -1399,7 +1400,7 @@ router.put('/admin/profile', authMiddleware, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('[AUTH] Admin profile update error:', error);
+    logger.error('[AUTH] Admin profile update error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });

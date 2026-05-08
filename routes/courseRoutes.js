@@ -2,6 +2,7 @@ const express = require('express');
 const Course  = require('../models/Course');
 const { authMiddleware, checkPermission, requireInternalToken } = require('../middleware/auth');
 const { sanitizeRegex } = require('../middleware/sanitizeRegex');
+const logger = require('../config/logger');
 
 const router = express.Router();
 
@@ -51,7 +52,7 @@ router.get('/', async (req, res) => {
       data: courses,
     });
   } catch (error) {
-    console.error('[COURSES] Get all error:', error);
+    logger.error('[COURSES] Get all error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
@@ -72,7 +73,7 @@ router.get('/:id', async (req, res) => {
 
     return res.json({ success: true, data: course });
   } catch (error) {
-    console.error('[COURSES] Get by ID error:', error);
+    logger.error('[COURSES] Get by ID error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
@@ -99,7 +100,7 @@ router.post('/', courseWriteGuard, async (req, res) => {
     if (error.code === 11000) {
       return res.status(409).json({ success: false, message: 'Tên khóa học đã tồn tại' });
     }
-    console.error('[COURSES] Create error:', error);
+    logger.error('[COURSES] Create error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server: ' + error.message });
   }
 });
@@ -131,7 +132,7 @@ router.put('/:id', courseWriteGuard, async (req, res) => {
       data: { ...updated.toObject(), effectivePrice: ep },
     });
   } catch (error) {
-    console.error('[COURSES] Update error:', error);
+    logger.error('[COURSES] Update error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
@@ -173,7 +174,7 @@ router.delete('/:id', courseWriteGuard, async (req, res) => {
       message: `Đã xóa khóa học: ${course.name}`,
     });
   } catch (error) {
-    console.error('[COURSES] Delete error:', error);
+    logger.error('[COURSES] Delete error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
@@ -319,7 +320,7 @@ router.post('/seed', courseWriteGuard, async (req, res) => {
       data: created,
     });
   } catch (error) {
-    console.error('[COURSES] Seed error:', error);
+    logger.error('[COURSES] Seed error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi seed dữ liệu' });
   }
 });

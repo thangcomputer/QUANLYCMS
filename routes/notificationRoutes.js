@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Notification = require('../models/Notification');
 const { authMiddleware } = require('../middleware/auth');
+const logger = require('../config/logger');
 
 // Lấy danh sách notifications gần đây (endpoint tên /unread nhưng trả cả đã đọc)
 router.get('/unread', authMiddleware, async (req, res) => {
@@ -41,7 +42,7 @@ router.get('/unread', authMiddleware, async (req, res) => {
       count,
     });
   } catch (error) {
-    console.error('[NOTIFICATIONS] Get unread error:', error);
+    logger.error('[NOTIFICATIONS] Get unread error:', error);
     res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });

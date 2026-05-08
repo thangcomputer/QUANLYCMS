@@ -8,6 +8,7 @@ const Transaction = require('../models/Transaction');
 const Teacher     = require('../models/Teacher');
 const Schedule    = require('../models/Schedule');
 const { authMiddleware, isAdmin, isTeacher, branchFilter } = require('../middleware/auth');
+const logger = require('../config/logger');
 
 // ─── GET /api/transactions ─────────────────────────────────────────────────────
 // Admin/Staff: Lấy giao dịch lương (STAFF chỉ thấy chi nhánh của mình)
@@ -195,7 +196,7 @@ router.post('/', authMiddleware, isAdmin, async (req, res) => {
 
     res.status(201).json({ success: true, data: transaction });
   } catch (err) {
-    console.error('[TRANSACTIONS] Create error:', err);
+    logger.error('[TRANSACTIONS] Create error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 });

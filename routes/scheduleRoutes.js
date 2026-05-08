@@ -5,6 +5,7 @@ const Student  = require('../models/Student');
 const Teacher  = require('../models/Teacher');
 const ScheduleHistory = require('../models/ScheduleHistory');
 const { authMiddleware, branchFilter } = require('../middleware/auth');
+const logger = require('../config/logger');
 
 // ─── Helper: Kiểm tra và tự động Unlock Thi cho Học Viên ─────────────────────
 // Workflow 2: Đếm buổi hoàn thành → nếu >= totalSessions thì set studentExamUnlocked = true
@@ -44,10 +45,10 @@ async function checkAndUnlockExam(studentId, io) {
         io.emit('data:refresh', { type: 'student', id: student._id });
       }
 
-      console.log(`✅ [SCHEDULE] Unlock thi cho HV: ${student.name} (${completedSessions}/${totalRequired} buổi)`);
+      logger.info(`✅ [SCHEDULE] Unlock thi cho HV: ${student.name} (${completedSessions}/${totalRequired} buổi)`);
     }
   } catch (err) {
-    console.error('[SCHEDULE] checkAndUnlockExam error:', err.message);
+    logger.error('[SCHEDULE] checkAndUnlockExam error:', err.message);
   }
 }
 
@@ -328,10 +329,10 @@ router.post('/', authMiddleware, async (req, res) => {
       teacherName,
       scheduledDate: schedule.date,
       course: courseFinal,
-    }).catch(e => console.error('[ScheduleHistory] CREATED log err:', e));
+    }).catch(e => logger.error('[ScheduleHistory] CREATED log err:', e));
 
   } catch (err) {
-    console.error('[SCHEDULE] Create error:', err);
+    logger.error('[SCHEDULE] Create error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -453,13 +454,13 @@ router.put('/:scheduleId', authMiddleware, async (req, res) => {
          // Báo cập nhật calendar
          io.emit('schedule:updated', schedule._id);
       } catch (e) {
-         console.error('[SCHEDULE] Notify error:', e);
+         logger.error('[SCHEDULE] Notify error:', e);
       }
     }
 
     res.json({ success: true, data: updated });
   } catch (err) {
-    console.error('[SCHEDULE] Update error:', err);
+    logger.error('[SCHEDULE] Update error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -526,7 +527,7 @@ router.patch('/:scheduleId/cancel', authMiddleware, async (req, res) => {
 
     res.json({ success: true, data: schedule });
   } catch (err) {
-    console.error('[SCHEDULE] Cancel error:', err);
+    logger.error('[SCHEDULE] Cancel error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 });

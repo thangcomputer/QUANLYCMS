@@ -1,4 +1,5 @@
 const Notification = require('../models/Notification');
+const logger = require('../config/logger');
 
 class NotificationService {
   /**
@@ -62,7 +63,7 @@ class NotificationService {
 
       return newNotification;
     } catch (error) {
-      console.error('[NotificationService] Send error:', error);
+      logger.error('[NotificationService] Send error:', error);
       throw error;
     }
   }

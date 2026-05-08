@@ -11,14 +11,13 @@ const dotenv     = require('dotenv');
 const mongoSanitize = require('express-mongo-sanitize');
 const { Server } = require('socket.io');
 const cron       = require('node-cron');
-const pino       = require('pino');
 const pinoHttp   = require('pino-http');
 const connectDB  = require('./config/db');
 
 dotenv.config();
 require('./config/validateEnv')();
 
-const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+const logger = require('./config/logger');
 
 const app    = express();
 const server = http.createServer(app);

@@ -14,6 +14,7 @@ const Student = require('../models/Student');
 const { authMiddleware } = require('../middleware/auth');
 
 const PaymentSession = require('../models/PaymentSession');
+const logger = require('../config/logger');
 
 // ── SePay Webhook verification ────────────────────────────────────────────────
 // SePay hỗ trợ 2 kiểu chứng thực:
@@ -21,7 +22,7 @@ const PaymentSession = require('../models/PaymentSession');
 // 2. HMAC: x-sepay-token = HMAC-SHA256(body, SECRET_KEY)
 // Nếu chưa cấu hình → cho qua (backward compat)
 function verifySepaySignature(req, res, next) {
-  console.log('[SEPAY] Incoming webhook headers:', JSON.stringify({
+  logger.info('[SEPAY] Incoming webhook headers:', JSON.stringify({
     authorization: req.headers['authorization'],
     'x-sepay-token': req.headers['x-sepay-token'],
     'x-api-key': req.headers['x-api-key'],
@@ -38,15 +39,15 @@ function verifySepaySignature(req, res, next) {
     const authHeader = req.headers['authorization'] || '';
     const incomingKey = authHeader.replace(/^Apikey\s+/i, '').trim();
     if (incomingKey === apiKey) {
-      console.log('[SEPAY] ✅ API Key verified');
+      logger.info('[SEPAY] ✅ API Key verified');
       return next();
     }
     // Cũng kiểm tra header x-api-key
     if (req.headers['x-api-key'] === apiKey) {
-      console.log('[SEPAY] ✅ API Key (x-api-key) verified');
+      logger.info('[SEPAY] ✅ API Key (x-api-key) verified');
       return next();
     }
-    console.warn('[SEPAY] ❌ API Key mismatch — rejected');
+    logger.warn('[SEPAY] ❌ API Key mismatch — rejected');
     return res.status(401).json({ success: false, message: 'Invalid API Key' });
   }
 
@@ -54,13 +55,13 @@ function verifySepaySignature(req, res, next) {
   if (hmacSecret) {
     const signature = req.headers['x-sepay-token'];
     if (!signature) {
-      console.warn('[SEPAY] Missing HMAC signature — rejected');
+      logger.warn('[SEPAY] Missing HMAC signature — rejected');
       return res.status(401).json({ success: false, message: 'Missing webhook signature' });
     }
     const rawBody = JSON.stringify(req.body);
     const expected = crypto.createHmac('sha256', hmacSecret).update(rawBody).digest('hex');
     if (signature !== expected) {
-      console.warn('[SEPAY] Invalid HMAC signature — rejected');
+      logger.warn('[SEPAY] Invalid HMAC signature — rejected');
       return res.status(401).json({ success: false, message: 'Invalid webhook signature' });
     }
     return next();
@@ -89,10 +90,10 @@ const handleCreateSession = async (req, res) => {
       courseName: courseName || '',
     });
 
-    console.log(`[PAYMENT SESSION] Tạo mới (DB): ${sessionId} — ref: "${finalRef}"`);
+    logger.info(`[PAYMENT SESSION] Tạo mới (DB): ${sessionId} — ref: "${finalRef}"`);
     return res.json({ success: true, sessionId, expiresIn: SESSION_TTL_MS / 1000 });
   } catch (err) {
-    console.error('[CREATE SESSION ERROR]', err);
+    logger.error('[CREATE SESSION ERROR]', err);
     return res.status(500).json({ success: false, message: 'Lỗi server khi tạo phiên' });
   }
 };
@@ -134,7 +135,7 @@ const handleCheckSession = async (req, res) => {
       paidAmount: session.paidAmount || 0,
     });
   } catch (err) {
-    console.error('[CHECK SESSION ERROR]', err);
+    logger.error('[CHECK SESSION ERROR]', err);
     return res.status(500).json({ success: false, message: 'Lỗi server khi kiểm tra phiên' });
   }
 };
@@ -147,7 +148,7 @@ router.get('/payment-status', handleCheckSession);
 router.post('/sepay', verifySepaySignature, async (req, res) => {
   try {
     const body = req.body;
-    console.log('[SEPAY WEBHOOK]', JSON.stringify(body, null, 2));
+    logger.info('[SEPAY WEBHOOK]', JSON.stringify(body, null, 2));
 
     const content = (body.content || body.description || '').toLowerCase().trim();
     const amount  = Number(body.transferAmount || body.amount || 0);
@@ -174,7 +175,7 @@ router.post('/sepay', verifySepaySignature, async (req, res) => {
       pendingSession.paidAmount = amount;
       await pendingSession.save();
 
-      console.log(`[SEPAY] ✅ Session ${pendingSession.sessionId} khớp ref="${pendingSession.ref}" — đã thanh toán ${amount}đ`);
+      logger.info(`[SEPAY] ✅ Session ${pendingSession.sessionId} khớp ref="${pendingSession.ref}" — đã thanh toán ${amount}đ`);
       matched = true;
 
       // Emit socket cho frontend đang chờ
@@ -211,20 +212,20 @@ router.post('/sepay', verifySepaySignature, async (req, res) => {
               message: `✅ ${s.name} đã thanh toán ${amount.toLocaleString('vi-VN')}đ`,
             });
           }
-          console.log(`[SEPAY] ✅ Học viên ${s.name} đã thanh toán ${amount}đ`);
+          logger.info(`[SEPAY] ✅ Học viên ${s.name} đã thanh toán ${amount}đ`);
           break;
         }
       }
     }
 
     if (!matched) {
-      console.warn('[SEPAY] Không match được — nội dung:', content);
+      logger.warn('[SEPAY] Không match được — nội dung:', content);
     }
 
     return res.json({ success: true, matched });
 
   } catch (err) {
-    console.error('[SEPAY WEBHOOK ERROR]', err);
+    logger.error('[SEPAY WEBHOOK ERROR]', err);
     return res.json({ success: false, message: 'Lỗi server: ' + err.message });
   }
 });

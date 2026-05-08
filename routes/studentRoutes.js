@@ -5,6 +5,7 @@ const Invoice = require('../models/Invoice');
 const Schedule = require('../models/Schedule');
 const { authMiddleware, isAdmin, isTeacher, branchFilter } = require('../middleware/auth');
 const { sanitizeRegex } = require('../middleware/sanitizeRegex');
+const logger = require('../config/logger');
 
 // ─── GET /api/students ─────────────────────────────────────────────────────────
 // Lấy danh sách học viên (Admin / Teacher) — hỗ trợ Server-side Pagination
@@ -545,7 +546,7 @@ router.put('/:id/pay', authMiddleware, isAdmin, async (req, res) => {
       data: { student, invoice },
     });
   } catch (error) {
-    console.error('[STUDENTS] Pay error:', error);
+    logger.error('[STUDENTS] Pay error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -678,7 +679,7 @@ router.put('/:id/assign-teacher', authMiddleware, isAdmin, async (req, res) => {
         io.emit('data:refresh', { type: 'student', id: student._id });
       }
     } catch (notifErr) {
-      console.error('[ASSIGN_TEACHER] Notification error:', notifErr);
+      logger.error('[ASSIGN_TEACHER] Notification error:', notifErr);
     }
 
     res.json({ success: true, message: 'Đã gán giảng viên thành công', data: student });
@@ -842,7 +843,7 @@ router.put('/:id/pay-teacher', authMiddleware, isAdmin, async (req, res) => {
       return res.json({ success: true, message: `Thanh toán thành công ${updated.modifiedCount} buổi dạy của HV ${student.name}.` });
     }
   } catch (error) {
-    console.error('[STUDENTS] Pay Teacher error:', error);
+    logger.error('[STUDENTS] Pay Teacher error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 });

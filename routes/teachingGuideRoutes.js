@@ -1,6 +1,7 @@
 const express = require('express');
 const TeachingGuide = require('../models/TeachingGuide');
 const { authMiddleware, isAdmin } = require('../middleware/auth');
+const logger = require('../config/logger');
 
 const router = express.Router();
 
@@ -16,7 +17,7 @@ router.get('/', authMiddleware, async (req, res) => {
     const guides = await TeachingGuide.find(filter).sort({ createdAt: -1 });
     return res.json({ success: true, data: guides });
   } catch (error) {
-    console.error('[TRAINING] Get all error:', error);
+    logger.error('[TRAINING] Get all error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });

@@ -9,6 +9,7 @@ const Invoice  = require('../models/Invoice');
 const Schedule = require('../models/Schedule');
 const Branch   = require('../models/Branch');
 const { authMiddleware, branchFilter } = require('../middleware/auth');
+const logger = require('../config/logger');
 
 const guard = [authMiddleware, branchFilter];
 
@@ -151,7 +152,7 @@ router.get('/revenue', guard, async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[ANALYTICS] revenue error:', err);
+    logger.error('[ANALYTICS] revenue error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 });

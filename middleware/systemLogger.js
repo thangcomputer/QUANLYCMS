@@ -5,6 +5,7 @@
  * Bao gồm: Ai làm, từ đâu, thiết bị gì, thao tác gì, chi tiết gì
  */
 const SystemLog = require('../models/SystemLog');
+const logger = require('../config/logger');
 
 // ── Parse User-Agent → tên trình duyệt + hệ điều hành ──────────────────────
 function parseDevice(ua) {
@@ -216,7 +217,7 @@ const systemLogger = (req, res, next) => {
           ip,
           device,
           userAgent: ua.substring(0, 500),
-        }).catch(err => console.error('[Logger] Failed to write SystemLog:', err));
+        }).catch(err => logger.error('[Logger] Failed to write SystemLog:', err));
       }
     }
 

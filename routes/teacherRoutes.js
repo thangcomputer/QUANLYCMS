@@ -9,6 +9,7 @@ const Schedule = require('../models/Schedule');
 const Transaction = require('../models/Transaction');
 const { authMiddleware, isAdmin, isTeacher, branchFilter } = require('../middleware/auth');
 const { sanitizeRegex } = require('../middleware/sanitizeRegex');
+const logger = require('../config/logger');
 
 const router = express.Router();
 
@@ -18,24 +19,36 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
+const ALLOWED_PRACTICAL_EXT = new Set([
+  '.zip', '.rar', '.tar', '.7z',
+  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+  '.mp4',
+]);
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) { cb(null, uploadDir); },
   filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname);
+    const rawExt = path.extname(file.originalname || '').toLowerCase();
+    const ext = ALLOWED_PRACTICAL_EXT.has(rawExt) ? rawExt : '';
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'practical-' + uniqueSuffix + ext);
+    cb(null, `practical-${uniqueSuffix}${ext}`);
   }
 });
 
-const upload = multer({ 
+const upload = multer({
   storage: storage,
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
   fileFilter: (req, file, cb) => {
-    const allowed = /zip|rar|tar|7z|pdf|doc|docx|xls|xlsx|ppt|pptx|mp4/;
-    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
-    const mime = allowed.test(file.mimetype);
-    if (ext && mime) return cb(null, true);
-    cb(new Error('Chỉ hỗ trợ file Văn bản, Nén hoặc Video MP4 (Tối đa 50MB)!'));
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    if (!ALLOWED_PRACTICAL_EXT.has(ext)) {
+      return cb(new Error('Định dạng file không được phép. Chỉ hỗ trợ ZIP/RAR/PDF/DOC/XLS/PPT/MP4.'));
+    }
+    const mime = String(file.mimetype || '').toLowerCase();
+    const okMime = /^(application\/(zip|x-(rar|7z)-compressed|x-tar|pdf|msword|vnd\.|octet-stream)|video\/mp4)/.test(mime);
+    if (!okMime) {
+      return cb(new Error('MIME type không khớp định dạng cho phép.'));
+    }
+    cb(null, true);
   }
 });
 
@@ -133,7 +146,7 @@ router.post('/', [authMiddleware, isAdmin, superAdminOnlyTeacher, branchFilter],
     if (error.code === 11000) {
       return res.status(409).json({ success: false, message: 'Số điện thoại đã tồn tại' });
     }
-    console.error('[TEACHERS] Create error:', error);
+    logger.error('[TEACHERS] Create error:', error);
     return res.status(500).json({ success: false, message: error.message || 'Lỗi server' });
   }
 });
@@ -175,7 +188,7 @@ router.get('/', [authMiddleware, branchFilter], async (req, res) => {
 
     return res.json({ success: true, count: teachers.length, data: teachers });
   } catch (error) {
-    console.error('[TEACHERS] Get all error:', error);
+    logger.error('[TEACHERS] Get all error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
@@ -239,7 +252,7 @@ router.get('/:id', [authMiddleware, branchFilter], async (req, res) => {
       data: { ...teacher.toObject(), completedSessionsFromDB: completedSessions },
     });
   } catch (error) {
-    console.error('[TEACHERS] Get by ID error:', error);
+    logger.error('[TEACHERS] Get by ID error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
@@ -329,7 +342,7 @@ router.put('/:id', [authMiddleware, branchFilter], async (req, res) => {
       data: teacher,
     });
   } catch (error) {
-    console.error('[TEACHERS] Update error:', error);
+    logger.error('[TEACHERS] Update error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
@@ -383,7 +396,7 @@ router.put('/:id/score', authMiddleware, isAdmin, async (req, res) => {
       data: teacher,
     });
   } catch (error) {
-    console.error('[TEACHERS] Score error:', error);
+    logger.error('[TEACHERS] Score error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
@@ -427,7 +440,7 @@ router.put('/:id/approve', authMiddleware, isAdmin, async (req, res) => {
       data: teacher,
     });
   } catch (error) {
-    console.error('[TEACHERS] Approve error:', error);
+    logger.error('[TEACHERS] Approve error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
@@ -509,7 +522,7 @@ router.put('/:id/reject', authMiddleware, isAdmin, async (req, res) => {
       data: teacher,
     });
   } catch (error) {
-    console.error('[TEACHERS] Reject error:', error);
+    logger.error('[TEACHERS] Reject error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
@@ -527,7 +540,7 @@ router.delete('/:id', [authMiddleware, isAdmin, superAdminOnlyTeacher], async (r
       message: `Đã xóa giảng viên ${teacher.name}`,
     });
   } catch (error) {
-    console.error('[TEACHERS] Delete error:', error);
+    logger.error('[TEACHERS] Delete error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
@@ -579,7 +592,7 @@ router.get('/:id/finance', authMiddleware, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('[FINANCE] Get stats error:', error);
+    logger.error('[FINANCE] Get stats error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
@@ -615,7 +628,7 @@ router.get('/:id/finance/pending', authMiddleware, isAdmin, async (req, res) => 
       }
     });
   } catch (error) {
-    console.error('[FINANCE] Get pending error:', error);
+    logger.error('[FINANCE] Get pending error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
@@ -699,7 +712,7 @@ router.put('/:id/finance/pay-flexible', [authMiddleware, isAdmin, superAdminOnly
 
     });
   } catch (error) {
-    console.error('[FINANCE] Flexible pay error:', error);
+    logger.error('[FINANCE] Flexible pay error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server: ' + error.message });
   }
 });
@@ -777,7 +790,7 @@ router.put('/:id/finance/pay-all', [authMiddleware, isAdmin, superAdminOnlyTeach
       }
     });
   } catch (error) {
-    console.error('[FINANCE] Pay error:', error);
+    logger.error('[FINANCE] Pay error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });

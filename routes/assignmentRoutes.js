@@ -8,6 +8,7 @@ const Submission = require('../models/Submission');
 const Student = require('../models/Student');
 const Teacher = require('../models/Teacher');
 const { authMiddleware } = require('../middleware/auth');
+const logger = require('../config/logger');
 
 const router = express.Router();
 
@@ -18,29 +19,39 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 // Cấu hình Multer cho Bài tập (Giới hạn 3MB)
+const ALLOWED_ASSIGNMENT_EXT = new Set([
+  '.zip', '.rar', '.tar', '.7z',
+  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+  '.jpg', '.jpeg', '.png',
+]);
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname);
+    const rawExt = path.extname(file.originalname || '').toLowerCase();
+    const ext = ALLOWED_ASSIGNMENT_EXT.has(rawExt) ? rawExt : '';
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+    const safeField = String(file.fieldname || 'file').replace(/[^a-zA-Z0-9_-]/g, '');
+    cb(null, `${safeField}-${uniqueSuffix}${ext}`);
   }
 });
 
-const upload = multer({ 
+const upload = multer({
   storage: storage,
   limits: { fileSize: 3 * 1024 * 1024 }, // Giới hạn 3MB
   fileFilter: (req, file, cb) => {
-    // Chỉ cho phép các định dạng cơ bản: zip, rar, pdf, doc, docx, xls, xlsx, v.v
-    const allowed = /zip|rar|tar|7z|pdf|doc|docx|xls|xlsx|ppt|pptx|jpg|jpeg|png/;
-    const ext = allowed.test(path.extname(file.originalname).toLowerCase());
-    const mime = allowed.test(file.mimetype);
-    if (ext && mime) {
-      return cb(null, true);
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    if (!ALLOWED_ASSIGNMENT_EXT.has(ext)) {
+      return cb(new Error('Định dạng file không được phép. Chỉ hỗ trợ ZIP/RAR/PDF/DOC/XLS/PPT/JPG/PNG.'));
     }
-    cb(new Error('Chỉ hỗ trợ file Văn bản, Cờ, hoặc Nén (Tối đa 3MB)!'));
+    const mime = String(file.mimetype || '').toLowerCase();
+    const okMime = /^(application\/(zip|x-(rar|7z)-compressed|x-tar|pdf|msword|vnd\.|octet-stream)|image\/(jpeg|png))/.test(mime);
+    if (!okMime) {
+      return cb(new Error('MIME type không khớp định dạng cho phép.'));
+    }
+    cb(null, true);
   }
 });
 
@@ -81,7 +92,7 @@ router.get('/course/:courseId', authMiddleware, async (req, res) => {
     }));
     return res.json({ success: true, data });
   } catch (err) {
-    console.error("error GET /course/:courseId:", err);
+    logger.error("error GET /course/:courseId:", err);
     return res.status(500).json({ success: false, message: 'Lỗi server', err: err.message });
   }
 });
@@ -140,7 +151,7 @@ router.post('/', authMiddleware, async (req, res) => {
         
         io.emit('data:refresh', { type: 'assignment', action: 'create' });
       } catch (e) {
-        console.error('Error sending notif for new assignment:', e);
+        logger.error('Error sending notif for new assignment:', e);
       }
     }
     return res.json({ success: true, data: newAssignment });
@@ -294,7 +305,7 @@ router.put('/submissions/:submissionId/grade', authMiddleware, async (req, res) 
         
         io.emit('data:refresh', { type: 'submission', id: submission._id });
       } catch (e) {
-        console.error('Error sending notif for grading:', e);
+        logger.error('Error sending notif for grading:', e);
       }
     }
     return res.json({ success: true, data: submission });

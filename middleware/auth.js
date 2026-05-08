@@ -2,6 +2,7 @@ const jwt       = require('jsonwebtoken');
 const Teacher   = require('../models/Teacher');
 const Student   = require('../models/Student');
 const blacklist = require('./tokenBlacklist');
+const logger = require('../config/logger');
 
 // ── authMiddleware: Xác thực JWT + Token Blacklist + Token Version ─────────────
 const authMiddleware = async (req, res, next) => {
@@ -152,7 +153,7 @@ const checkPermission = (requiredPermission) => {
       req.user.permissions = user.permissions;
       next();
     } catch (err) {
-      console.error('[checkPermission] error:', err);
+      logger.error('[checkPermission] error:', err);
       res.status(500).json({ success: false, message: 'Lỗi server khi kiểm tra quyền' });
     }
   };
@@ -216,7 +217,7 @@ const branchFilter = async (req, res, next) => {
     }
     next();
   } catch (err) {
-    console.error('[branchFilter] error:', err);
+    logger.error('[branchFilter] error:', err);
     return res.status(500).json({ success: false, message: 'Lỗi xác thực phạm vi chi nhánh. Thử lại sau.' });
   }
 };

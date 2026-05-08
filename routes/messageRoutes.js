@@ -9,6 +9,7 @@ router.use(authMiddleware);
 const Student = require('../models/Student');
 const Teacher = require('../models/Teacher');
 const ConversationVisibility = require('../models/ConversationVisibility');
+const logger = require('../config/logger');
 const isStaffAccount = (u = {}) => u.role === 'staff' || u.adminRole === 'STAFF';
 const isSuperAdminAccount = (u = {}) => u.id === 'admin' || u.adminRole === 'SUPER_ADMIN';
 // AdminUser was wrong, they are stored in Teacher
@@ -187,7 +188,7 @@ router.get('/contacts', async (req, res) => {
 
     res.json({ success: true, data: deduped });
   } catch (err) {
-    console.error('[CONTACTS]', err);
+    logger.error('[CONTACTS]', err);
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -924,7 +925,7 @@ router.post('/broadcast', async (req, res) => {
     });
 
   } catch (err) {
-    console.error('[BROADCAST] Error:', err);
+    logger.error('[BROADCAST] Error:', err);
     res.status(500).json({ success: false, message: 'Lỗi hệ thống khi gửi broadcast' });
   }
 });
