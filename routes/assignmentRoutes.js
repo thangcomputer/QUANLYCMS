@@ -7,6 +7,7 @@ const Assignment = require('../models/Assignment');
 const Submission = require('../models/Submission');
 const Student = require('../models/Student');
 const Teacher = require('../models/Teacher');
+const { authMiddleware } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -44,7 +45,7 @@ const upload = multer({
 });
 
 // ─── Tải file đính kèm/nộp bài chung ─────────────────────────────────────────
-router.post('/upload', upload.single('file'), (req, res) => {
+router.post('/upload', authMiddleware, upload.single('file'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'Chưa chọn file để tải lên' });
@@ -69,9 +70,10 @@ router.use((err, req, res, next) => {
 });
 
 // ─── Lấy danh sách giao bài (Theo Course) ──────────────────────────────────
-router.get('/course/:courseId', async (req, res) => {
+router.get('/course/:courseId', authMiddleware, async (req, res) => {
   try {
     const assignments = await Assignment.find({ courseId: req.params.courseId }).sort({ createdAt: -1 });
+    
     // Dành cho giáo viên: kèm theo submissions của bài đó
     const data = await Promise.all(assignments.map(async (a) => {
       const subs = await Submission.find({ assignmentId: a._id }).populate('studentId', 'name email avatar');
@@ -85,8 +87,13 @@ router.get('/course/:courseId', async (req, res) => {
 });
 
 // ─── Lấy Bài tập cho Học viên (Kèm Submission cá nhân) ─────────────────────
-router.get('/student/:studentId/course/:courseId', async (req, res) => {
+router.get('/student/:studentId/course/:courseId', authMiddleware, async (req, res) => {
   try {
+    // Authorization: Học viên chỉ xem bài của mình
+    if (req.user.role === 'student' && String(req.user.id) !== String(req.params.studentId)) {
+      return res.status(403).json({ success: false, message: 'Không có quyền xem bài tập của học viên khác' });
+    }
+
     const assignments = await Assignment.find({ courseId: req.params.courseId }).sort({ createdAt: -1 });
     const data = await Promise.all(assignments.map(async (a) => {
       const sub = await Submission.findOne({ assignmentId: a._id, studentId: req.params.studentId });
@@ -99,8 +106,12 @@ router.get('/student/:studentId/course/:courseId', async (req, res) => {
 });
 
 // ─── Giáo viên tạo bài tập ─────────────────────────────────────────────────
-router.post('/', async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
   try {
+    if (!['admin', 'staff', 'teacher'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, message: 'Không có quyền tạo bài tập' });
+    }
+
     const newAssignment = new Assignment(req.body);
     await newAssignment.save();
 
@@ -139,8 +150,12 @@ router.post('/', async (req, res) => {
 });
 
 // ─── Giáo viên cập nhật bài tập ────────────────────────────────────────────
-router.put('/:id', async (req, res) => {
+router.put('/:id', authMiddleware, async (req, res) => {
   try {
+    if (!['admin', 'staff', 'teacher'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, message: 'Không có quyền chỉnh sửa bài tập' });
+    }
+
     const updated = await Assignment.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!updated) return res.status(404).json({ success: false, message: 'Không tìm thấy bài tập' });
     
@@ -154,8 +169,12 @@ router.put('/:id', async (req, res) => {
 });
 
 // ─── Giáo viên xóa bài tập ─────────────────────────────────────────────────
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authMiddleware, async (req, res) => {
   try {
+    if (!['admin', 'staff', 'teacher'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, message: 'Không có quyền xóa bài tập' });
+    }
+
     const deleted = await Assignment.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ success: false, message: 'Không tìm thấy bài tập' });
     
@@ -171,9 +190,15 @@ router.delete('/:id', async (req, res) => {
 });
 
 // ─── Học viên nộp bài ──────────────────────────────────────────────────────
-router.post('/:id/submit', async (req, res) => {
+router.post('/:id/submit', authMiddleware, async (req, res) => {
   try {
     const { studentId, teacherId, submittedFileUrl } = req.body;
+    
+    // Authorization: Học viên chỉ được nộp bài cho chính mình
+    if (req.user.role === 'student' && String(req.user.id) !== String(studentId)) {
+      return res.status(403).json({ success: false, message: 'Không có quyền nộp bài cho học viên khác' });
+    }
+
     let submission = await Submission.findOneAndUpdate(
       { assignmentId: req.params.id, studentId },
       { submittedFileUrl, status: 'submitted', teacherId, submittedAt: new Date() },
@@ -182,13 +207,12 @@ router.post('/:id/submit', async (req, res) => {
 
     const io = req.app.get('io');
     const Notification = require('../models/Notification');
-    const Student = require('../models/Student');
     const student = await Student.findById(studentId);
     
     if (teacherId && teacherId !== 'current') {
       const assignment = await Assignment.findById(req.params.id);
       
-      const newNotif = await Notification.create({
+      await Notification.create({
         type: 'COURSE',
         title: '📋 Bài tập mới được nộp',
         content: `Học viên ${student?.name || 'Vô danh'} vừa nộp bài tập.`,
@@ -222,8 +246,12 @@ router.post('/:id/submit', async (req, res) => {
 });
 
 // ─── Giáo viên chấm điểm ───────────────────────────────────────────────────
-router.put('/submissions/:submissionId/grade', async (req, res) => {
+router.put('/submissions/:submissionId/grade', authMiddleware, async (req, res) => {
   try {
+    if (!['admin', 'staff', 'teacher'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, message: 'Không có quyền chấm điểm' });
+    }
+
     const { grade, teacherFeedback } = req.body;
     const submission = await Submission.findByIdAndUpdate(
       req.params.submissionId,

@@ -184,6 +184,7 @@ const StudentSchema = new mongoose.Schema(
       default: true,
     },
     tokenVersion: { type: Number, default: 0 },   // ⭐ Anti-sharing: tăng mỗi lần login
+    refreshToken: { type: String, select: false }, // Refresh token rotation (server-side)
     deviceFingerprint: { type: String, default: null, select: false }, // ⭐ Device lock: fingerprint máy đang đăng nhập
     
     // ── Audit: Ai là người thêm học viên này ──────────────────────

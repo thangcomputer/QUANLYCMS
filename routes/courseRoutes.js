@@ -1,10 +1,32 @@
 const express = require('express');
 const Course  = require('../models/Course');
+const { authMiddleware, checkPermission, requireInternalToken } = require('../middleware/auth');
+const { sanitizeRegex } = require('../middleware/sanitizeRegex');
 
 const router = express.Router();
 
+const courseWriteGuard = [authMiddleware, requireInternalToken, checkPermission('system_settings')];
+
+// ─── GET /api/courses/stats/summary — đặt trước /:id ───────────────────────────
+router.get('/stats/summary', async (req, res) => {
+  try {
+    const total      = await Course.countDocuments();
+    const published  = await Course.countDocuments({ status: 'published' });
+    const featured   = await Course.countDocuments({ featured: true });
+    const categories = await Course.aggregate([
+      { $group: { _id: '$category', count: { $sum: 1 } } },
+    ]);
+
+    return res.json({
+      success: true,
+      data: { total, published, featured, categories },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
+
 // ─── GET /api/courses ─────────────────────────────────────────────────────────
-// Lấy tất cả khóa học (hỗ trợ filter)
 router.get('/', async (req, res) => {
   try {
     const { category, status, featured, search } = req.query;
@@ -14,9 +36,10 @@ router.get('/', async (req, res) => {
     if (status)   filter.status = status;
     if (featured) filter.featured = featured === 'true';
     if (search) {
+      const safe = sanitizeRegex(search, 200);
       filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
+        { name: { $regex: safe, $options: 'i' } },
+        { description: { $regex: safe, $options: 'i' } },
       ];
     }
 
@@ -54,18 +77,15 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// ── Utility: tính giá sau giảm ────────────────────────────────────────────────
 function calcEffectivePrice(price, discountPercent) {
   if (!discountPercent || discountPercent <= 0) return price;
   return Math.round(price * (1 - discountPercent / 100));
 }
 
 // ─── POST /api/courses ────────────────────────────────────────────────────────
-// Tạo khóa học mới
-router.post('/', async (req, res) => {
+router.post('/', courseWriteGuard, async (req, res) => {
   try {
     const body = { ...req.body };
-    // Tự động tính discountPrice
     if (body.price !== undefined) {
       body.discountPrice = calcEffectivePrice(Number(body.price), Number(body.discountPercent || 0));
     }
@@ -85,10 +105,9 @@ router.post('/', async (req, res) => {
 });
 
 // ─── PUT /api/courses/:id ─────────────────────────────────────────────────────
-router.put('/:id', async (req, res) => {
+router.put('/:id', courseWriteGuard, async (req, res) => {
   try {
     const body = { ...req.body };
-    // Tự động tính discountPrice
     if (body.price !== undefined || body.discountPercent !== undefined) {
       const course = await Course.findById(req.params.id).lean();
       const price  = Number(body.price ?? course?.price ?? 0);
@@ -118,8 +137,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // ─── PATCH /api/courses/:id/price ─────────────────────────────────────────────
-// Cập nhật nhanh giá + % giảm
-router.patch('/:id/price', async (req, res) => {
+router.patch('/:id/price', courseWriteGuard, async (req, res) => {
   try {
     const { price, discountPercent = 0 } = req.body;
     if (price === undefined || isNaN(price) || Number(price) < 0) {
@@ -143,7 +161,7 @@ router.patch('/:id/price', async (req, res) => {
 });
 
 // ─── DELETE /api/courses/:id ──────────────────────────────────────────────────
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', courseWriteGuard, async (req, res) => {
   try {
     const course = await Course.findByIdAndDelete(req.params.id);
     if (!course) {
@@ -160,9 +178,11 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// ─── POST /api/courses/seed ───────────────────────────────────────────────────
-// Seed dữ liệu mẫu (Development only)
-router.post('/seed', async (req, res) => {
+// ─── POST /api/courses/seed — chỉ non-production ─────────────────────────────
+router.post('/seed', courseWriteGuard, async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ success: false, message: 'Seed không được phép trên production' });
+  }
   try {
     const count = await Course.countDocuments();
     if (count > 0) {
@@ -301,25 +321,6 @@ router.post('/seed', async (req, res) => {
   } catch (error) {
     console.error('[COURSES] Seed error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi seed dữ liệu' });
-  }
-});
-
-// ─── GET /api/courses/stats/summary ───────────────────────────────────────────
-router.get('/stats/summary', async (req, res) => {
-  try {
-    const total      = await Course.countDocuments();
-    const published  = await Course.countDocuments({ status: 'published' });
-    const featured   = await Course.countDocuments({ featured: true });
-    const categories = await Course.aggregate([
-      { $group: { _id: '$category', count: { $sum: 1 } } },
-    ]);
-
-    return res.json({
-      success: true,
-      data: { total, published, featured, categories },
-    });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
 

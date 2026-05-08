@@ -103,10 +103,16 @@ router.get('/stats', [authMiddleware, branchFilter], async (req, res) => {
 
 // ─── GET /api/schedules/teacher/:teacherId ─────────────────────────────────────
 // Giảng viên xem lịch dạy của mình
-router.get('/teacher/:teacherId', async (req, res) => {
+router.get('/teacher/:teacherId', authMiddleware, async (req, res) => {
   try {
     const { status, month } = req.query;
     const filter = { teacherId: req.params.teacherId };
+    
+    // Authorization: Chỉ chính GV đó hoặc Admin mới được xem
+    if (req.user.role !== 'admin' && req.user.role !== 'staff' && String(req.user.id) !== String(req.params.teacherId)) {
+      return res.status(403).json({ success: false, message: 'Bạn không có quyền xem lịch của người khác' });
+    }
+
     if (status) filter.status = status;
 
     if (month) {
@@ -130,8 +136,13 @@ router.get('/teacher/:teacherId', async (req, res) => {
 
 // ─── GET /api/schedules/student/:studentId ─────────────────────────────────────
 // Học viên xem lịch học của mình
-router.get('/student/:studentId', async (req, res) => {
+router.get('/student/:studentId', authMiddleware, async (req, res) => {
   try {
+    // Authorization: Học viên chỉ xem lịch của mình, Admin/GV có thể xem
+    if (req.user.role === 'student' && String(req.user.id) !== String(req.params.studentId)) {
+      return res.status(403).json({ success: false, message: 'Bạn không có quyền xem lịch của học viên khác' });
+    }
+
     const schedules = await Schedule.find({ studentId: req.params.studentId })
       .populate('teacherId', 'name phone avatar specialty')
       .sort({ date: 1, startTime: 1 });
@@ -152,8 +163,12 @@ router.get('/student/:studentId', async (req, res) => {
 
 // ─── POST /api/schedules ───────────────────────────────────────────────────────
 // Giảng viên / Admin tạo lịch học mới
-router.post('/', async (req, res) => {
+router.post('/', authMiddleware, async (req, res) => {
   try {
+    // Authorization: Chỉ Admin, Staff, hoặc Teacher mới được tạo lịch
+    if (!['admin', 'staff', 'teacher'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, message: 'Bạn không có quyền tạo lịch học' });
+    }
     const {
       teacherId, teacherName: teacherNameInput,
       studentId, studentName: studentNameInput,
@@ -323,8 +338,12 @@ router.post('/', async (req, res) => {
 
 // ─── PUT /api/schedules/:scheduleId ───────────────────────────────────────────
 // Cập nhật lịch học (hoàn thành, huỷ, điểm danh...)
-router.put('/:scheduleId', async (req, res) => {
+router.put('/:scheduleId', authMiddleware, async (req, res) => {
   try {
+    // Authorization: Chỉ Admin, Staff, hoặc Teacher mới được sửa lịch
+    if (!['admin', 'staff', 'teacher'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, message: 'Bạn không có quyền chỉnh sửa lịch học' });
+    }
     const { status, note, linkHoc, startTime, endTime, date } = req.body;
 
     const schedule = await Schedule.findById(req.params.scheduleId);
@@ -423,10 +442,10 @@ router.put('/:scheduleId', async (req, res) => {
          
          // Báo chuông
          io.to(schedule.teacherId.toString()).emit('RECEIVE_NOTIFICATION', {
-           _id: newNotif._id,
+           _id: Date.now(),
            type: 'schedule',
-           title: newNotif.title,
-           message: newNotif.content,
+           title: '📝 Ghi chú mới từ học viên',
+           message: `Học viên ${schedule.studentName} vừa để lại ghi chú trên lịch học`,
            time: new Date(),
            userId: schedule.teacherId.toString()
          });
@@ -446,8 +465,12 @@ router.put('/:scheduleId', async (req, res) => {
 });
 
 // ─── DELETE /api/schedules/:scheduleId ────────────────────────────────────────
-router.delete('/:scheduleId', async (req, res) => {
+router.delete('/:scheduleId', authMiddleware, async (req, res) => {
   try {
+    // Authorization: Chỉ Admin/Staff mới được xóa vĩnh viễn lịch
+    if (!['admin', 'staff'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, message: 'Bạn không có quyền xóa lịch học' });
+    }
     const schedule = await Schedule.findByIdAndDelete(req.params.scheduleId);
     if (!schedule) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy lịch học' });

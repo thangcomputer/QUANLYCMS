@@ -15,7 +15,7 @@ const authMiddleware = async (req, res, next) => {
   }
 
   // ⭐ Fix 3: Kiểm tra Token Blacklist (token đã bị đăng xuất)
-  if (blacklist.isBlacklisted(token)) {
+  if (await blacklist.isBlacklisted(token)) {
     return res.status(401).json({
       success: false,
       code: 'TOKEN_REVOKED',
@@ -167,6 +167,7 @@ const checkPermission = (requiredPermission) => {
  *
  * Các route dùng: Student.find({ ...req.branchFilter, ... })
  */
+// ── branchFilter — Middleware tự động giới hạn dữ liệu theo chi nhánh
 const branchFilter = async (req, res, next) => {
   try {
     // Hardcoded admin
@@ -190,31 +191,33 @@ const branchFilter = async (req, res, next) => {
         return next();
       }
 
-      // SUPER_ADMIN: nếu có query branch_id → lọc theo đó (từ Dropdown topbar)
-      if (user.adminRole === 'SUPER_ADMIN' || !user.branchId) {
-        // ⭐ KEY FIX: Super Admin gửi ?branch_id=xxx từ dropdown → phải respect nó
+      // 🛡️ SECURITY FIX: Chỉ thực sự là SUPER_ADMIN mới được xem toàn bộ.
+      // Nếu không có branchId mà cũng KHÔNG phải SUPER_ADMIN, ép về branchId=null (không thấy gì hoặc lỗi)
+      const isActuallySuper = user.adminRole === 'SUPER_ADMIN';
+
+      if (isActuallySuper || !user.branchId) {
         const qBranch = req.query.branch_id;
-        if (qBranch && qBranch !== 'all' && qBranch !== '') {
+        if (qBranch && qBranch !== 'all' && qBranch !== '' && isActuallySuper) {
           req.branchFilter = { branchId: qBranch };
-        } else {
+        } else if (isActuallySuper) {
           req.branchFilter = {};
+        } else {
+          // Admin nhưng không có branchId và không phải Super Admin? Giới hạn về null để an toàn
+          req.branchFilter = { branchId: null };
         }
       } else {
-        // STAFF: chỉ dữ liệu của chi nhánh mình
+        // STAFF / Regular Admin with branch
         req.branchFilter = { branchId: user.branchId };
         req.userBranchId   = user.branchId;
         req.userBranchCode = user.branchCode || '';
       }
     } else {
-      // Teacher / Student: không áp dụng
       req.branchFilter = {};
     }
-
     next();
   } catch (err) {
     console.error('[branchFilter] error:', err);
-    req.branchFilter = {};
-    next();
+    return res.status(500).json({ success: false, message: 'Lỗi xác thực phạm vi chi nhánh. Thử lại sau.' });
   }
 };
 

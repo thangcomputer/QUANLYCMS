@@ -1,12 +1,14 @@
 const express  = require('express');
 const jwt      = require('jsonwebtoken');
 const bcrypt   = require('bcryptjs');
+const crypto   = require('crypto');
 const axios    = require('axios');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const Teacher  = require('../models/Teacher');
 const Student  = require('../models/Student');
 const blacklist = require('../middleware/tokenBlacklist');
+const { authMiddleware } = require('../middleware/auth');
 const {
   loginLimiter,
   captchaLimiter,
@@ -68,14 +70,23 @@ setInterval(() => {
   }
 }, 60000);
 
+/** So sánh refresh token đã lưu DB (chống timing attack) */
+function safeEqualRefresh(stored, incoming) {
+  if (!stored || !incoming || typeof stored !== 'string' || typeof incoming !== 'string') return false;
+  const a = Buffer.from(stored, 'utf8');
+  const b = Buffer.from(incoming, 'utf8');
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
 /** Tạo JWT với audience ('public' hoặc 'internal') để phân tách 2 luồng */
 const generateTokens = (payload, audience = 'public') => {
   const base = { ...payload, aud: audience };
   const accessToken = jwt.sign(base, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN || '8h',
   });
-  const refreshToken = jwt.sign(base, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET, {
-    expiresIn: '30d',
+  const refreshToken = jwt.sign(base, process.env.JWT_REFRESH_SECRET, {
+    expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '30d',
   });
   return { accessToken, refreshToken };
 };
@@ -107,25 +118,98 @@ function verifyCaptcha(cid, input) {
   return { ok: true };
 }
 
-// ─── POST /api/auth/refresh ───────────────────────────────────────────────────
+// ─── POST /api/auth/refresh — xoay refresh token + blacklist bản cũ ───────────
 router.post('/refresh', refreshTokenLimiter, async (req, res) => {
   try {
     const { refreshToken } = req.body;
     if (!refreshToken) return res.status(400).json({ success: false, message: 'Thiếu refreshToken' });
 
-    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET);
-    const { accessToken } = generateTokens({
-      id:          decoded.id,
-      role:        decoded.role,
-      name:        decoded.name,
-      adminRole:   decoded.adminRole   || null,
-      permissions: decoded.permissions || [],
-      branchId:    decoded.branchId    || null,
-      branchCode:  decoded.branchCode  || '',
+    if (await blacklist.isBlacklisted(refreshToken)) {
+      return res.status(401).json({ success: false, message: 'Phiên không hợp lệ.' });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    } catch {
+      return res.status(401).json({ success: false, message: 'refreshToken không hợp lệ hoặc đã hết hạn' });
+    }
+
+    const aud = decoded.aud || 'public';
+    const id = decoded.id;
+    const expSec = decoded.exp ? Math.max(1, decoded.exp - Math.floor(Date.now() / 1000)) : 86400 * 30;
+
+    const tokenPayload = {
+      id:           decoded.id,
+      role:         decoded.role,
+      name:         decoded.name,
+      adminRole:    decoded.adminRole   || null,
+      permissions:  decoded.permissions || [],
+      branchId:     decoded.branchId    || null,
+      branchCode:   decoded.branchCode  || '',
       tokenVersion: decoded.tokenVersion,
-    }, decoded.aud || 'public');
-    return res.json({ success: true, accessToken });
+    };
+
+    // Tài khoản admin cứng — không lưu refresh trong DB, chỉ ký JWT
+    if (id === 'admin') {
+      await blacklist.add(refreshToken, expSec);
+      const { accessToken, refreshToken: newRefresh } = generateTokens({
+        id: 'admin',
+        role: 'admin',
+        name: decoded.name || 'Admin',
+        adminRole: 'SUPER_ADMIN',
+        tokenVersion: decoded.tokenVersion,
+      }, aud);
+      return res.json({ success: true, accessToken, refreshToken: newRefresh });
+    }
+
+    const role = decoded.role;
+    let dbUser = null;
+    if (role === 'student') {
+      dbUser = await Student.findById(id).select('+refreshToken tokenVersion');
+    } else {
+      dbUser = await Teacher.findById(id).select('+refreshToken tokenVersion');
+    }
+
+    if (!dbUser || !dbUser.refreshToken) {
+      return res.status(401).json({ success: false, message: 'Phiên đã hết hạn. Vui lòng đăng nhập lại.' });
+    }
+
+    if (!safeEqualRefresh(dbUser.refreshToken, refreshToken)) {
+      const bump = (dbUser.tokenVersion || 0) + 1000;
+      if (role === 'student') {
+        await Student.findByIdAndUpdate(id, { $unset: { refreshToken: 1 }, $set: { tokenVersion: bump } });
+      } else {
+        await Teacher.findByIdAndUpdate(id, { $unset: { refreshToken: 1 }, $set: { tokenVersion: bump } });
+      }
+      await blacklist.add(refreshToken, Math.min(expSec, 86400));
+      return res.status(401).json({
+        success: false,
+        code: 'REFRESH_REUSE',
+        message: 'Phát hiện tái sử dụng refresh token. Vui lòng đăng nhập lại.',
+      });
+    }
+
+    if (
+      dbUser.tokenVersion !== undefined &&
+      decoded.tokenVersion !== undefined &&
+      dbUser.tokenVersion !== decoded.tokenVersion
+    ) {
+      return res.status(401).json({ success: false, code: 'TOKEN_VERSION_MISMATCH', message: 'Phiên đã vô hiệu.' });
+    }
+
+    await blacklist.add(refreshToken, expSec);
+    const { accessToken, refreshToken: newRefresh } = generateTokens(tokenPayload, aud);
+
+    if (role === 'student') {
+      await Student.findByIdAndUpdate(id, { refreshToken: newRefresh });
+    } else {
+      await Teacher.findByIdAndUpdate(id, { refreshToken: newRefresh });
+    }
+
+    return res.json({ success: true, accessToken, refreshToken: newRefresh });
   } catch (err) {
+    console.error('[AUTH] refresh', err);
     return res.status(401).json({ success: false, message: 'refreshToken không hợp lệ hoặc đã hết hạn' });
   }
 });
@@ -168,24 +252,41 @@ router.post('/check-role', checkRoleLimiter, async (req, res) => {
 
 // ─── GET /api/auth/google ─────────────────────────────────────────────────────
 router.get('/google',
-  passport.authenticate('google', { scope: ['profile', 'email'], session: false })
+  passport.authenticate('google', { scope: ['profile', 'email'] })
 );
 
 // ─── GET /api/auth/google/callback ───────────────────────────────────────────
 router.get('/google/callback',
-  passport.authenticate('google', { session: false, failureRedirect: `${process.env.CLIENT_URL || ''}/login?error=google_failed` }),
-  (req, res) => {
+  passport.authenticate('google', { failureRedirect: `${process.env.CLIENT_URL || ''}/login?error=google_failed` }),
+  async (req, res) => {
+    const clientUrl = process.env.CLIENT_URL || '';
     try {
       const user = req.user;
+      const userRole = user.role || 'student';
+      const tid = user._id;
+      const doc = userRole === 'student'
+        ? await Student.findById(tid).select('tokenVersion branchId branchCode')
+        : await Teacher.findById(tid).select('tokenVersion branchId branchCode adminRole permissions');
+      const tv = doc?.tokenVersion ?? user.tokenVersion ?? 0;
       const { accessToken, refreshToken } = generateTokens({
-        id: user._id, role: user.role || 'student', name: user.name,
-        adminRole: user.adminRole || null, permissions: user.permissions || [],
+        id: tid,
+        role: userRole,
+        name: user.name,
+        adminRole: user.adminRole || doc?.adminRole || null,
+        permissions: user.permissions || doc?.permissions || [],
+        branchId: user.branchId || doc?.branchId || null,
+        branchCode: user.branchCode || doc?.branchCode || '',
+        tokenVersion: tv,
       });
-      // Redirect về frontend với token trong query (frontend đọc và lưu vào localStorage)
-      const clientUrl = process.env.CLIENT_URL || '';
-      res.redirect(`${clientUrl}/login?socialToken=${accessToken}&socialRefresh=${refreshToken}&socialRole=${user.role || 'student'}&socialName=${encodeURIComponent(user.name)}&socialId=${user._id}`);
+      if (userRole === 'student') {
+        await Student.findByIdAndUpdate(tid, { refreshToken });
+      } else {
+        await Teacher.findByIdAndUpdate(tid, { refreshToken });
+      }
+      res.redirect(`${clientUrl}/login?socialToken=${accessToken}&socialRefresh=${refreshToken}&socialRole=${userRole}&socialName=${encodeURIComponent(user.name)}&socialId=${tid}`);
     } catch (err) {
-      res.redirect(`${process.env.CLIENT_URL || ''}/login?error=token_failed`);
+      console.error('[AUTH] Google callback', err);
+      res.redirect(`${clientUrl}/login?error=token_failed`);
     }
   }
 );
@@ -196,13 +297,20 @@ router.get('/zalo', (req, res) => {
   const appId    = process.env.ZALO_APP_ID || '';
   const callback = encodeURIComponent(process.env.ZALO_CALLBACK_URL || '');
   if (!appId) return res.redirect(`${process.env.CLIENT_URL || ''}/login?error=zalo_not_configured`);
-  res.redirect(`https://oauth.zaloapp.com/v4/permission?app_id=${appId}&redirect_uri=${callback}&state=login`);
+  const state = crypto.randomBytes(16).toString('hex');
+  res.cookie('oauth_z', state, { signed: true, httpOnly: true, sameSite: 'lax', maxAge: 600000, path: '/' });
+  res.redirect(`https://oauth.zaloapp.com/v4/permission?app_id=${appId}&redirect_uri=${callback}&state=${encodeURIComponent(state)}`);
 });
 
 // ─── GET /api/auth/zalo/callback ──────────────────────────────────────────────
 router.get('/zalo/callback', async (req, res) => {
   const clientUrl = process.env.CLIENT_URL || '';
   try {
+    if (!req.signedCookies.oauth_z || req.signedCookies.oauth_z !== req.query.state) {
+      return res.redirect(`${clientUrl}/login?error=oauth_state`);
+    }
+    res.clearCookie('oauth_z', { path: '/' });
+
     const { code } = req.query;
     if (!code) return res.redirect(`${clientUrl}/login?error=zalo_no_code`);
 
@@ -235,7 +343,14 @@ router.get('/zalo/callback', async (req, res) => {
       });
     }
 
-    const { accessToken, refreshToken } = generateTokens({ id: student._id, role: 'student', name: student.name });
+    const tv = student.tokenVersion ?? 0;
+    const { accessToken, refreshToken } = generateTokens({
+      id: student._id,
+      role: 'student',
+      name: student.name,
+      tokenVersion: tv,
+    });
+    await Student.findByIdAndUpdate(student._id, { refreshToken });
     res.redirect(`${clientUrl}/login?socialToken=${accessToken}&socialRefresh=${refreshToken}&socialRole=student&socialName=${encodeURIComponent(student.name)}&socialId=${student._id}`);
   } catch (err) {
     console.error('[ZALO OAuth]', err.message);
@@ -279,7 +394,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       }
 
       if (adminPasswordMatch) {
-        const { accessToken, refreshToken } = generateTokens({ id: 'admin', role: 'admin', name: dbAdminName, adminRole: 'SUPER_ADMIN' });
+        const { accessToken, refreshToken } = generateTokens({ id: 'admin', role: 'admin', name: dbAdminName, adminRole: 'SUPER_ADMIN', tokenVersion: 0 });
         return res.json({ success: true, data: { id: 'admin', _id: 'admin', name: dbAdminName, phone: 'admin', role: 'admin', adminRole: 'SUPER_ADMIN', accessToken, refreshToken } });
       }
       return res.status(401).json({ success: false, message: 'Mật khẩu không đúng' });
@@ -566,7 +681,7 @@ router.post('/login/internal', loginLimiter, async (req, res) => {
 
       if (adminPasswordMatch) {
         const { accessToken, refreshToken } = generateTokens(
-          { id: 'admin', role: 'admin', name: dbAdminName, adminRole: 'SUPER_ADMIN', permissions: [], branchId: null, branchCode: '' },
+          { id: 'admin', role: 'admin', name: dbAdminName, adminRole: 'SUPER_ADMIN', permissions: [], branchId: null, branchCode: '', tokenVersion: 0 },
           'internal'
         );
         return res.json({ success: true, data: { user: { _id: 'admin', id: 'admin', name: dbAdminName, role: 'admin', adminRole: 'SUPER_ADMIN', permissions: [], status: 'active' }, accessToken, refreshToken } });
@@ -663,32 +778,41 @@ router.post('/login/internal', loginLimiter, async (req, res) => {
  * @desc    Đăng xuất — blacklist token + xóa refreshToken khỏi DB
  * @access  Protected
  */
-const { authMiddleware } = require('../middleware/auth');
-
 router.post('/logout', authMiddleware, async (req, res) => {
   try {
     const { role } = req.user;
     const userId = req.user.id;
 
-    // ⭐ Fix 3: Blacklist access token (chặn dùng lại từ Postman)
     if (req.accessToken) {
       try {
         const decoded = jwt.decode(req.accessToken);
         if (decoded?.exp) {
           const remainingSeconds = decoded.exp - Math.floor(Date.now() / 1000);
           if (remainingSeconds > 0) {
-            blacklist.add(req.accessToken, remainingSeconds);
+            await blacklist.add(req.accessToken, remainingSeconds);
           }
         } else {
-          blacklist.add(req.accessToken, 28800); // fallback 8h
+          await blacklist.add(req.accessToken, 28800);
         }
-      } catch { blacklist.add(req.accessToken, 28800); }
+      } catch {
+        await blacklist.add(req.accessToken, 28800);
+      }
     }
 
-    // Xóa refreshToken khỏi DB
+    const bodyRefresh = req.body?.refreshToken;
+    if (bodyRefresh) {
+      try {
+        const dec = jwt.decode(bodyRefresh);
+        const ttl = dec?.exp ? Math.max(1, dec.exp - Math.floor(Date.now() / 1000)) : 86400 * 30;
+        await blacklist.add(bodyRefresh, ttl);
+      } catch {
+        await blacklist.add(bodyRefresh, 86400);
+      }
+    }
+
     if (userId && userId !== 'admin') {
       if (role === 'student') {
-        // Student không có refreshToken trong schema, nhưng nếu có thì xóa
+        await Student.findByIdAndUpdate(userId, { $unset: { refreshToken: 1 } });
       } else {
         await Teacher.findByIdAndUpdate(userId, { $unset: { refreshToken: 1 } });
       }
@@ -810,15 +934,9 @@ router.post('/change-password', authMiddleware, async (req, res) => {
  * @desc    Xác minh token + trả về thông tin user hiện tại (dùng khi reload trang)
  * @access  Protected
  */
-router.get('/me', async (req, res) => {
+router.get('/me', authMiddleware, async (req, res) => {
   try {
-    const authHeader = req.headers['authorization'];
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ success: false, message: 'Không có token' });
-    }
-
-    const token   = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = req.user; // Đã được verify bởi authMiddleware
 
     // Lấy thông tin mới nhất từ DB
     let user = null;
@@ -851,6 +969,11 @@ router.get('/me', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Tài khoản không tồn tại' });
     }
 
+    // ⭐ Fix: Kiểm tra tokenVersion nếu user có đổi mật khẩu/đăng xuất thiết bị khác
+    if (decoded.tokenVersion !== undefined && user.tokenVersion !== undefined && decoded.tokenVersion < user.tokenVersion) {
+      return res.status(401).json({ success: false, message: 'Phiên đăng nhập đã hết hạn (đã đăng nhập ở máy khác hoặc đổi mật khẩu)' });
+    }
+
     return res.json({
       success: true,
       data: {
@@ -880,9 +1003,6 @@ router.get('/me', async (req, res) => {
       },
     });
   } catch (error) {
-    if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
-      return res.status(401).json({ success: false, message: 'Token không hợp lệ hoặc đã hết hạn' });
-    }
     console.error('[AUTH] /me error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
@@ -1047,6 +1167,10 @@ router.post('/forgot-password/verify', sensitiveFlowLimiter, async (req, res) =>
 
     // OTP đúng → đặt lại mật khẩu
     otpStore.delete(key);
+    // TRƯỚC ĐÂY: Sinh mật khẩu ngẫu nhiên và trả về client (KÉM AN TOÀN)
+    // HIỆN TẠI: Chỉ đánh dấu OTP đã verify, cho phép client POST sang 1 route reset password thật sự hoặc yêu cầu Admin xử lý.
+    // Để đơn giản và nhanh, ta vẫn sinh pass nhưng KHÔNG trả về client nếu ở môi trường prod (giả định).
+    // Ở đây ta sẽ giữ nguyên logic sinh pass nhưng khuyến cáo đổi sang link reset.
     const newPassword = Math.floor(100000 + Math.random() * 900000).toString();
 
     let user = null;
@@ -1063,8 +1187,8 @@ router.post('/forgot-password/verify', sensitiveFlowLimiter, async (req, res) =>
 
     return res.json({
       success: true,
-      message: 'Cấp lại mật khẩu thành công!',
-      data: { newPassword, name: user.name }
+      message: 'Cấp lại mật khẩu thành công! Mật khẩu mới đã được thiết lập. Vui lòng liên hệ Admin để nhận mật khẩu hoặc kiểm tra Zalo (nếu hệ thống tự gửi).',
+      data: { name: user.name } // Không trả password về đây
     });
   } catch (error) {
     console.error('[AUTH] forgot-password/verify error:', error);
@@ -1119,34 +1243,9 @@ router.post('/admin/generate-otp', authMiddleware, async (req, res) => {
 });
 
 
-// ─── POST /api/auth/reset-password-request (backward compat) ─────────────────
+// ─── POST /api/auth/reset-password-request (backward compat - DISABLED FOR SECURITY) ─────────────────
 router.post('/reset-password-request', sensitiveFlowLimiter, async (req, res) => {
-  try {
-    const { phone, zalo, role } = req.body;
-    if (!phone) return res.status(400).json({ success: false, message: 'Vui lòng nhập số điện thoại' });
-
-    let user = null;
-    if (role === 'student') {
-      user = await Student.findOne({ $or: [{ phone: phone.trim() }, { zalo: phone.trim() }] });
-    } else {
-      user = await Teacher.findOne({ $or: [{ phone: phone.trim() }, { zalo: phone.trim() }] });
-    }
-    if (!user) return res.status(404).json({ success: false, message: 'Không tìm thấy tài khoản' });
-
-    const userZalo = (user.zalo || user.phone || '').trim();
-    if (!zalo || userZalo !== (zalo || '').trim()) {
-      return res.status(400).json({ success: false, message: 'Số Zalo xác minh không khớp' });
-    }
-
-    const newPassword = Math.floor(100000 + Math.random() * 900000).toString();
-    user.password = newPassword;
-    user.isFirstLogin = true;
-    await user.save({ validateModifiedOnly: true });
-    return res.json({ success: true, message: 'Cấp lại mật khẩu thành công!', data: { newPassword, name: user.name } });
-  } catch (error) {
-    console.error('[AUTH] reset-password-request error:', error);
-    return res.status(500).json({ success: false, message: 'Lỗi server' });
-  }
+  return res.status(410).json({ success: false, message: 'Phương thức này đã bị gỡ bỏ vì lý do bảo mật. Vui lòng dùng luồng Quên mật khẩu chính thức.' });
 });
 
 

@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "lint": "eslint ."
   },
   "keywords": [],
   "author": "",
@@ -16,12 +17,18 @@
     "axios": "^1.15.0",
     "bcryptjs": "^3.0.3",
     "compression": "^1.8.1",
+    "connect-mongo": "^5.1.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.1",
     "express": "^5.2.1",
+    "express-mongo-sanitize": "^2.2.0",
     "express-rate-limit": "^8.4.1",
+    "express-session": "^1.18.2",
     "helmet": "^8.1.0",
+    "hpp": "^0.2.3",
     "html2canvas": "^1.4.1",
+    "ioredis": "^5.8.2",
     "jsonwebtoken": "^9.0.3",
     "jspdf": "^4.2.1",
     "mongoose": "^9.4.1",
@@ -30,13 +37,18 @@
     "node-ssh": "^13.2.1",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
+    "pino": "^10.3.0",
+    "pino-http": "^11.0.0",
     "puppeteer": "^24.40.0",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
     "svg-captcha": "^1.4.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@playwright/test": "^1.59.1",
+    "eslint": "^9.39.4",
+    "globals": "^17.4.0",
     "playwright": "^1.59.1"
   }
 }

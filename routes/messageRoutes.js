@@ -9,6 +9,8 @@ router.use(authMiddleware);
 const Student = require('../models/Student');
 const Teacher = require('../models/Teacher');
 const ConversationVisibility = require('../models/ConversationVisibility');
+const isStaffAccount = (u = {}) => u.role === 'staff' || u.adminRole === 'STAFF';
+const isSuperAdminAccount = (u = {}) => u.id === 'admin' || u.adminRole === 'SUPER_ADMIN';
 // AdminUser was wrong, they are stored in Teacher
 
 // ══ GET /api/chat/contacts  ──  RBAC/ABAC Matrix ══
@@ -195,6 +197,7 @@ router.get('/contacts', async (req, res) => {
 router.get('/conversations/:userId', async (req, res) => {
   try {
     const userId = req.params.userId;
+    const normalizedReaderId = (req.user.role === 'admin' || isStaffAccount(req.user)) ? 'admin' : userId;
     
     // Bảo vệ: Chỉ Admin hoặc chính User đó mới được xem
     if (req.user.role !== 'admin' && req.user.id !== userId) {
@@ -202,7 +205,7 @@ router.get('/conversations/:userId', async (req, res) => {
     }
 
     // Branch Filtering logic
-    const isSuperAdmin = req.user.role === 'admin' || req.user.adminRole === 'SUPER_ADMIN';
+    const isSuperAdmin = isSuperAdminAccount(req.user);
     const userBranch = req.user.branchCode || '';
 
     const matchQuery = { 
@@ -210,7 +213,7 @@ router.get('/conversations/:userId', async (req, res) => {
         { senderId: userId },
         { receiverId: userId },
         // Unified 'admin' ID check
-        ...(['admin', 'staff'].includes(req.user.role) ? [{ senderId: 'admin' }, { receiverId: 'admin' }] : [])
+        ...((req.user.role === 'admin' || isStaffAccount(req.user)) ? [{ senderId: 'admin' }, { receiverId: 'admin' }] : [])
       ]
     };
 
@@ -234,7 +237,7 @@ router.get('/conversations/:userId', async (req, res) => {
         lastMessage: { $first: '$$ROOT' },
         unreadCount: { $sum: { $cond: [
           { $and: [
-            { $eq: ['$receiverId', userId] },
+            { $eq: ['$receiverId', normalizedReaderId] },
             { $eq: ['$isRead', false] },
           ]}, 1, 0,
         ]}},
@@ -280,14 +283,14 @@ router.get('/search/:userId', async (req, res) => {
     const sanitizeRegex = require('../middleware/sanitizeRegex');
     const safeQ = sanitizeRegex(q);
 
-    const isSuperAdmin = req.user.role === 'admin' || req.user.adminRole === 'SUPER_ADMIN';
+    const isSuperAdmin = isSuperAdminAccount(req.user);
     const userBranch = req.user.branchCode || '';
 
     const searchQuery = {
       $or: [
         { senderId: userId }, 
         { receiverId: userId },
-        ...(['admin', 'staff'].includes(req.user.role) ? [{ senderId: 'admin' }, { receiverId: 'admin' }] : [])
+        ...((req.user.role === 'admin' || isStaffAccount(req.user)) ? [{ senderId: 'admin' }, { receiverId: 'admin' }] : [])
       ],
       content: { $regex: safeQ, $options: 'i' }
     };
@@ -316,7 +319,7 @@ router.get('/:conversationId', async (req, res) => {
 
     // Bảo vệ: Phải là một trong hai bên trong conversationId (hoặc Admin)
     // conversationId format: role_id__role_id (sorted)
-    const isStaffOrAdmin = req.user.role === 'admin' || req.user.role === 'staff';
+    const isStaffOrAdmin = req.user.role === 'admin' || isStaffAccount(req.user);
     const isParticipant = conversationId.includes(req.user.id) || (isStaffOrAdmin && conversationId.includes('admin'));
 
     if (!isParticipant) {
@@ -352,7 +355,7 @@ router.get('/sync/:userId', async (req, res) => {
       $or: [
         { senderId: userId },
         { receiverId: userId },
-        ...(['admin', 'staff'].includes(req.user.role) ? [{ senderId: 'admin' }, { receiverId: 'admin' }] : []),
+        ...((req.user.role === 'admin' || isStaffAccount(req.user)) ? [{ senderId: 'admin' }, { receiverId: 'admin' }] : []),
         // Tin nhắn nhóm: conversationId bắt đầu bằng "group_" và thuộc nhóm của user
         ...(groupIds.length > 0 ? [{ conversationId: { $in: groupIds.map(id => `group_${id}`) } }] : [])
       ],
@@ -376,17 +379,31 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
+const allowedMsgExt = /\.(jpe?g|png|gif|webp|pdf|docx?|xlsx?|pptx?|zip|rar|7z|txt|mp4|webm|mp3|wav)$/i;
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => cb(null, Date.now() + '-' + Math.round(Math.random() * 1E9) + path.extname(file.originalname))
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    const base = path.basename(file.originalname || 'file', ext).replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80);
+    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}-${base}${ext}`);
+  },
 });
-const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } }); // 50MB limit
+const upload = multer({
+  storage,
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const okMime = /^(image\/|application\/pdf|application\/zip|application\/vnd\.|text\/plain|video\/|audio\/)/.test(file.mimetype || '');
+    const okExt = allowedMsgExt.test(file.originalname || '');
+    if (okMime || okExt) return cb(null, true);
+    cb(new Error('Định dạng file không được phép'));
+  },
+});
 
 // ── Upload file ──
 router.post('/upload', upload.single('file'), (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, message: 'Không có file' });
-    const fileUrl = `/${req.file.path.replace(/\\/g, '/')}`; // Normalize for frontend
+    const fileUrl = `/${req.file.path.replace(/\\/g, '/')}`;
     res.json({ success: true, url: fileUrl, name: req.file.originalname });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -399,7 +416,7 @@ router.post('/', async (req, res) => {
     // Luôn dùng ID và Role từ token để ngăn chặn giả mạo (impersonation)
     const senderId = req.user.id;
     // Thống nhất role admin cho cả SUPER_ADMIN và STAFF trong hệ thống Chat
-    const senderRole = (req.user.role === 'staff') ? 'admin' : req.user.role;
+    const senderRole = isStaffAccount(req.user) ? 'admin' : req.user.role;
     const senderName = req.user.name;
 
     const { receiverId, receiverName, receiverRole, content, isGroup, groupId, messageType, fileUrl, fileName } = req.body;
@@ -461,7 +478,7 @@ router.post('/', async (req, res) => {
     }
 
     // ⭐ CHỐNG CHÉO CHI NHÁNH (Cross-Branch Protection)
-    const isSuperAdmin = req.user.role === 'admin' || req.user.adminRole === 'SUPER_ADMIN';
+    const isSuperAdmin = isSuperAdminAccount(req.user);
     if (!isSuperAdmin && (senderRole === 'admin' || senderRole === 'staff') && receiverRole === 'student') {
         // Staff messaging student
         if (sBranch && rBranch && sBranch !== rBranch) {
@@ -573,8 +590,9 @@ router.put('/read/:conversationId', async (req, res) => {
   try {
     const { conversationId } = req.params;
     const readerId = req.user.id;
+    const normalizedReaderId = (req.user.role === 'admin' || isStaffAccount(req.user)) ? 'admin' : readerId;
 
-    const isStaffOrAdmin = req.user.role === 'admin' || req.user.role === 'staff';
+    const isStaffOrAdmin = req.user.role === 'admin' || isStaffAccount(req.user);
     const isParticipant = conversationId.includes(readerId) || (isStaffOrAdmin && conversationId.includes('admin'));
     
     if (!isParticipant) {
@@ -582,7 +600,7 @@ router.put('/read/:conversationId', async (req, res) => {
     }
 
     await Message.updateMany(
-      { conversationId, receiverId: readerId, isRead: false },
+      { conversationId, receiverId: normalizedReaderId, isRead: false },
       { $set: { isRead: true, readAt: new Date() } }
     );
     res.json({ success: true, message: 'Đã đánh dấu đọc' });
@@ -784,8 +802,9 @@ router.get('/unread/:userId', async (req, res) => {
     if (req.user.id !== userId) {
        return res.status(403).json({ success: false, message: 'Quyền truy cập bị từ chối' });
     }
+    const normalizedReaderId = (req.user.role === 'admin' || isStaffAccount(req.user)) ? 'admin' : userId;
     const count = await Message.countDocuments({
-      receiverId: req.params.userId,
+      receiverId: normalizedReaderId,
       isRead: false,
     });
     res.json({ success: true, data: { unreadCount: count } });
@@ -828,7 +847,7 @@ router.post('/broadcast', async (req, res) => {
     if (targetRole === 'student') {
       targets = await Student.find(branchFilter, '_id name phone branchCode').lean();
     } else if (targetRole === 'teacher') {
-      targets = await Teacher.find({ role: 'teacher', status: 'active', ...branchFilter }, '_id name phone branchCode').lean();
+      targets = await Teacher.find({ role: 'teacher', status: { $in: ['Active', 'active'] }, ...branchFilter }, '_id name phone branchCode').lean();
     } else if (targetRole === 'admin') {
       // Gửi cho toàn bộ Admin/Staff
       targets = await Teacher.find({ role: { $in: ['admin', 'staff'] }, ...branchFilter }, '_id name phone adminRole branchCode').lean();
@@ -908,6 +927,19 @@ router.post('/broadcast', async (req, res) => {
     console.error('[BROADCAST] Error:', err);
     res.status(500).json({ success: false, message: 'Lỗi hệ thống khi gửi broadcast' });
   }
+});
+
+router.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ success: false, message: 'File quá lớn (tối đa 50MB).' });
+    }
+    return res.status(400).json({ success: false, message: err.message });
+  }
+  if (err && err.message === 'Định dạng file không được phép') {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+  next(err);
 });
 
 module.exports = router;

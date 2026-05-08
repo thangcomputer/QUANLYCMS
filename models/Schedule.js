@@ -59,4 +59,10 @@ scheduleSchema.index({ teacherId: 1, date: 1 });
 scheduleSchema.index({ studentId: 1, date: 1 });
 scheduleSchema.index({ date: 1, status: 1 });
 
+// ✅ CHỐNG RACE CONDITION: Đảm bảo không trùng lịch Giảng viên
+scheduleSchema.index(
+  { teacherId: 1, date: 1, startTime: 1 }, 
+  { unique: true, partialFilterExpression: { status: { $ne: 'cancelled' } } }
+);
+
 module.exports = mongoose.model('Schedule', scheduleSchema);

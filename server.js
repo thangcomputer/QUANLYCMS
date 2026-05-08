@@ -1,24 +1,34 @@
 const express    = require('express');
 const http       = require('http');
+const mongoose   = require('mongoose');
 const cors       = require('cors');
-const compression = require('compression'); // ⚡ Gzip compress API responses
-const helmet     = require('helmet');       // ✅ HTTP security headers
+const compression = require('compression');
+const helmet     = require('helmet');
+const hpp        = require('hpp');
+const cookieParser = require('cookie-parser');
+const session    = require('express-session');
 const dotenv     = require('dotenv');
+const mongoSanitize = require('express-mongo-sanitize');
 const { Server } = require('socket.io');
 const cron       = require('node-cron');
+const pino       = require('pino');
+const pinoHttp   = require('pino-http');
 const connectDB  = require('./config/db');
 
-// Load biến môi trường
 dotenv.config();
+require('./config/validateEnv')();
 
-// Khởi tạo Express + HTTP Server + Socket.io
+const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+
 const app    = express();
 const server = http.createServer(app);
 
-// Sau reverse proxy (Nginx, Cloudflare): đặt trust proxy để rate limit theo IP client đúng
-app.set('trust proxy', 1);
+const trustProxy = process.env.TRUST_PROXY === '0' ? false : (parseInt(process.env.TRUST_PROXY, 10) || 1);
+app.set('trust proxy', trustProxy);
 
-// Cấu hình các domain được phép truy cập (CORS)
+const isProd = process.env.NODE_ENV === 'production';
+const cookieSecret = process.env.COOKIE_SECRET || process.env.JWT_SECRET;
+
 const viteLocalOrigins = [5173, 5174, 5175, 5176, 5177].flatMap((p) => [`http://localhost:${p}`, `http://127.0.0.1:${p}`]);
 const allowedOrigins = [
   process.env.CLIENT_URL,
@@ -28,52 +38,106 @@ const allowedOrigins = [
   'http://127.0.0.1:3000',
 ].filter(Boolean);
 
+const corsOriginFn = (origin, cb) => {
+  if (!origin) return cb(null, true);
+  if (allowedOrigins.includes(origin)) return cb(null, true);
+  if (!isProd && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return cb(null, true);
+  cb(null, false);
+};
+
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins.length > 0 ? allowedOrigins : '*',
+    origin: allowedOrigins.length ? allowedOrigins : true,
     methods: ['GET', 'POST'],
+    credentials: true,
   },
 });
 
 // ==========================================
 // MIDDLEWARE
 // ==========================================
-// ⚡ Gzip compression — giảm payload size 60-70%
 app.use(compression({ level: 6, threshold: 1024 }));
 
-// ✅ Helmet — thêm các HTTP security headers tự động
 app.use(helmet({
-  contentSecurityPolicy: false, // tắt CSP vì có inline scripts trong upload
-  crossOriginResourcePolicy: { policy: 'cross-origin' }, // cho phép serve /uploads
+  contentSecurityPolicy: isProd ? {
+    useDefaults: true,
+    directives: {
+      defaultSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+    },
+  } : false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
 
-app.use(cors({
-  origin: allowedOrigins.length > 0 ? allowedOrigins : '*',
-  credentials: true
-}));
-// Giới hạn JSON/urlencoded — file lớn dùng Multer trên từng route (vd. teacher/message upload)
-const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || '12mb';
+app.use(cors({ origin: corsOriginFn, credentials: true }));
+app.use(cookieParser(cookieSecret));
+
+const sessionOptions = {
+  name: 'qcms.sid',
+  secret: cookieSecret,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'lax',
+    maxAge: 15 * 60 * 1000,
+  },
+};
+
+if (isProd && process.env.MONGODB_URI) {
+  try {
+    const MongoStore = require('connect-mongo');
+    sessionOptions.store = MongoStore.create({
+      mongoUrl: process.env.MONGODB_URI,
+      collectionName: 'sessions',
+      ttl: 60 * 60 * 24, // 1 day
+      crypto: process.env.SESSION_ENCRYPTION_KEY
+        ? { secret: process.env.SESSION_ENCRYPTION_KEY }
+        : undefined,
+    });
+  } catch (e) {
+    logger.warn({ err: e.message }, 'connect-mongo unavailable; falling back to MemoryStore');
+  }
+}
+
+app.use(session(sessionOptions));
+
+app.use(pinoHttp({ logger }));
+
+const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || '1mb';
 app.use(express.json({ limit: JSON_BODY_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: JSON_BODY_LIMIT }));
-app.use(require('passport').initialize()); // Social OAuth
+app.use(mongoSanitize({ replaceWith: '_' }));
+app.use(hpp());
+require('./routes/authRoutes');
+app.use(require('passport').initialize());
+app.use(require('passport').session());
 
-// Serve uploaded files với cache 1 ngày (tăng tốc load ảnh)
+app.get('/healthz', (req, res) => {
+  const dbOk = mongoose.connection.readyState === 1;
+  res.status(dbOk ? 200 : 503).json({
+    ok: dbOk,
+    db: dbOk ? 'up' : 'down',
+    uptime: process.uptime(),
+  });
+});
+
 app.use('/uploads', (req, res, next) => {
   res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
   next();
 }, express.static('uploads'));
 
-// Gắn io vào app để dùng trong routes
 app.set('io', io);
-global.io = io; // Đảm bảo global.io luôn khả dụng cho các route
+global.io = io;
 
-// Log mọi hoạt động thay đổi dữ liệu
 const systemLogger = require('./middleware/systemLogger');
 app.use(systemLogger);
 
-// ==========================================
-// KẾT NỐI DATABASE
-// ==========================================
+const { apiRateLimitUnlessAuth } = require('./middleware/apiRateLimit');
+app.use('/api', apiRateLimitUnlessAuth);
+
 connectDB();
 
 // ==========================================
@@ -90,7 +154,7 @@ io.use((socket, next) => {
     return next(new Error('Authentication error: Token missing'));
   }
 
-  jwt.verify(token, process.env.JWT_SECRET || 'secret_key', (err, decoded) => {
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
     if (err) {
       console.error(`❌ Socket Auth Failed: Invalid token for socket ${socket.id}. Error: ${err.message}`);
       return next(new Error('Authentication error: Invalid token'));
@@ -103,22 +167,49 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
   console.log(`🔌 Socket connected: ${socket.id}`);
 
-  // Đăng ký user online
-  socket.on('register', ({ userId, role, name, branchId }) => {
-    const key = `${role}_${userId}`;
-    onlineUsers.set(key, { socketId: socket.id, userId, role, name, branchId, connectedAt: new Date().toISOString() });
-    console.log(`👤 Online: ${name} (${role}) - ${key}`);
+  // Đăng ký user online — CHẶN SPOOFING: lấy ID/Role từ JWT thay vì tin client 100%
+  socket.on('register', ({ branchId, branchCode }) => {
+    if (!socket.user) return;
+    
+    const userId = socket.user.id || socket.user._id;
+    const role   = socket.user.role;
+    const name   = socket.user.name || 'User';
+    const key    = `${role}_${userId}`;
+    
+    onlineUsers.set(key, { 
+      socketId: socket.id, 
+      userId, 
+      role, 
+      name, 
+      branchId: branchId || socket.user.branchId, 
+      branchCode: branchCode || socket.user.branchCode || '',
+      connectedAt: new Date().toISOString() 
+    });
+    
+    console.log(`👤 Online (Verified): ${name} (${role}) - ${key}`);
 
     // Join rooms for Centralized Notification Service
     socket.join(userId);           // Unique user room
     socket.join('GLOBAL');          // Global room
     
     if (role) {
-      const uRole = role.toLowerCase();
-      socket.join(`ALL_${role.toUpperCase()}`); 
+      const uRole = role.toUpperCase();
+      socket.join(`ALL_${uRole}`); 
       
-      if (branchId) {
-        socket.join(`ALL_${role.toUpperCase()}_${branchId}`); 
+      // Admin/Staff join admin rooms
+      if (uRole === 'ADMIN' || uRole === 'STAFF') {
+        socket.join('ALL_ADMIN');
+        socket.join('ALL_STAFF');
+      }
+
+      if (branchId || socket.user.branchId) {
+        const bid = branchId || socket.user.branchId;
+        socket.join(`ALL_${uRole}_${bid}`); 
+      }
+      
+      if (branchCode || socket.user.branchCode) {
+        const bcode = branchCode || socket.user.branchCode;
+        socket.join(`ALL_${uRole}_${bcode}`);
       }
     }
 
@@ -128,8 +219,20 @@ io.on('connection', (socket) => {
     })));
   });
 
-  // ── Nhắn tin 1-1 ──
+  // ── Nhắn tin 1-1 — luôn lấy người gửi từ JWT (socket.user), không tin client ──
   socket.on('message:send', (data) => {
+    if (!socket.user) return;
+    const u = socket.user;
+    const isStaff = u.role === 'staff' || u.adminRole === 'STAFF';
+    const senderRole = isStaff ? 'admin' : u.role;
+    const senderId = String(u.id || u._id);
+    const senderName = u.name || 'User';
+    data = {
+      ...data,
+      senderId,
+      senderName,
+      senderRole,
+    };
     // data = { senderId, senderName, senderRole, receiverId, receiverRole, content }
     // Tìm người nhận (Hỗ trợ linh hoạt cả prefix admin_ và staff_)
     let receiver = onlineUsers.get(`${data.receiverRole}_${data.receiverId}`);
@@ -468,9 +571,9 @@ cron.schedule('*/10 * * * *', async () => {
     //   console.log(`📧 Đã gửi ${upcoming.length} nhắc lịch học`);
     // }
 
-    console.log(`⏰ [CRON] Kiểm tra lịch học: ${new Date().toLocaleTimeString('vi-VN')}`);
+    logger.info(`[CRON] Kiểm tra lịch học: ${new Date().toLocaleTimeString('vi-VN')}`);
   } catch (err) {
-    console.error('[CRON] Lỗi kiểm tra lịch:', err.message);
+    logger.error({ err: err.message }, '[CRON] schedule check');
   }
 });
 
@@ -523,7 +626,8 @@ app.use((req, res) => {
 });
 
 app.use((err, req, res, next) => {
-  console.error('Server Error:', err.stack);
+  if (req.log) req.log.error(err);
+  else logger.error(err);
 
   // Handle Mongoose CastError (Invalid ObjectId)
   if (err.name === 'CastError') {
@@ -544,15 +648,27 @@ app.use((err, req, res, next) => {
 // KHỞI ĐỘNG SERVER
 // ==========================================
 const PORT = process.env.PORT || 5000;
+const tokenBlacklist = require('./middleware/tokenBlacklist');
 
 server.listen(PORT, () => {
-  console.log('==========================================');
-  console.log(`  🚀 QUANLYCMS Server v2.0`);
-  console.log(`  📡 Socket.io: ACTIVE`);
-  console.log(`  🏫 Trung tâm Thắng Tin Học`);
-  console.log(`  🌐 Port: ${PORT}`);
-  console.log(`  ⚙  Env: ${process.env.NODE_ENV || 'development'}`);
-  console.log('==========================================');
+  logger.info({ port: PORT, env: process.env.NODE_ENV || 'development' }, 'QUANLYCMS server listening');
 });
+
+async function shutdown(signal) {
+  logger.info({ signal }, 'Shutting down');
+  try {
+    await new Promise((resolve, reject) => {
+      server.close((err) => (err ? reject(err) : resolve()));
+    });
+    await mongoose.connection.close(false);
+    await tokenBlacklist.close();
+  } catch (e) {
+    logger.error(e);
+  }
+  process.exit(0);
+}
+
+process.once('SIGTERM', () => shutdown('SIGTERM'));
+process.once('SIGINT', () => shutdown('SIGINT'));
 
 module.exports = { app, server, io };

@@ -12,4 +12,7 @@ const SubmissionSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// ✅ CHỐNG RACE CONDITION: Mỗi học viên chỉ có 1 bản nộp/bài tập
+SubmissionSchema.index({ assignmentId: 1, studentId: 1 }, { unique: true });
+
 module.exports = mongoose.model('Submission', SubmissionSchema);

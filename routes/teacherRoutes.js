@@ -181,12 +181,18 @@ router.get('/', [authMiddleware, branchFilter], async (req, res) => {
 });
 
 // ─── GET /api/teachers/stats/summary ──────────────────────────────────────────
-router.get('/stats/summary', authMiddleware, isAdmin, async (req, res) => {
+router.get('/stats/summary', [authMiddleware, isAdmin, branchFilter], async (req, res) => {
   try {
-    const total   = await Teacher.countDocuments();
-    const active  = await Teacher.countDocuments({ status: 'active' });
-    const pending = await Teacher.countDocuments({ status: 'pending' });
-    const suspended = await Teacher.countDocuments({ status: 'suspended' });
+    const bf = { ...req.branchFilter };
+    const { branch_id } = req.query;
+    if (branch_id && branch_id !== 'all' && !req.userBranchId) {
+      bf.branchId = branch_id;
+    }
+
+    const total   = await Teacher.countDocuments({ ...bf, role: 'teacher' });
+    const active  = await Teacher.countDocuments({ ...bf, role: 'teacher', status: { $in: ['active', 'Active'] } });
+    const pending = await Teacher.countDocuments({ ...bf, role: 'teacher', status: 'pending' });
+    const suspended = await Teacher.countDocuments({ ...bf, role: 'teacher', status: 'suspended' });
 
     return res.json({
       success: true,
