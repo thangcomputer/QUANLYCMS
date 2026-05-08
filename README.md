@@ -7,6 +7,8 @@ Full-stack CMS cho trung tâm đào tạo: **Express 5 + MongoDB + Socket.io**, 
 - `server.js` — API và Socket.io
 - `routes/`, `models/`, `middleware/`, `services/`, `config/` — backend
 - `client/` — ứng dụng React (`npm run dev` trong `client/`)
+- `tests/` — test runner (Node `--test`); xem `tests/integration/`
+- `scripts/` — helper script một lần (seed, migrate, debug); chạy bằng `node scripts/<name>.js`
 - `Dockerfile`, `docker-compose.yml` — chạy bằng container
 - `.github/workflows/node.yml` — CI (lint + test + build client)
 
@@ -141,10 +143,11 @@ Dùng cho LB / Docker `healthcheck`.
 ## Scripts hữu ích
 
 ```bash
-npm start          # Production (đọc .env)
-npm run dev        # Hot reload (--watch)
-npm run lint       # ESLint backend
-npm test           # node --test
+npm start              # Production (đọc .env)
+npm run dev            # Hot reload (--watch)
+npm run lint           # ESLint backend
+npm test               # node --test tests   (chạy mọi *.test.js trong tests/)
+npm run test:integration   # chỉ chạy tests/integration/
 ```
 
 Trong `client/`:
