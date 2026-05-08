@@ -554,102 +554,157 @@ export const DataProvider = ({ children, user, onLogout }) => {
   }, []);
 
   const updateTeacher = useCallback(async (teacherId, updates) => {
-    setTeachers(prev => prev.map(t => String(t.id) === String(teacherId) ? { ...t, ...updates } : t));
+    const previousTeachers = [...teachers];
+    setTeachers(prev => prev.map(t => (String(t.id) === String(teacherId) || String(t._id) === String(teacherId)) ? { ...t, ...updates } : t));
     try {
       const res = await api.teachers?.update(teacherId, updates);
       if (res && res.success === false) throw new Error(res.message);
       triggerBackgroundSync();
       return res;
     } catch(err) {
+      setTeachers(previousTeachers);
       throw err;
     }
-  }, [triggerBackgroundSync]);
+  }, [teachers, triggerBackgroundSync]);
 
   const updateStudent = useCallback(async (studentId, updates) => {
-    setStudents(prev => prev.map(s => String(s.id) === String(studentId) ? { ...s, ...updates } : s));
+    const previousStudents = [...students];
+    setStudents(prev => prev.map(s => (String(s.id) === String(studentId) || String(s._id) === String(studentId)) ? { ...s, ...updates } : s));
     try {
       const res = await api.students?.update(studentId, updates);
       if (res && res.success === false) throw new Error(res.message);
       triggerBackgroundSync();
       return res;
     } catch(err) {
+      setStudents(previousStudents);
       throw err;
     }
-  }, [triggerBackgroundSync]);
+  }, [students, triggerBackgroundSync]);
 
-  const assignTeacher = useCallback((studentId, teacherId) => {
+  const assignTeacher = useCallback(async (studentId, teacherId) => {
+    // 1. Unassign logic
     if (!teacherId || teacherId === '') {
-      setStudents(prev => prev.map(s => String(s.id) === String(studentId) ? { ...s, teacherId: null, teacherName: '', status: 'Chưa phân công' } : s));
-      api.students?.update(studentId, { teacherId: null }).then(() => triggerBackgroundSync()).catch(console.error);
+      setStudents(prev => prev.map(s => (String(s.id) === String(studentId) || String(s._id) === String(studentId)) ? { ...s, teacherId: null, teacherName: '', status: 'Chưa phân công' } : s));
+      try {
+        await api.students?.assignTeacher(studentId, null);
+        triggerBackgroundSync();
+        // For admin, we should also refetch current page of students
+        if (currentUser?.role === 'admin' || currentUser?.role === 'staff') {
+          fetchStudentsPaginated({ page: studentsPagination.currentPage });
+        }
+      } catch (err) {
+        console.error('Unassign teacher error:', err);
+      }
       return;
     }
 
+    // 2. Assign logic
     const teacher = teachers.find(t => String(t.id) === String(teacherId) || String(t._id) === String(teacherId));
-    if (!teacher) return;
+    // Even if teacher is not found in local state (unlikely), we proceed to let API handle it
+    const teacherName = teacher ? teacher.name : 'Giảng viên';
 
-    setStudents(prev => prev.map(s => String(s.id) === String(studentId) ? { ...s, teacherId, teacherName: teacher.name, status: 'Đang học' } : s));
+    // Optimistic update
+    const previousStudents = [...students];
+    setStudents(prev => prev.map(s => (String(s.id) === String(studentId) || String(s._id) === String(studentId)) ? { ...s, teacherId, teacherName, status: 'Đang học' } : s));
     
-    api.students?.update(studentId, { teacherId })
-      .then(() => triggerBackgroundSync())
-      .catch(console.error);
+    try {
+      const res = await api.students?.assignTeacher(studentId, teacherId);
+      if (res?.success) {
+        triggerBackgroundSync();
+        if (currentUser?.role === 'admin' || currentUser?.role === 'staff') {
+          fetchStudentsPaginated({ page: studentsPagination.currentPage });
+        }
+        const student = students.find(s => String(s.id) === String(studentId) || String(s._id) === String(studentId));
+        addNotification(teacherId, 'teacher', `Admin phân công học viên ${student?.name || 'mới'} cho bạn`);
+      } else {
+        // Rollback
+        setStudents(previousStudents);
+        throw new Error(res?.message || 'Lỗi phân công');
+      }
+    } catch (err) {
+      console.error('Assign teacher error:', err);
+      // Rollback
+      setStudents(previousStudents);
+      throw err;
+    }
+  }, [teachers, students, triggerBackgroundSync, fetchStudentsPaginated, studentsPagination.currentPage, currentUser, addNotification]);
 
-    const student = students.find(s => String(s.id) === String(studentId));
-    addNotification(teacherId, 'teacher', `Admin phân công học viên ${student?.name} cho bạn`);
-  }, [teachers, students, triggerBackgroundSync]);
-
-  const approveTeacher = useCallback((teacherId) => {
-    setTeachers(prev => prev.map(t => String(t.id) === String(teacherId) ? { ...t, status: 'Active', practicalStatus: 'approved' } : t));
+  const approveTeacher = useCallback(async (teacherId) => {
+    const previousTeachers = [...teachers];
+    setTeachers(prev => prev.map(t => (String(t.id) === String(teacherId) || String(t._id) === String(teacherId)) ? { ...t, status: 'Active', practicalStatus: 'approved' } : t));
     
-    api.teachers?.approve(teacherId)
-      .then(() => triggerBackgroundSync())
-      .catch(console.error);
+    try {
+      const res = await api.teachers?.approve(teacherId);
+      if (!res?.success) throw new Error(res?.message || 'Lỗi phê duyệt');
+      addNotification(teacherId, 'teacher', 'Chúc mừng! Admin đã cấp quyền Giảng viên cho bạn.');
+      triggerBackgroundSync();
+      return true;
+    } catch (err) {
+      setTeachers(previousTeachers);
+      throw err;
+    }
+  }, [teachers, triggerBackgroundSync, addNotification]);
 
-    addNotification(teacherId, 'teacher', 'Chúc mừng! Admin đã cấp quyền Giảng viên cho bạn.');
-  }, [triggerBackgroundSync]);
-
-  // Từ chối giảng viên
-  const rejectTeacher = useCallback((teacherId, reason) => {
+  const rejectTeacher = useCallback(async (teacherId, reason) => {
+    const previousTeachers = [...teachers];
     setTeachers(prev => prev.map(t =>
-      String(t.id) === String(teacherId) ? { ...t, status: 'Locked', practicalStatus: 'rejected' } : t
+      (String(t.id) === String(teacherId) || String(t._id) === String(teacherId)) ? { ...t, status: 'Locked', practicalStatus: 'rejected' } : t
     ));
-    addNotification(teacherId, 'teacher', `Bài thực hành bị từ chối: ${reason}`);
-  }, []);
+    try {
+      const res = await api.teachers?.update(teacherId, { status: 'Suspended', lockReason: reason });
+      if (!res?.success) throw new Error(res?.message || 'Lỗi từ chối');
+      addNotification(teacherId, 'teacher', `Bài thực hành bị từ chối: ${reason}`);
+      triggerBackgroundSync();
+      return true;
+    } catch (err) {
+      setTeachers(previousTeachers);
+      throw err;
+    }
+  }, [teachers, triggerBackgroundSync, addNotification]);
 
   // Chuyển tiền GV → gọi backend tạo Transaction
   const payTeacher = useCallback(async (teacherId, amount, note) => {
-    const teacher = teachers.find(t => String(t.id) === String(teacherId));
+    const teacher = teachers.find(t => (String(t.id) === String(teacherId) || String(t._id) === String(teacherId)));
     if (!teacher) return;
 
+    const previousTeachers = [...teachers];
+    const previousTransactions = [...transactions];
     const now = new Date();
     const month = `Tháng ${now.getMonth() + 1}/${now.getFullYear()}`;
 
     // Optimistic update
+    const tempId = Date.now();
     const tx = {
-      id: Date.now(), teacherId, teacherName: teacher.name,
+      id: tempId, teacherId, teacherName: teacher.name,
       amount, date: now.toLocaleDateString('vi-VN'),
       note: note || `Thù lao ${month}`,
       status: 'confirmed',
     };
     setTransactions(prev => [...prev, tx]);
     setTeachers(prev => prev.map(t =>
-      String(t.id) === String(teacherId) ? { ...t, paidAmount: (t.paidAmount || 0) + amount } : t
+      (String(t.id) === String(teacherId) || String(t._id) === String(teacherId)) ? { ...t, paidAmount: (t.paidAmount || 0) + amount } : t
     ));
-    addNotification(teacherId, 'teacher', `Admin đã chuyển ${amount.toLocaleString('vi-VN')}đ - ${tx.note}`);
 
-    // Gọi backend tạo & xác nhận transaction
     try {
       const res = await api.transactions?.create({
         teacherId, amount,
         description: note || `Thù lao ${month}`,
         month,
       });
-      if (res?.success) {
-        await api.transactions?.confirm(res.data._id);
-        triggerBackgroundSync();
-      }
-    } catch (e) {
+      if (!res?.success) throw new Error(res?.message || 'Lỗi tạo giao dịch');
+      
+      const confirmRes = await api.transactions?.confirm(res.data._id);
+      if (!confirmRes?.success) throw new Error(confirmRes?.message || 'Lỗi xác nhận giao dịch');
+
+      setTransactions(prev => prev.map(m => m.id === tempId ? { ...confirmRes.data, id: confirmRes.data._id } : m));
+      addNotification(teacherId, 'teacher', `Admin đã chuyển ${amount.toLocaleString('vi-VN')}đ - ${tx.note}`);
+      triggerBackgroundSync();
+    } catch (err) {
+      setTransactions(previousTransactions);
+      setTeachers(previousTeachers);
+      throw err;
     }
-  }, [teachers, triggerBackgroundSync]);
+  }, [teachers, transactions, triggerBackgroundSync, addNotification]);
 
   // Xóa học viên
   const removeStudent = useCallback(async (studentId) => {
@@ -671,45 +726,36 @@ export const DataProvider = ({ children, user, onLogout }) => {
 
   // Đánh dấu học phí đã thanh toán → gọi backend (tự tạo hóa đơn)
   const markStudentPaid = useCallback(async (studentId, isPaid = true, paymentMethod = 'transfer') => {
+    const previousStudents = [...students];
     // Optimistic update UI ngay
     setStudents(prev => prev.map(s =>
-      String(s.id) === String(studentId)
+      (String(s.id) === String(studentId) || String(s._id) === String(studentId))
         ? { ...s, paid: isPaid, status: isPaid ? 'Đang học' : s.status }
         : s
     ));
     if (isPaid) {
       try {
-        await api.students?.pay(studentId, paymentMethod);
+        const res = await api.students?.pay(studentId, paymentMethod);
+        if (!res?.success) throw new Error(res?.message || 'Lỗi thanh toán');
         triggerBackgroundSync();
-      } catch (e) {
+      } catch (err) {
+        setStudents(previousStudents);
+        throw err;
       }
     }
-  }, [triggerBackgroundSync]);
+  }, [students, triggerBackgroundSync]);
 
   // ── TEACHER ACTIONS ────────────────────────────────────────────────────────
 
   // Điểm danh
+  // Điểm danh
   const markAttendance = useCallback(async (studentId, note, grade) => {
-    let wasAlreadyAttendedToday = false;
-    
-    // Check synchronously to avoid race conditions with React state updates when spam-clicking
-    const targetStudentSync = students.find(s => String(s.id) === String(studentId) || String(s._id) === String(studentId));
-    const todayISO = new Date().toISOString().split('T')[0];
-    const todayVN = new Date().toLocaleDateString('vi-VN');
-    
-    // Check if attended in student.grades
-    const hasAttendedSync = targetStudentSync ? (targetStudentSync.grades || []).some(g => g.date === todayVN) : false;
-    
-    // Check if attended in schedules (for double safety)
-    const hasScheduleAttended = schedules.some(sch => 
-      String(sch.studentId) === String(studentId) && 
-      (new Date(sch.date).toISOString().split('T')[0] === todayISO) && 
-      sch.status === 'completed'
-    );
+    // 1. Kiểm tra Gate giữ chỗ
+    const targetStudentSync = students.find(s => String(s._id || s.id) === String(studentId));
+    if (!targetStudentSync) throw new Error('Không tìm thấy học viên');
 
-    // 🔐 COOLDOWN 12H: Kiểm tra cờ can_check_in từ dữ liệu học viên (đồng bộ từ Backend)
-    // Nếu can_check_in === false (nghĩa là đã điểm danh trong vòng 12h), chặn ngay lập tức
-    if (targetStudentSync && targetStudentSync.can_check_in === false) {
+    // 🔐 COOLDOWN 12H: Chặn ngay nếu cờ can_check_in = false
+    if (targetStudentSync.can_check_in === false) {
       const remain = targetStudentSync.remaining_cooldown_hours || 0;
       const err = new Error(`Học viên này đã được điểm danh. Vui lòng thử lại sau ${remain} tiếng.`);
       err.cooldown = true;
@@ -717,203 +763,150 @@ export const DataProvider = ({ children, user, onLogout }) => {
       throw err;
     }
 
-    setStudents(prev => prev.map(s => {
-      const isTargetStudent = String(s.id) === String(studentId) || String(s._id) === String(studentId);
-      if (!isTargetStudent) return s;
+    if (targetStudentSync.remainingSessions <= 0) {
+      throw new Error('Học viên đã hết số buổi học. Vui lòng gia hạn thêm.');
+    }
 
-      const todayStr = new Date().toLocaleDateString('vi-VN');
-      const existingGradeIndex = (s.grades || []).findIndex(g => g.date === todayStr);
-      wasAlreadyAttendedToday = existingGradeIndex !== -1;
+    const previousStudents = [...students];
+    const previousSchedules = [...schedules];
 
-      // Nếu đã điểm danh rồi, thì chỉ CẬP NHẬT điểm/ghi chú, không tăng buổi đã học
-      if (wasAlreadyAttendedToday) {
-        const newGrades = [...(s.grades || [])];
-        newGrades[existingGradeIndex] = {
-          ...newGrades[existingGradeIndex],
-          note: note || newGrades[existingGradeIndex].note || 'Đã điểm danh',
-          grade: grade !== undefined ? grade : newGrades[existingGradeIndex].grade,
-        };
-        
-        const validGrades = newGrades.filter(g => g.grade > 0);
-        const avg = validGrades.length > 0
-          ? Math.round((validGrades.reduce((sum, g) => sum + g.grade, 0) / validGrades.length) * 10) / 10
-          : 0;
-
-        api.students?.update(studentId, {
-          lastGrade: grade !== undefined ? grade : s.lastGrade,
-          avgGrade: avg,
-          grades: newGrades,
-          completedSessions: s.completedSessions, // Preserve
-          remainingSessions: s.remainingSessions, // Preserve
-        }).then(() => triggerBackgroundSync());
-
-        return {
-          ...s,
-          lastGrade: grade !== undefined ? grade : s.lastGrade,
-          avgGrade: avg,
-          grades: newGrades
-        };
-      }
-
-      // NẾU CHƯA ĐIỂM DANH HÔM NAY: Tạo mới
-      if (s.remainingSessions <= 0) return s;
-
+    try {
+      const todayVN = new Date().toLocaleDateString('vi-VN');
+      const todayISO = new Date().toISOString().split('T')[0];
+      
       const newGrade = {
-        date: todayStr,
+        date: todayVN,
         note: note || 'Đã điểm danh',
         grade: grade || 0,
       };
       
-      const newGrades = [newGrade, ...(s.grades || [])];
+      const newGrades = [newGrade, ...(targetStudentSync.grades || [])];
       const validGrades = newGrades.filter(g => g.grade > 0);
       const avg = validGrades.length > 0
         ? Math.round((validGrades.reduce((sum, g) => sum + g.grade, 0) / validGrades.length) * 10) / 10
         : 0;
       
-      const newCompleted = (s.completedSessions || 0) + 1;
-      const newRemaining = s.remainingSessions - 1;
-      
-      // ✅ FIX: KHÔNG ghi completedSessions/remainingSessions vào Student document
-      // vì studentRoutes.js đã tính lại từ Schedule.countDocuments() khi GET
-      // → Nếu ghi vào Student sẽ bị cộng đôi khi background sync kéo về
-      api.students?.update(studentId, {
-        lastGrade: grade || s.lastGrade,
+      const newCompleted = (targetStudentSync.completedSessions || 0) + 1;
+      const newRemaining = targetStudentSync.remainingSessions - 1;
+
+      // Optimistic Student Update
+      setStudents(prev => prev.map(s => {
+        if (String(s._id || s.id) !== String(studentId)) return s;
+        return {
+          ...s,
+          completedSessions: newCompleted,
+          remainingSessions: newRemaining,
+          lastGrade: grade || s.lastGrade,
+          avgGrade: avg,
+          grades: newGrades,
+          status: newRemaining <= 0 ? 'Hoàn thành' : 'Đang học',
+          can_check_in: false,
+          remaining_cooldown_hours: 12,
+        };
+      }));
+
+      // Check if schedule exists today
+      const existSch = schedules.find(sch => {
+        const schDate = new Date(sch.date).toISOString().split('T')[0];
+        return String(sch.studentId) === String(studentId) && schDate === todayISO && sch.status !== 'cancelled';
+      });
+
+      if (existSch) {
+        // Optimistic Schedule Update
+        setSchedules(prev => prev.map(s => (s._id || s.id) === (existSch._id || existSch.id) ? { ...s, status: 'completed' } : s));
+        
+        const resSch = await api.schedules?.update(existSch._id || existSch.id, { status: 'completed' });
+        if (!resSch?.success) throw new Error(resSch?.message || 'Lỗi cập nhật lịch học');
+      } else {
+        // Create new schedule
+        const getActiveSession = () => {
+          try {
+            return JSON.parse(localStorage.getItem('teacher_user') || localStorage.getItem('admin_user') || '{}');
+          } catch { return {}; }
+        };
+        const activeSession = getActiveSession();
+        const now = new Date();
+        const tempId = 'temp-' + Date.now();
+
+        const newSch = {
+          id: tempId,
+          teacherId: String(targetStudentSync.teacherId?._id || targetStudentSync.teacherId || activeSession.id || activeSession._id),
+          teacherName: activeSession.name || 'Giảng viên',
+          studentId: String(studentId),
+          studentName: targetStudentSync.name,
+          date: now.toISOString().split('T')[0],
+          startTime: now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+          endTime: new Date(now.getTime() + 2 * 60 * 60 * 1000).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+          course: targetStudentSync.course || '',
+          status: 'completed',
+          paymentStatus: 'pending',
+        };
+
+        setSchedules(prev => [...prev, newSch]);
+        const resCreate = await api.schedules?.create(newSch);
+        if (resCreate?.success) {
+          setSchedules(prev => prev.map(s => s.id === tempId ? { ...resCreate.data, id: resCreate.data._id } : s));
+        } else {
+          throw new Error(resCreate?.message || 'Lỗi tạo lịch học mới');
+        }
+      }
+
+      // Finalize Student on Server (Already did optimistic UI)
+      const resStud = await api.students?.update(studentId, {
+        lastGrade: grade || targetStudentSync.lastGrade,
         avgGrade: avg,
         grades: newGrades,
         completedSessions: newCompleted,
         remainingSessions: newRemaining,
         status: newRemaining <= 0 ? 'Hoàn thành' : 'Đang học',
-      })
-      .then(() => triggerBackgroundSync())
-      .catch(err => void 0);
-
-      return {
-        ...s,
-        completedSessions: newCompleted,  // optimistic local only
-        remainingSessions: newRemaining,  // optimistic local only
-        lastGrade: grade || s.lastGrade,
-        avgGrade: avg,
-        grades: newGrades,
-        status: newRemaining <= 0 ? 'Hoàn thành' : 'Đang học',
-        // Optimistic: khoá nút điểm danh ngay sau khi điểm danh thành công
-        can_check_in: false,
-        remaining_cooldown_hours: 12,
-      };
-    }));
-    addNotification(studentId, 'student', `Giảng viên đã điểm danh buổi học. Điểm: ${grade || 0}/10`);
-
-    // Cập nhật schedule — CHỈ MỘT trong hai đường: UPDATE hoặc CREATE
-    // Kiểm tra lại hasScheduleAttended (đã tính trước setStudents) làm gate dứt khoát
-    if (hasScheduleAttended) {
-      // Đường 1: Đã có schedule hôm nay → chỉ UPDATE status thành 'completed'
-      const today = new Date().toISOString().split('T')[0];
-      const existSch = schedules.find(sch => {
-        const schDate = new Date(sch.date).toISOString().split('T')[0];
-        return String(sch.studentId) === String(studentId) && schDate === today;
       });
-      if (existSch && existSch.status !== 'completed') {
-        api.schedules?.update(existSch._id || existSch.id, { status: 'completed' })
-          .then(() => setTimeout(() => triggerBackgroundSync(), 500))
-          .catch(e => void 0);
-        setSchedules(prev => prev.map(s =>
-          (s._id || s.id) === (existSch._id || existSch.id) ? { ...s, status: 'completed' } : s
-        ));
-      }
-    } else {
-      // Đường 2: Chưa có schedule hôm nay → CREATE mới
-      const getActiveSession = () => {
-        try {
-          return JSON.parse(localStorage.getItem('teacher_user') || localStorage.getItem('admin_user') || '{}');
-        } catch { return {}; }
-      };
-      const activeSession = getActiveSession();
-      const targetStudent = students.find(s => String(s.id) === String(studentId) || String(s._id) === String(studentId));
 
-      let effectiveTeacherId = activeSession.id || activeSession._id;
-      let studentDisplayName = `HV-${String(studentId).slice(-4)}`;
-      let courseName = '';
+      if (!resStud?.success) throw new Error(resStud?.message || 'Lỗi đồng bộ thông tin học viên');
 
-      if (targetStudent) {
-        const rawTeacherId = typeof targetStudent.teacherId === 'object' && targetStudent.teacherId !== null
-          ? (targetStudent.teacherId._id || targetStudent.teacherId.id)
-          : (targetStudent.teacherId || null);
-        const isValidObjId = id => /^[a-f\d]{24}$/i.test(String(id));
-        if (isValidObjId(rawTeacherId)) effectiveTeacherId = rawTeacherId;
-        else if (isValidObjId(activeSession.id || activeSession._id)) effectiveTeacherId = activeSession.id || activeSession._id;
-        else effectiveTeacherId = rawTeacherId || activeSession.id || activeSession._id;
+      addNotification(studentId, 'student', `Giảng viên đã điểm danh buổi học. Điểm: ${grade || 0}/10`);
+      triggerBackgroundSync();
+      return true;
 
-        studentDisplayName = (targetStudent.name && !/^\d{5,}$/.test(targetStudent.name))
-          ? targetStudent.name
-          : targetStudent.email || targetStudent.phone || studentDisplayName;
-        courseName = targetStudent.course || '';
-      }
-
-      if (effectiveTeacherId) {
-        const now = new Date();
-        const tempId = 'temp-' + Date.now();
-        const newSch = {
-          id: tempId,
-          teacherId: String(effectiveTeacherId),
-          teacherName: activeSession.name || 'Giảng viên',
-          studentId: String(studentId),
-          studentName: studentDisplayName,
-          date: now.toISOString().split('T')[0],
-          startTime: now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-          endTime: new Date(now.getTime() + 2 * 60 * 60 * 1000).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-          course: courseName,
-          status: 'completed',
-          paymentStatus: 'pending',
-        };
-
-        // Optimistic: thêm vào UI ngay để chặn spam click
-        setSchedules(prev => [...prev, newSch]);
-
-        api.schedules?.create(newSch).then(res => {
-          if (res?.success && res.data) {
-            setSchedules(prev => prev.map(s => s.id === tempId ? { ...res.data, id: res.data._id } : s));
-            setTimeout(() => triggerBackgroundSync(), 500);
-          } else if (res?.cooldown) {
-            setSchedules(prev => prev.filter(s => s.id !== tempId));
-            setStudents(prev => prev.map(s =>
-              String(s.id) === String(studentId) || String(s._id) === String(studentId)
-                ? { ...s, can_check_in: false, remaining_cooldown_hours: res.remainingHours || 12 }
-                : s
-            ));
-            const err = new Error(res.message || 'Đã điểm danh trong vòng 12 tiếng');
-            err.cooldown = true;
-            throw err;
-          } else {
-            setSchedules(prev => prev.filter(s => s.id !== tempId));
-          }
-        }).catch(err => {
-          setSchedules(prev => prev.filter(s => s.id !== tempId));
-        });
-      } else {
-      }
+    } catch (err) {
+      console.error('[DataContext] markAttendance error:', err);
+      // Rollback
+      setStudents(previousStudents);
+      setSchedules(previousSchedules);
+      throw err;
     }
   }, [students, schedules, triggerBackgroundSync, addNotification]);
-
-
-  const updateStudentLink = useCallback((studentId, linkHoc) => {
+  const updateStudentLink = useCallback(async (studentId, linkHoc) => {
+    const previousStudents = [...students];
     setStudents(prev => prev.map(s =>
-      String(s.id) === String(studentId) ? { ...s, linkHoc } : s
+      (String(s.id) === String(studentId) || String(s._id) === String(studentId)) ? { ...s, linkHoc } : s
     ));
-    addNotification(studentId, 'student',
-      `📍 Giảng viên đã cập nhật link học mới. Nhấn vào đây đở tham gia.`);
-    
-    api.students?.update(studentId, { linkHoc }).then(() => triggerBackgroundSync());
-  }, [triggerBackgroundSync]);
+    try {
+      const res = await api.students?.update(studentId, { linkHoc });
+      if (!res?.success) throw new Error(res?.message || 'Lỗi cập nhật link học');
+      addNotification(studentId, 'student', `📍 Giảng viên đã cập nhật link học mới. Nhấn vào đây để tham gia.`);
+      triggerBackgroundSync();
+    } catch (err) {
+      setStudents(previousStudents);
+      throw err;
+    }
+  }, [students, triggerBackgroundSync, addNotification]);
 
   // Cập nhật lịch học — sync sang StudentDashboard
-  const updateStudentSchedule = useCallback((studentId, nextClass, nextClassTime) => {
+  const updateStudentSchedule = useCallback(async (studentId, nextClass, nextClassTime) => {
+    const previousStudents = [...students];
     setStudents(prev => prev.map(s =>
-      String(s.id) === String(studentId) ? { ...s, nextClass, nextClassTime } : s
+      (String(s.id) === String(studentId) || String(s._id) === String(studentId)) ? { ...s, nextClass, nextClassTime } : s
     ));
-    addNotification(studentId, 'student',
-      `📅 Lịch học đã được cập nhật: ${nextClass}. Nhớ tham gia đúng giờ!`);
-      
-    api.students?.update(studentId, { nextClass, nextClassTime }).then(() => triggerBackgroundSync());
-  }, [triggerBackgroundSync]);
+    try {
+      const res = await api.students?.update(studentId, { nextClass, nextClassTime });
+      if (!res?.success) throw new Error(res?.message || 'Lỗi cập nhật lịch');
+      addNotification(studentId, 'student', `📅 Lịch học đã được cập nhật: ${nextClass}. Nhớ tham gia đúng giờ!`);
+      triggerBackgroundSync();
+    } catch (err) {
+      setStudents(previousStudents);
+      throw err;
+    }
+  }, [students, triggerBackgroundSync, addNotification]);
 
   // GV nộp bài test
   const submitTestResult = useCallback((teacherId, score, passed) => {
@@ -927,39 +920,46 @@ export const DataProvider = ({ children, user, onLogout }) => {
 
   // Admin duyệt cho học viên thi cuối khóa → gọi backend unlock
   const approveStudentExam = useCallback(async (studentId) => {
-    const student = students.find(s => String(s.id) === String(studentId));
+    const previousStudents = [...students];
+    const student = students.find(s => (String(s.id) === String(studentId) || String(s._id) === String(studentId)));
     if (!student) return;
 
     // Optimistic update
     setStudents(prev => prev.map(s =>
-      String(s.id) === String(studentId)
+      (String(s.id) === String(studentId) || String(s._id) === String(studentId))
         ? { ...s, examApproved: true, studentExamUnlocked: true }
         : s
     ));
-    addNotification(studentId, 'student',
-      'ðŸŽ“ Admin đã duyệt cho bạn thi cuối khóa! Vào Phòng Thi đở bắt đầu.');
-    addNotification(null, 'admin',
-      `Đã duyệt thi cuối khóa cho học viên ${student.name}`);
 
-    // Gọi backend
     try {
-      await api.students?.update(studentId, { studentExamUnlocked: true, examApproved: true });
-    } catch (e) {
+      const res = await api.students?.update(studentId, { studentExamUnlocked: true, examApproved: true });
+      if (!res?.success) throw new Error(res?.message || 'Lỗi duyệt thi');
+      addNotification(studentId, 'student', '🎓 Admin đã duyệt cho bạn thi cuối khóa! Vào Phòng Thi để bắt đầu.');
+      addNotification(null, 'admin', `Đã duyệt thi cuối khóa cho học viên ${student.name}`);
+      triggerBackgroundSync();
+    } catch (err) {
+      setStudents(previousStudents);
+      throw err;
     }
-  }, [students]);
+  }, [students, triggerBackgroundSync, addNotification]);
 
   // Admin thu hồi quyền thi → gọi backend lock
   const revokeStudentExam = useCallback(async (studentId, reason = '') => {
+    const previousStudents = [...students];
     setStudents(prev => prev.map(s =>
-      String(s.id) === String(studentId)
+      (String(s.id) === String(studentId) || String(s._id) === String(studentId))
         ? { ...s, examApproved: false, studentExamUnlocked: false }
         : s
     ));
     try {
-      await api.students?.update(studentId, { studentExamUnlocked: false, examApproved: false });
-    } catch (e) {
+      const res = await api.students?.update(studentId, { studentExamUnlocked: false, examApproved: false });
+      if (!res?.success) throw new Error(res?.message || 'Lỗi thu hồi quyền thi');
+      triggerBackgroundSync();
+    } catch (err) {
+      setStudents(previousStudents);
+      throw err;
     }
-  }, []);
+  }, [students, triggerBackgroundSync]);
 
   const saveExamResult = useCallback((studentId, subject, score, passed) => {
     setStudents(prev => prev.map(s =>
@@ -969,42 +969,55 @@ export const DataProvider = ({ children, user, onLogout }) => {
     ));
   }, []);
 
-  // ── KẾT QUẢ THI ADMIN — ghi nhận & chấm điởm (lưu vào MongoDB) ─────────────
+  // ── KẾT QUẢ THI ADMIN — ghi nhận & chấm điểm (lưu vào MongoDB) ─────────────
   const addExamResult = useCallback(async (data) => {
-    // Optimistic: cập nhật local ngay lập tức
+    const previousExamResults = [...examResults];
     const tempId = `temp_${Date.now()}`;
     const newEntry = { ...data, id: tempId, createdAt: new Date().toISOString() };
     setExamResults(prev => [newEntry, ...prev]);
     try {
       const saved = await api.examResults.create(data);
-      if (saved?._id) {
-        // Thay tempId bằng _id thật từ server
-        setExamResults(prev => prev.map(r => r.id === tempId ? { ...saved, id: saved._id } : r));
-      }
-    } catch (e) {
+      if (!saved?.success) throw new Error(saved?.message || 'Lỗi lưu kết quả thi');
+      const realData = saved.data;
+      setExamResults(prev => prev.map(r => r.id === tempId ? { ...realData, id: realData._id } : r));
+      triggerBackgroundSync();
+    } catch (err) {
+      setExamResults(previousExamResults);
+      throw err;
     }
-  }, []);
+  }, [examResults, triggerBackgroundSync]);
 
   const updateExamResult = useCallback(async (id, updates) => {
-    // Optimistic update
-    setExamResults(prev => prev.map(r => (r.id === id || r._id === id) ? { ...r, ...updates } : r));
+    const previousExamResults = [...examResults];
+    setExamResults(prev => prev.map(r => (String(r.id) === String(id) || String(r._id) === String(id)) ? { ...r, ...updates } : r));
     try {
-      // id có thỒ là _id của MongoDB hoặc tempId
       const mongoId = id.startsWith?.('temp_') ? null : id;
-      if (mongoId) await api.examResults.update(mongoId, updates);
-    } catch (e) {
+      if (mongoId) {
+        const res = await api.examResults.update(mongoId, updates);
+        if (!res?.success) throw new Error(res?.message || 'Lỗi cập nhật kết quả thi');
+      }
+      triggerBackgroundSync();
+    } catch (err) {
+      setExamResults(previousExamResults);
+      throw err;
     }
-  }, []);
+  }, [examResults, triggerBackgroundSync]);
 
   const removeExamResult = useCallback(async (id) => {
-    // Optimistic remove
-    setExamResults(prev => prev.filter(r => r.id !== id && r._id !== id));
+    const previousExamResults = [...examResults];
+    setExamResults(prev => prev.filter(r => String(r.id) !== String(id) && String(r._id) !== String(id)));
     try {
       const mongoId = id.startsWith?.('temp_') ? null : id;
-      if (mongoId) await api.examResults.remove(mongoId);
-    } catch (e) {
+      if (mongoId) {
+        const res = await api.examResults.remove(mongoId);
+        if (!res?.success) throw new Error(res?.message || 'Lỗi xóa kết quả thi');
+      }
+      triggerBackgroundSync();
+    } catch (err) {
+      setExamResults(previousExamResults);
+      throw err;
     }
-  }, []);
+  }, [examResults, triggerBackgroundSync]);
 
   // GV nộp file thực hành
   const submitPracticalFile = useCallback((teacherId, fileName) => {
@@ -1447,8 +1460,11 @@ export const DataProvider = ({ children, user, onLogout }) => {
   }, [students, teachers, triggerBackgroundSync, addNotification]);
 
   // Cập nhật lịch học (GV đổi giờ/link/topic)
-  const updateSchedule = useCallback((scheduleId, updates) => {
+  const updateSchedule = useCallback(async (scheduleId, updates) => {
+    const previousSchedules = [...schedules];
+    const previousStudents = [...students];
     let updatedSched = null;
+
     setSchedules(prev => prev.map(sch => {
       if (String(sch.id) === String(scheduleId) || String(sch._id) === String(scheduleId)) {
         updatedSched = { ...sch, ...updates };
@@ -1456,24 +1472,31 @@ export const DataProvider = ({ children, user, onLogout }) => {
       }
       return sch;
     }));
+
     if (updatedSched) {
-      // Đồng bộ link học sang student nếu link thay đổi
       if (updates.linkHoc) {
         setStudents(prev => prev.map(s =>
-          s.id === updatedSched.studentId ? { ...s, linkHoc: updates.linkHoc } : s
+          String(s.id) === String(updatedSched.studentId) ? { ...s, linkHoc: updates.linkHoc } : s
         ));
       }
-      addNotification(updatedSched.studentId, 'student',
-        `ðŸ“… Lịch học đã cập nhật: ${updates.topic || updatedSched.topic} — ${updates.startTime || updatedSched.startTime} ngày ${updates.date || updatedSched.date}`);
-      const payload = { ...updates };
-      delete payload.id;
-      delete payload._id;
-      api.schedules?.update(scheduleId, payload).then(() => triggerBackgroundSync());
+      try {
+        const res = await api.schedules?.update(scheduleId, updates);
+        if (res && res.success === false) throw new Error(res.message);
+        addNotification(updatedSched.studentId, 'student',
+          `📅 Lịch học đã cập nhật: ${updates.topic || updatedSched.topic} — ${updates.startTime || updatedSched.startTime} ngày ${updates.date || updatedSched.date}`);
+        triggerBackgroundSync();
+        return res;
+      } catch (err) {
+        setSchedules(previousSchedules);
+        setStudents(previousStudents);
+        throw err;
+      }
     }
-  }, [triggerBackgroundSync, addNotification]);
+  }, [schedules, students, triggerBackgroundSync, addNotification]);
 
   // Hủy buổi học
-  const cancelSchedule = useCallback((scheduleId, reason) => {
+  const cancelSchedule = useCallback(async (scheduleId, reason) => {
+    const previousSchedules = [...schedules];
     let cancelled = null;
     setSchedules(prev => prev.map(sch => {
       if (String(sch.id) === String(scheduleId) || String(sch._id) === String(scheduleId)) {
@@ -1483,13 +1506,22 @@ export const DataProvider = ({ children, user, onLogout }) => {
       return sch;
     }));
     if (cancelled) {
-      addNotification(cancelled.studentId, 'student',
-        `⚠ï¸ Buổi học ngày ${cancelled.date} đã bị hủy. Lý do: ${reason || 'Không rõ'}`);
-      addNotification(cancelled.teacherId, 'teacher',
-        `Đã hủy buổi học với ${cancelled.studentName} ngày ${cancelled.date}`);
-      api.schedules?.update(scheduleId, { status: 'cancelled', cancelReason: reason }).then(() => triggerBackgroundSync());
+      try {
+        const res = await api.schedules?.update(scheduleId, { status: 'cancelled', cancelReason: reason });
+        if (res && res.success === false) throw new Error(res.message);
+        addNotification(cancelled.studentId, 'student',
+          `⚠️ Buổi học ngày ${cancelled.date} đã bị hủy. Lý do: ${reason || 'Không rõ'}`);
+        addNotification(cancelled.teacherId, 'teacher',
+          `Đã hủy buổi học với ${cancelled.studentName} ngày ${cancelled.date}`);
+        triggerBackgroundSync();
+        return res;
+      } catch (err) {
+        setSchedules(previousSchedules);
+        throw err;
+      }
     }
-  }, [triggerBackgroundSync, addNotification]);
+  }, [schedules, triggerBackgroundSync, addNotification]);
+
 
   // ── MATERIALS (GV upload tài liệu) ─────────────────────────────────────────
 
@@ -1591,30 +1623,18 @@ export const DataProvider = ({ children, user, onLogout }) => {
   };
 
   const rateTeacher = useCallback(async (teacherId, studentId, criteria, comment) => {
-    // criteria = { teaching: 'effective', voice: 'good', guidance: 'ok', support: 'enthusiastic' }
-    const student = students.find(s => s.id === studentId);
-    // Auto-calculate stars from criteria scores
+    const previousTeachers = [...teachers];
+    const student = students.find(s => (String(s.id) === String(studentId) || String(s._id) === String(studentId)));
+    
     const scores = Object.entries(criteria || {}).map(([cat, key]) => {
       const opt = RATING_CRITERIA[cat]?.options.find(o => o.key === key);
       return opt ? opt.score : 3;
     });
     const stars = Math.round((scores.reduce((s, v) => s + v, 0) / scores.length) * 10) / 10;
 
-    // Call API to persist
-    try {
-      await api.evaluations.submit({
-        studentId,
-        studentName: student?.name || '',
-        targetTeacherId: teacherId,
-        type: 'teacher_rating',
-        criteria: { ...criteria, stars }, // Store stars inside criteria payload for ease
-        content: comment
-      });
-    } catch (err) {
-    }
-
+    // Optimistic Update
     setTeachers(prev => prev.map(t => {
-      if (String(t.id) !== String(teacherId)) return t;
+      if (String(t.id) !== String(teacherId) && String(t._id) !== String(teacherId)) return t;
       const ratings = t.ratings || [];
       const existingIdx = ratings.findIndex(r => String(r.studentId) === String(studentId));
       const newRating = {
@@ -1626,9 +1646,24 @@ export const DataProvider = ({ children, user, onLogout }) => {
       else newRatings.push(newRating);
       return { ...t, ratings: newRatings };
     }));
-    addNotification(teacherId, 'teacher',
-      `⭐ ${student?.name || 'Học viên'} đã đánh giá bạn ${stars}/5 sao`);
-  }, [students, teachers, addNotification]);
+
+    try {
+      const res = await api.evaluations.submit({
+        studentId,
+        studentName: student?.name || '',
+        targetTeacherId: teacherId,
+        type: 'teacher_rating',
+        criteria: { ...criteria, stars },
+        content: comment
+      });
+      if (res && res.success === false) throw new Error(res.message);
+      addNotification(teacherId, 'teacher', `⭐ ${student?.name || 'Học viên'} đã đánh giá bạn ${stars}/5 sao`);
+      triggerBackgroundSync();
+    } catch (err) {
+      setTeachers(previousTeachers);
+      throw err;
+    }
+  }, [students, teachers, triggerBackgroundSync, addNotification]);
 
   const getTeacherRating = useCallback((teacherId) => {
     const teacher = teachers.find(t => String(t.id) === String(teacherId));
@@ -1639,16 +1674,16 @@ export const DataProvider = ({ children, user, onLogout }) => {
 
   // ── PRIVATE EVALUATIONS (Hidden from Teachers) ─────────────────────────────
 
-  const submitPrivateEvaluation = useCallback((data) => {
-    // data = { studentId, teacherId, milestone, courseName, criteria, comment }
-    const student = students.find(s => String(s.id) === String(data.studentId));
-    const teacher = teachers.find(t => String(t.id) === String(data.teacherId));
+  const submitPrivateEvaluation = useCallback(async (data) => {
+    const previousEvals = [...privateEvaluations];
+    const student = students.find(s => (String(s.id) === String(data.studentId) || String(s._id) === String(data.studentId)));
+    const teacher = teachers.find(t => (String(t.id) === String(data.teacherId) || String(t._id) === String(data.teacherId)));
 
     const evalData = {
       ...data,
       studentName: student?.name || 'Học viên',
       teacherName: teacher?.name || 'Giảng viên',
-      branchId: student?.branchId || null,      // ⭐ Để filter theo cơ sở
+      branchId: student?.branchId || null,
       branchCode: student?.branchCode || '',
       type: 'admin_feedback',
       targetTeacherId: data.teacherId,
@@ -1656,7 +1691,6 @@ export const DataProvider = ({ children, user, onLogout }) => {
     };
 
     setPrivateEvaluations(prev => {
-      // Find matching evaluation: same student AND same courseName AND same specific milestone
       const existingIdx = prev.findIndex(ev =>
         String(ev.studentId) === String(data.studentId) &&
         ev.courseName === data.courseName &&
@@ -1678,13 +1712,16 @@ export const DataProvider = ({ children, user, onLogout }) => {
       return [...prev, optimisticData];
     });
 
-    api.evaluations?.submit(evalData).then(() => triggerBackgroundSync()).catch(e => void 0);
-
-    // Notify admin
-    addNotification(null, 'admin',
-      `📢 Đánh giá RIÊNG (Mốc: ${data.milestone === 'lesson_1' ? 'Buổi 1' : data.milestone === 'manual_feedback' ? 'Theo khóa học' : '50% khóa'}): HV ${student?.name} đánh giá GV ${teacher?.name}`
-    );
-  }, [students, teachers, triggerBackgroundSync, addNotification]);
+    try {
+      const res = await api.evaluations?.submit(evalData);
+      if (res && res.success === false) throw new Error(res.message);
+      addNotification(null, 'admin', `📢 Đánh giá RIÊNG mới từ HV ${student?.name || 'Học viên'}`);
+      triggerBackgroundSync();
+    } catch (err) {
+      setPrivateEvaluations(previousEvals);
+      throw err;
+    }
+  }, [students, teachers, privateEvaluations, triggerBackgroundSync, addNotification]);
 
   const getPrivateEvaluationsForAdmin = useCallback(() => {
     return [...privateEvaluations].sort((a, b) => b.id - a.id);
