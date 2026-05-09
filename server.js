@@ -18,6 +18,7 @@ dotenv.config();
 require('./config/validateEnv')();
 
 const logger = require('./config/logger');
+const { buildConversationId } = require('./utils/chatConversationId');
 
 const app    = express();
 const server = http.createServer(app);
@@ -195,10 +196,14 @@ io.on('connection', (socket) => {
       const uRole = role.toUpperCase();
       socket.join(`ALL_${uRole}`); 
       
-      // Admin/Staff join admin rooms
-      if (uRole === 'ADMIN' || uRole === 'STAFF') {
-        socket.join('ALL_ADMIN');
+      // Admin/Staff rooms:
+      // - STAFF join ALL_STAFF only (avoid leaking messages to other admin types)
+      // - SUPER_ADMIN/hardcoded admin join ALL_ADMIN (kênh chung)
+      if (uRole === 'STAFF') {
         socket.join('ALL_STAFF');
+      }
+      if (uRole === 'ADMIN' && (userId === 'admin' || socket.user?.adminRole === 'SUPER_ADMIN')) {
+        socket.join('ALL_ADMIN');
       }
 
       if (branchId || socket.user.branchId) {
@@ -240,17 +245,9 @@ io.on('connection', (socket) => {
       receiver = onlineUsers.get(`${altRole}_${data.receiverId}`);
     }
 
-    // Xác định ID thực tế để tạo conversationId chuẩn (admin/staff đều dùng 'admin' khi chat với student)
-    const isOneSideAdmin = (data.senderRole === 'admin' || data.senderRole === 'staff') || (data.receiverRole === 'admin' || data.receiverRole === 'staff');
     const isOneSideStudent = (data.senderRole === 'student' || data.receiverRole === 'student');
 
-    const sIdForConv = ((data.senderRole === 'admin' || data.senderRole === 'staff') && isOneSideStudent) ? 'admin' : data.senderId;
-    const rIdForConv = ((data.receiverRole === 'admin' || data.receiverRole === 'staff') && isOneSideStudent) ? 'admin' : data.receiverId;
-    
-    const sRole = (data.senderRole === 'admin' || data.senderRole === 'staff') ? 'admin' : data.senderRole;
-    const rRole = (data.receiverRole === 'admin' || data.receiverRole === 'staff') ? 'admin' : data.receiverRole;
-    
-    const convId = [`${sRole}_${sIdForConv}`, `${rRole}_${rIdForConv}`].sort().join('__');
+    const convId = buildConversationId(data.senderRole, data.senderId, data.receiverRole, data.receiverId);
 
     // Lấy branchCode người gửi để hiển thị badge (GV/HV/Staff)
     let sender = onlineUsers.get(`${data.senderRole}_${data.senderId}`);
@@ -261,12 +258,37 @@ io.on('connection', (socket) => {
     const sBranch = sender?.branchCode || '';
     const rBranch = receiver?.branchCode || '';
 
-    // Chuẩn hoá payload trước khi gửi (giống messageRoutes.js)
-    const finalSenderId = ((data.senderRole === 'admin' || data.senderRole === 'staff') && data.receiverRole === 'student') ? 'admin' : data.senderId;
-    const finalSenderName = ((data.senderRole === 'admin' || data.senderRole === 'staff') && data.receiverRole === 'student') ? 'Phòng Giáo Vụ' : data.senderName;
-    
-    const finalReceiverId = isOneSideAdmin && isOneSideStudent && (data.receiverRole === 'admin' || data.receiverRole === 'staff') ? 'admin' : data.receiverId;
-    const finalReceiverName = isOneSideAdmin && isOneSideStudent && (data.receiverRole === 'admin' || data.receiverRole === 'staff') ? 'Phòng Giáo Vụ' : data.receiverName;
+    // Chuẩn hoá payload (giống messageRoutes)
+    const DEPT_STAFF = 'Phòng Giáo Vụ';
+    const DEPT_SUPER = 'Phòng Tuyển Sinh';
+    const staffDisplayName = (rawName, branchCode) => {
+      const base = rawName || DEPT_STAFF;
+      const bc = String(branchCode || '').trim();
+      return bc ? `${base} (P.Giáo Vụ-${bc})` : `${base} (P.Giáo Vụ)`;
+    };
+
+    let finalSenderId = data.senderId;
+    let finalSenderName = data.senderName;
+    if (data.receiverRole === 'student' && (u.role === 'admin' || u.role === 'staff')) {
+      if (isStaff) {
+        finalSenderName = staffDisplayName(finalSenderName, sBranch);
+      } else {
+        finalSenderName = DEPT_SUPER;
+      }
+    }
+
+    let finalReceiverId = data.receiverId;
+    let finalReceiverName = data.receiverName;
+    if (data.senderRole === 'student' && isOneSideStudent && (data.receiverRole === 'admin' || data.receiverRole === 'staff')) {
+      const rid = String(data.receiverId || '');
+      if (rid === 'admin' || !mongoose.Types.ObjectId.isValid(rid)) {
+        finalReceiverId = 'admin';
+        finalReceiverName = DEPT_SUPER;
+      } else {
+        finalReceiverId = rid;
+        finalReceiverName = staffDisplayName(finalReceiverName, rBranch);
+      }
+    }
 
     const msgPayload = {
       ...data,
@@ -282,7 +304,7 @@ io.on('connection', (socket) => {
       isRead: false,
     };
 
-    // 1. Xử lý Broadcast (nếu có)
+    // 1) Broadcast (nếu có)
     if (data.receiverId === 'ALL_USERS') {
       io.emit('message:receive', msgPayload);
     } else if (data.receiverId === 'ALL_STUDENTS') {
@@ -291,22 +313,11 @@ io.on('connection', (socket) => {
       io.to('ALL_TEACHER').emit('message:receive', msgPayload);
     } else if (data.receiverId?.startsWith('ALL_BRANCH_')) {
       const bCode = data.receiverId.replace('ALL_BRANCH_', '');
-      // Gửi cho ALL_STUDENT_branchCode và ALL_TEACHER_branchCode và ALL_STAFF_branchCode
       io.to(`ALL_STUDENT_${bCode}`).to(`ALL_TEACHER_${bCode}`).to(`ALL_STAFF_${bCode}`).emit('message:receive', msgPayload);
     }
-    // 2. Gửi cho người nhận cụ thể (nếu là student)
-    else if (data.receiverRole === 'student' && receiver && receiver.socketId) {
+    // 2) Direct message: chỉ gửi đúng người nhận
+    else if (receiver && receiver.socketId) {
       io.to(receiver.socketId).emit('message:receive', msgPayload);
-    } 
-    
-    // 3. Nếu người nhận là admin/staff -> Gửi cho TẤT CẢ admin và staff
-    if (data.receiverRole === 'admin' || data.receiverRole === 'staff') {
-      io.to('ALL_ADMIN').to('ALL_STAFF').emit('message:receive', msgPayload);
-    }
-
-    // 4. Nếu người gửi là admin/staff -> Gửi cho TẤT CẢ admin và staff khác (để đồng bộ)
-    if (data.senderRole === 'admin' || data.senderRole === 'staff') {
-      io.to('ALL_ADMIN').to('ALL_STAFF').emit('message:receive', msgPayload);
     }
 
     // 5. Gửi confirm cho chính người gửi
@@ -417,9 +428,8 @@ app.notifyUser = (role, userId, eventName, data) => {
   const strUserId = String(userId);
   
   if (strUserId === 'admin') {
-    // Nếu gửi cho admin (tài khoản hardcode hệ thống), phát cho tất cả admin và staff
+    // Hộp chung admin_room (SUPER_ADMIN only)
     io.to('ALL_ADMIN').emit(eventName, data);
-    io.to('ALL_STAFF').emit(eventName, data);
     return true;
   }
 

@@ -5,13 +5,11 @@ import {
   CheckCheck, Clock as ClockIcon, CheckCircle2, Users, Plus, Trash2, RotateCcw, MoreHorizontal, EyeOff, AlertCircle
 } from 'lucide-react';
 import { useSocket } from '../context/SocketContext';
-import { useData } from '../context/DataContext';
+import { useData, buildConversationId } from '../context/DataContext';
 import { useLocation } from 'react-router-dom';
 import { useToast } from '../utils/toast';
 import { messagesAPI, SOCKET_BASE, apiFetch, API_BASE } from '../services/api';
 import { Megaphone, Loader2 } from 'lucide-react';
-
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const formatTime = (date) => {
   const d = new Date(date);
@@ -27,6 +25,16 @@ const roleBadge = (role) => {
   if (role === 'admin') return { text: 'ADMIN', color: 'bg-red-100 text-red-700' };
   if (role === 'teacher') return { text: 'GV', color: 'bg-blue-100 text-blue-700' };
   return { text: 'HV', color: 'bg-green-100 text-green-700' };
+};
+
+const normalizeRole = (role) => (role === 'staff' ? 'admin' : role);
+
+const messageIsFromMe = (msg, currentUserId, currentUserRole) => {
+  if (String(msg.senderId) === String(currentUserId)) return true;
+  const r = String(currentUserRole || '').toLowerCase();
+  // Legacy: một số tin cũ có senderId='admin' (đã từng gom identity)
+  if ((r === 'admin' || r === 'staff') && String(msg.senderId) === 'admin') return true;
+  return false;
 };
 
 // ─── Reaction Picker (floating) ────────────────────────────────────────────────
@@ -159,21 +167,27 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
 
   const conversations = useMemo(() => {
     const list = [];
-    contacts.forEach(c => {
+
+    // Dedupe contacts từ API (tránh duplicate key + lọc sai)
+    const seenContacts = new Set();
+    const uniqueContacts = (contacts || []).filter((c) => {
+      const key = `${String(c?.id)}:${normalizeRole(c?.role)}`;
+      if (!c?.id || seenContacts.has(key)) return false;
+      seenContacts.add(key);
+      return true;
+    });
+
+    const seenConvIds = new Set();
+
+    uniqueContacts.forEach(c => {
       if (c.id === currentUserId) return;
-      const existingConv = dataContextConvs.find(dc => !dc.isGroup && String(dc.user.id) === String(c.id));
-      
-      // Calculate proper conversation ID consistent with backend
-      const r1 = (currentUserRole === 'admin' || currentUserRole === 'staff') ? 'admin' : currentUserRole;
-      const r2 = (c.role === 'admin' || c.role === 'staff') ? 'admin' : c.role;
-      const isOneSideAdmin = (r1 === 'admin' || r2 === 'admin');
-      const isOneSideStudent = (r1 === 'student' || r2 === 'student');
+      const convId = buildConversationId(currentUserRole, currentUserId, c.role, c.id);
+      const existingConv = dataContextConvs.find(dc => String(dc.id) === String(convId));
 
-      const sIdForConv = (r1 === 'admin' && isOneSideStudent) ? 'admin' : currentUserId;
-      const rIdForConv = (r2 === 'admin' && isOneSideStudent) ? 'admin' : c.id;
+      // Dedupe theo conversationId (phòng khi backend trả trùng contact)
+      if (seenConvIds.has(convId)) return;
+      seenConvIds.add(convId);
 
-      const convId = existingConv ? existingConv.id : [ `${r1}_${sIdForConv}`, `${r2}_${rIdForConv}` ].sort().join('__');
-      
       list.push({
         id: convId,
         isGroup: false,
@@ -191,11 +205,12 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
     list.push(...groupConvs);
 
     return list.sort((a, b) => {
-      // 1. Nếu đang chọn (Tin nhắn đang active), Ưu tiên đẩy lên đầu để dễ nhìn
-      if (activeConv && a.id === activeConv.id) return -1;
-      if (activeConv && b.id === activeConv.id) return 1;
+      // 1) Ưu tiên hội thoại có tin chưa đọc
+      const ua = Number(a.unread || 0);
+      const ub = Number(b.unread || 0);
+      if (ua !== ub) return ub - ua;
 
-      // 2. Sắp xếp thuần túy bằng thời gian tin nhắn gần nhất
+      // 2) Sau đó theo thời gian tin nhắn gần nhất
       const timeA = new Date(a.lastTime).getTime();
       const timeB = new Date(b.lastTime).getTime();
       return timeB - timeA;
@@ -262,7 +277,7 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
         fileUrl: m.fileUrl,
         reactions: m.reactions || [],
       })));
-      markMessagesRead(activeConv.id, currentUserId);
+      markMessagesRead(activeConv.id, currentUserId, (currentUserRole === 'admin') ? ['admin'] : []);
     }
   }, [activeConv, ctxGetMessages, markMessagesRead, currentUserId]);
 
@@ -292,7 +307,7 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
             };
             return [...prev, mappedMsg];
           });
-          markMessagesRead(activeConv.id, currentUserId);
+          markMessagesRead(activeConv.id, currentUserId, (currentUserRole === 'admin') ? ['admin'] : []);
         }
       });
     }
@@ -385,16 +400,7 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
   const selectConversation = (conv) => {
     // Nếu conv truyền vào là object từ danh bạ (chưa có id hoặc id kiểu r_i__r_i)
     if (conv.user && !conv.lastMessage) {
-      // Tính toán ID chuẩn đồng bộ với backend
-      const r1 = (currentUserRole === 'admin' || currentUserRole === 'staff') ? 'admin' : currentUserRole;
-      const r2 = (conv.user.role === 'admin' || conv.user.role === 'staff') ? 'admin' : conv.user.role;
-      const isOneSideAdmin = (r1 === 'admin' || r2 === 'admin');
-      const isOneSideStudent = (r1 === 'student' || r2 === 'student');
-
-      const sIdForConv = (r1 === 'admin' && isOneSideStudent) ? 'admin' : currentUserId;
-      const rIdForConv = (r2 === 'admin' && isOneSideStudent) ? 'admin' : conv.user.id;
-
-      const properId = [ `${r1}_${sIdForConv}`, `${r2}_${rIdForConv}` ].sort().join('__');
+      const properId = buildConversationId(currentUserRole, currentUserId, conv.user.role, conv.user.id);
       
       // Kiểm tra xem đã có conv này trong dataContext chưa
       const existing = dataContextConvs.find(dc => dc.id === properId);
@@ -551,7 +557,7 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
 
     if (contactTab === 'all') return true;
     if (contactTab === 'group') return c.isGroup;
-    return c.user.role === contactTab;
+    return normalizeRole(c.user.role) === contactTab;
   });
 
   const totalUnread = conversations.reduce((sum, c) => sum + c.unread, 0);
@@ -663,6 +669,11 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
                     <div className="flex justify-between items-baseline mb-0.5">
                       <div className="flex items-center gap-1 min-w-0 pr-2">
                         <h4 className="font-extrabold text-[#1E293B] text-[13px] truncate">{conv.user.name}</h4>
+                        {conv.unread > 0 && (
+                          <span className="ml-1 min-w-[16px] h-4 px-1 bg-blue-600 rounded-full text-white text-[9px] font-black flex items-center justify-center shadow-sm">
+                            {conv.unread > 99 ? '99+' : conv.unread}
+                          </span>
+                        )}
                         {conv.user.branchCode && (
                           <span className="bg-emerald-100 text-emerald-700 text-[9px] font-black px-1.5 py-0.5 rounded-sm uppercase tracking-tighter shrink-0">
                             {conv.user.branchCode}
@@ -700,9 +711,6 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
                         <div className="flex gap-1 items-center flex-shrink-0">
                           <span className="px-1.5 py-0.5 bg-red-500 rounded text-white text-[9px] font-black tracking-widest uppercase animate-pulse shadow-sm">
                             Mới
-                          </span>
-                          <span className="w-4 h-4 bg-blue-600 rounded-full text-white text-[9px] font-bold flex items-center justify-center shadow-sm">
-                            {conv.unread}
                           </span>
                         </div>
                       )}
@@ -828,7 +836,7 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
               {/* Messages */}
               <div className="flex-1 overflow-y-auto px-3 md:px-6 pt-6 pb-4 space-y-4 min-h-0 bg-[#F0F2F5]">
                 {messages.map(msg => {
-                  const isMine = msg.senderId === currentUserId;
+                  const isMine = messageIsFromMe(msg, currentUserId, currentUserRole);
                   const role = msg.senderRole;
 
                   let bubbleBg = isMine ? 'bg-[#0084FF] text-white' : 'bg-white text-gray-800';

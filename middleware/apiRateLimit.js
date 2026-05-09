@@ -14,8 +14,16 @@ const generalApiLimiter = rateLimit({
 });
 
 function apiRateLimitUnlessAuth(req, res, next) {
+  // Local/dev: tắt rate limit để debug & test UI không bị 429
+  const env = (process.env.NODE_ENV || 'development').toLowerCase();
+  if (env !== 'production') return next();
+
   if (req.originalUrl.startsWith('/api/auth')) return next();
   if (req.originalUrl.startsWith('/api/webhooks')) return next();
+  // Các endpoint public được gọi ngay khi load app/login (logo/branches)
+  // Tránh 429 giả do nhiều component mount đồng thời.
+  if (req.method === 'GET' && req.originalUrl.startsWith('/api/settings/web')) return next();
+  if (req.method === 'GET' && req.originalUrl === '/api/branches') return next();
   return generalApiLimiter(req, res, next);
 }
 

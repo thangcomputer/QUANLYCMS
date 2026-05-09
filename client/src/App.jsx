@@ -193,7 +193,7 @@ function AppRoutes({ session, onSessionChange, isAuthLoading, onLogin, onLogout 
             <Inbox 
               currentUserId={session?.id} 
               currentUserName={session?.name} 
-              currentUserRole={session?.role === 'staff' ? 'admin' : session?.role} 
+              currentUserRole={session?.role} 
               onNavigate={go} 
             />
           </ErrorBoundary>

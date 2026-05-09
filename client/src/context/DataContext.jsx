@@ -4,6 +4,30 @@ import { playNotifySound } from '../utils/sound';
 import api, { API_BASE, apiFetch } from '../services/api';
 import { useSocket } from './SocketContext';
 
+/** Đồng bộ với server utils/chatConversationId.js — đặt ở đây để tránh lỗi Vite biên dịch file utils riêng */
+export function buildConversationId(senderRole, senderId, receiverRole, receiverId) {
+  const norm = (role) => {
+    if (!role) return role;
+    const r = String(role).toLowerCase();
+    return r === 'staff' ? 'admin' : r;
+  };
+  const sr = norm(senderRole);
+  const rr = norm(receiverRole);
+  const sid = String(senderId == null ? '' : senderId);
+  const rid = String(receiverId == null ? '' : receiverId);
+  const oid24 = (id) => /^[a-f0-9]{24}$/i.test(String(id || ''));
+
+  if (sr === 'admin' && rr === 'student') {
+    // Staff/admin cụ thể → HV: tách theo senderId (để mỗi staff có thread riêng)
+    const adminSideId = sid === 'admin' || !oid24(sid) ? 'admin' : sid;
+    return ['admin_' + adminSideId, 'student_' + rid].sort().join('__');
+  }
+  if (sr === 'student' && rr === 'admin') {
+    const adminSideId = rid === 'admin' || !oid24(rid) ? 'admin' : rid;
+    return ['admin_' + adminSideId, 'student_' + sid].sort().join('__');
+  }
+  return [sr + '_' + sid, rr + '_' + rid].sort().join('__');
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // DỮ LIỆU GỐC — Tất cả module đọc/ghi từ đây
@@ -34,7 +58,8 @@ const DataContext = createContext(null);
 const INITIAL_PRIVATE_EVALUATIONS = [];
 
 // ── One-time Reset: Xóa dữ liệu cũ khi nâng version ────────────────────────
-const DATA_VERSION = 'v5_clean_production';
+// Bump version khi thay đổi conversationId rules để tránh dùng cache cũ gây "không thấy tin cho tới khi click".
+const DATA_VERSION = 'v7_strict_isolation_no_staff_admin_mailbox';
 // Helper: đọc từ localStorage, fallback về defaultValue
 const loadState = (key, defaultValue) => {
   try {
@@ -46,6 +71,25 @@ const loadState = (key, defaultValue) => {
 
 export const DataProvider = ({ children, user, onLogout }) => {
   const [currentUser, setCurrentUser] = useState(user || null);
+
+  // One-time reset local caches when schema/version changes
+  useEffect(() => {
+    try {
+      const vKey = 'thvp_data_version';
+      const prev = localStorage.getItem(vKey);
+      if (prev !== DATA_VERSION) {
+        // Keep login session; drop cached data that depends on conversationId rules
+        [
+          'thvp_messages',
+          'thvp_groups',
+          'thvp_staffs',
+          'thvp_students',
+          'thvp_teachers',
+        ].forEach((k) => localStorage.removeItem(k));
+        localStorage.setItem(vKey, DATA_VERSION);
+      }
+    } catch (e) {}
+  }, []);
 
   useEffect(() => {
     setCurrentUser(user);
@@ -152,7 +196,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
       unsubMsg = onMessageReceive((data) => {
         setMessages(prev => {
           if (prev.some(m => String(m.id) === String(data._id))) return prev;
-          
+
           const mappedMsg = {
             id: data._id,
             convId: data.conversationId,
@@ -160,6 +204,8 @@ export const DataProvider = ({ children, user, onLogout }) => {
             senderName: data.senderName,
             senderRole: data.senderRole,
             receiverId: data.receiverId,
+            receiverName: data.receiverName,
+            receiverRole: data.receiverRole,
             content: data.content,
             time: new Date(data.createdAt || Date.now()),
             read: data.isRead || false,
@@ -171,12 +217,22 @@ export const DataProvider = ({ children, user, onLogout }) => {
             fileUrl: data.fileUrl,
             reactions: data.reactions || [],
           };
-          
-          const tempIdx = prev.findIndex(m => String(m.id).startsWith('temp_') && m.senderId === data.senderId && m.content === data.content);
+
+          // Ghép tin tạm (optimistic): server chuẩn hoá senderId='admin' khi staff/admin nhắn HV
+          // nên không được so khớp senderId với bản temp (vẫn là id staff thật).
+          const tempIdx = prev.findIndex(
+            (m) =>
+              String(m.id).startsWith('temp_') &&
+              String(m.convId) === String(data.conversationId) &&
+              String(m.content || '') === String(data.content || '') &&
+              String(m.messageType || 'text') === String(data.messageType || 'text') &&
+              String(m.fileUrl || '') === String(data.fileUrl || '') &&
+              String(m.fileName || '') === String(data.fileName || '')
+          );
           if (tempIdx !== -1) {
-             const updated = [...prev];
-             updated[tempIdx] = mappedMsg;
-             return updated;
+            const updated = [...prev];
+            updated[tempIdx] = mappedMsg;
+            return updated;
           }
           return [...prev, mappedMsg];
         });
@@ -1036,7 +1092,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
     const tempId = `temp_${Date.now()}`;
     const convId = msg.conversationId || (msg.isGroup && msg.groupId
       ? `group_${msg.groupId}`
-      : makeConvId(msg.senderRole, msg.senderId, msg.receiverRole, msg.receiverId));
+      : buildConversationId(msg.senderRole, msg.senderId, msg.receiverRole, msg.receiverId));
     const newMsg = {
       id: tempId,
       convId,
@@ -1075,9 +1131,36 @@ export const DataProvider = ({ children, user, onLogout }) => {
         groupId: msg.groupId || null,
       });
       if (res?.success && res?.data?._id) {
-        setMessages(prev => prev.map(m =>
-          m.id === tempId ? { ...m, id: res.data._id } : m
-        ));
+        const d = res.data;
+        setMessages((prev) => {
+          const merged = prev.map((m) =>
+            m.id === tempId
+              ? {
+                  ...m,
+                  id: d._id,
+                  senderId: d.senderId,
+                  senderName: d.senderName,
+                  senderRole: d.senderRole,
+                  receiverId: d.receiverId,
+                  receiverName: d.receiverName,
+                  receiverRole: d.receiverRole,
+                  content: d.content,
+                  messageType: d.messageType || m.messageType,
+                  fileUrl: d.fileUrl || m.fileUrl,
+                  fileName: d.fileName || m.fileName,
+                  time: new Date(d.createdAt || m.time),
+                  read: d.isRead ?? m.read,
+                }
+              : m
+          );
+          const seen = new Set();
+          return merged.filter((m) => {
+            const id = String(m.id);
+            if (seen.has(id)) return false;
+            seen.add(id);
+            return true;
+          });
+        });
         return { ...newMsg, id: res.data._id };
       }
     } catch (err) {
@@ -1194,14 +1277,15 @@ export const DataProvider = ({ children, user, onLogout }) => {
     return false;
   }, [triggerBackgroundSync]);
 
-  const markMessagesRead = useCallback(async (convId, readerId) => {
+  const markMessagesRead = useCallback(async (convId, readerId, extraReceiverIds = []) => {
+    const receiverTargets = new Set([String(readerId), ...extraReceiverIds.map(String)]);
     let needsUpdate = false;
     setMessages(prev => {
-      const hasUnread = prev.some(m => m.convId === convId && String(m.receiverId) === String(readerId) && !m.read);
+      const hasUnread = prev.some(m => m.convId === convId && receiverTargets.has(String(m.receiverId)) && !m.read);
       if (!hasUnread) return prev; // Ngắt vòng lặp vô hạn nếu không có tin chưa đọc
       needsUpdate = true;
       return prev.map(m =>
-        m.convId === convId && String(m.receiverId) === String(readerId) ? { ...m, read: true } : m
+        m.convId === convId && receiverTargets.has(String(m.receiverId)) ? { ...m, read: true } : m
       );
     });
 
@@ -1214,26 +1298,16 @@ export const DataProvider = ({ children, user, onLogout }) => {
     }
   }, []);
 
-  // Helper: Tạo conversationId chuẩn (role_id format, sorted)
-  const makeConvId = (role1, id1, role2, id2) => {
-    // CHẾ ĐỘ RIÊNG TƯ TUYỆT ĐỐI: Luôn dùng ID thật của từng người
-    // Quy đổi role 'staff' về 'admin' để thống nhất prefix nhưng giữ nguyên ID
-    const r1 = (role1 === 'admin' || role1 === 'staff') ? 'admin' : role1;
-    const r2 = (role2 === 'admin' || role2 === 'staff') ? 'admin' : role2;
-    return [`${r1}_${id1}`, `${r2}_${id2}`].sort().join('__');
-  };
-
   const getConversations = useCallback((userId) => {
     const sId = String(userId);
-    // Role detection: Nếu là 'admin' (ID hardcoded) hoặc là một Teacher có adminRole (STAFF/SUPER_ADMIN)
-    const dbUser = (sId === 'admin') ? { role: 'admin' } : teachers.find(t => String(t.id) === sId);
-    const userRole = (sId === 'admin' || (dbUser && dbUser.adminRole)) ? 'admin' : (students.find(s => String(s.id) === sId) ? 'student' : 'teacher');
+    const isSuperAdmin = sId === 'admin' || (teachers.find(t => String(t.id) === sId)?.adminRole === 'SUPER_ADMIN');
+    const userRole = (sId === 'admin' || (teachers.find(t => String(t.id) === sId)?.adminRole)) ? 'admin' : (students.find(s => String(s.id) === sId) ? 'student' : 'teacher');
 
-    // Filter messages where user is sender or receiver (including legacy 'admin' ID for admin/staff)
+    // Filter messages where user is sender or receiver; only SUPER_ADMIN can see receiverId='admin' mailbox
     const userMsgs = messages.filter(m => {
       const isDirect = String(m.senderId) === sId || String(m.receiverId) === sId;
-      const isAdminFallback = (userRole === 'admin') && (String(m.senderId) === 'admin' || String(m.receiverId) === 'admin');
-      return isDirect || isAdminFallback;
+      const isAdminMailbox = isSuperAdmin && (String(m.senderId) === 'admin' || String(m.receiverId) === 'admin');
+      return isDirect || isAdminMailbox;
     });
     const convMap = {};
 
@@ -1244,8 +1318,8 @@ export const DataProvider = ({ children, user, onLogout }) => {
       const existingTime = existing ? new Date(existing.lastTime).getTime() : 0;
 
       if (!existing || mTime > existingTime) {
-        // Xác định xem mình có phải là người gửi không (bao gồm cả fallback 'admin')
-        const isMeSender = String(m.senderId) === sId || (userRole === 'admin' && String(m.senderId) === 'admin');
+        // Xác định xem mình có phải là người gửi không (hộp chung 'admin' chỉ dành cho SUPER_ADMIN)
+        const isMeSender = String(m.senderId) === sId || (isSuperAdmin && String(m.senderId) === 'admin');
 
         const otherUserId = isMeSender ? m.receiverId : m.senderId;
         const otherName = isMeSender ? m.receiverName : m.senderName;
@@ -1281,7 +1355,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
           lastTime: m.time,
           unread: userMsgs.filter(um => 
             um.convId === m.convId && 
-            (String(um.receiverId) === sId || (userRole === 'admin' && String(um.receiverId) === 'admin')) && 
+            (String(um.receiverId) === sId || (isSuperAdmin && String(um.receiverId) === 'admin')) && 
             !um.read
           ).length,
         };
@@ -1293,7 +1367,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
       const student = students.find(s => String(s.id) === sId);
       if (student && student.teacherId) {
         const t = teachers.find(t => t.id === student.teacherId);
-        const convId = makeConvId('student', sId, 'teacher', student.teacherId);
+        const convId = buildConversationId('student', sId, 'teacher', student.teacherId);
         if (t && !convMap[convId]) {
           convMap[convId] = {
             id: convId,
@@ -1305,11 +1379,11 @@ export const DataProvider = ({ children, user, onLogout }) => {
         }
       }
       // Thêm Admin vào danh bạ của Học viên (Dùng ID 'admin' cho Super Admin)
-      const adminConvId = makeConvId('student', sId, 'admin', 'admin');
+      const adminConvId = buildConversationId('student', sId, 'admin', 'admin');
       if (!convMap[adminConvId]) {
         convMap[adminConvId] = {
           id: adminConvId,
-          user: { id: 'admin', name: 'Admin Thắng Tin Học', role: 'admin', avatar: 'AD', online: true, branchCode: '' },
+          user: { id: 'admin', name: 'Phòng Tuyển Sinh', role: 'admin', avatar: 'AD', online: true, branchCode: '' },
           lastMessage: 'Chưa có tin nhắn',
           lastTime: new Date(0),
           unread: 0,
@@ -1318,7 +1392,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
     } else if (userRole === 'teacher') {
       const myStudents = students.filter(s => String(s.teacherId) === sId);
       myStudents.forEach(s => {
-        const convId = makeConvId('teacher', sId, 'student', s.id);
+        const convId = buildConversationId('teacher', sId, 'student', s.id);
         if (!convMap[convId]) {
           convMap[convId] = {
             id: convId,
@@ -1331,11 +1405,11 @@ export const DataProvider = ({ children, user, onLogout }) => {
       });
 
       // Admin contact (Dùng ID 'admin' cho Super Admin)
-      const adminConvId = makeConvId('admin', 'admin', 'teacher', sId);
+      const adminConvId = buildConversationId('admin', 'admin', 'teacher', sId);
       if (!convMap[adminConvId]) {
         convMap[adminConvId] = {
           id: adminConvId,
-          user: { id: 'admin', name: 'Admin Thắng Tin Học', role: 'admin', avatar: 'AD', online: true, branchCode: '' },
+          user: { id: 'admin', name: 'Phòng Tuyển Sinh', role: 'admin', avatar: 'AD', online: true, branchCode: '' },
           lastMessage: 'Chưa có tin nhắn',
           lastTime: new Date(0),
           unread: 0,
@@ -1344,7 +1418,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
     } else if (userRole === 'admin') {
       // Dùng ID thật của Staff để tạo convId riêng tư
       teachers.filter(t => t.status === 'Active' || t.status === 'active').forEach(t => {
-        const convId = makeConvId('admin', sId, 'teacher', t.id);
+        const convId = buildConversationId('admin', sId, 'teacher', t.id);
         if (!convMap[convId]) {
           convMap[convId] = {
             id: convId,
@@ -1357,7 +1431,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
       });
 
       students.forEach(s => {
-        const convId = makeConvId('admin', sId, 'student', s.id);
+        const convId = buildConversationId('admin', sId, 'student', s.id);
         if (!convMap[convId]) {
           convMap[convId] = {
             id: convId,

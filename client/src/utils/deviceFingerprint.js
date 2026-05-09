@@ -1,71 +1,38 @@
 /**
  * deviceFingerprint.js — Tạo fingerprint định danh máy tính (không cần thư viện ngoài)
  *
- * Kết hợp nhiều tín hiệu: canvas, WebGL, fonts, timezone, screen, hardware concurrency…
- * Kết quả là chuỗi hash 8 ký tự, ổn định trên cùng trình duyệt / máy.
+ * Trước đây fingerprint dựa trên canvas/WebGL/userAgent và cache theo sessionStorage
+ * nên có thể thay đổi giữa các phiên → gây false-positive "đăng nhập máy khác".
+ *
+ * Hiện tại: dùng một deviceId ngẫu nhiên, lưu localStorage để ổn định theo trình duyệt.
  */
 
-// ── Tạo hash 32-bit từ chuỗi (FNV-1a) ──────────────────────────────────────
-function fnv1a(str) {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) {
-    hash ^= str.charCodeAt(i);
-    hash = (hash * 0x01000193) >>> 0;
+function randomHex(bytes = 16) {
+  try {
+    const arr = new Uint8Array(bytes);
+    crypto.getRandomValues(arr);
+    return Array.from(arr, (b) => b.toString(16).padStart(2, '0')).join('');
+  } catch {
+    // Fallback (kém an toàn hơn nhưng đủ cho deviceId)
+    return `${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
   }
-  return hash.toString(16).padStart(8, '0');
-}
-
-// ── Canvas fingerprint ───────────────────────────────────────────────────────
-function canvasFp() {
-  try {
-    const c = document.createElement('canvas');
-    c.width = 200; c.height = 50;
-    const ctx = c.getContext('2d');
-    ctx.textBaseline = 'top';
-    ctx.font = '14px Arial';
-    ctx.fillStyle = '#f60';
-    ctx.fillRect(125, 1, 62, 20);
-    ctx.fillStyle = '#069';
-    ctx.fillText('Cwm fjordbank glyphs vext quiz, 😀', 2, 15);
-    ctx.fillStyle = 'rgba(102,204,0,0.7)';
-    ctx.fillText('Cwm fjordbank glyphs vext quiz, 😀', 4, 17);
-    return c.toDataURL().slice(-50);
-  } catch { return 'nocanvas'; }
-}
-
-// ── WebGL renderer string ────────────────────────────────────────────────────
-function webglFp() {
-  try {
-    const c = document.createElement('canvas');
-    const gl = c.getContext('webgl') || c.getContext('experimental-webgl');
-    if (!gl) return 'nowebgl';
-    const ext = gl.getExtension('WEBGL_debug_renderer_info');
-    return ext
-      ? `${gl.getParameter(ext.UNMASKED_VENDOR_WEBGL)}~${gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)}`
-      : 'noext';
-  } catch { return 'nowebgl'; }
 }
 
 // ── Tổng hợp fingerprint ─────────────────────────────────────────────────────
 export function getDeviceFingerprint() {
-  const CACHE_KEY = '_dfp';
-  const cached = sessionStorage.getItem(CACHE_KEY); // cache per session để tránh tính lại
-  if (cached) return cached;
+  if (typeof window === 'undefined') return 'server';
 
-  const parts = [
-    navigator.userAgent,
-    navigator.language,
-    navigator.hardwareConcurrency,
-    navigator.deviceMemory || 'unknown',
-    screen.width + 'x' + screen.height + 'x' + screen.colorDepth,
-    Intl.DateTimeFormat().resolvedOptions().timeZone,
-    canvasFp(),
-    webglFp(),
-    navigator.platform || '',
-    navigator.vendor   || '',
-  ];
+  const LS_KEY = 'cms_device_id_v1';
 
-  const fp = fnv1a(parts.join('|'));
-  sessionStorage.setItem(CACHE_KEY, fp);
-  return fp;
+  // Migrate từ key cũ nếu còn (để giảm số lần bị "xung đột thiết bị" sau update)
+  const legacy = sessionStorage.getItem('_dfp');
+  const existing = localStorage.getItem(LS_KEY) || legacy;
+  if (existing) {
+    localStorage.setItem(LS_KEY, existing);
+    return existing;
+  }
+
+  const id = randomHex(16);
+  localStorage.setItem(LS_KEY, id);
+  return id;
 }

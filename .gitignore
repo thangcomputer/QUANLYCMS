@@ -39,3 +39,6 @@ tests/videos/
 # Editor
 .vscode/
 .idea/
+
+# Thư mục lồng nhau nhầm (bản copy utils) — không đưa lên Git
+/QUANLYCMS/
