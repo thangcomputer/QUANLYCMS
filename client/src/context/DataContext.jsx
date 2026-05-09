@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { QUESTION_BANK } from '../data/questionBank';
 import { playNotifySound } from '../utils/sound';
 import api, { API_BASE, apiFetch } from '../services/api';
 import { useSocket } from './SocketContext';
@@ -69,6 +68,37 @@ const loadState = (key, defaultValue) => {
   return defaultValue;
 };
 
+const STUDENT_QUESTIONS_KEY = 'thvp_studentQuestions';
+const HV_QUESTIONS_LEGACY_SEED = 'thvp_hv_questions_legacy_seed_v1';
+
+/** Học viên: chỉ đọc ngân hàng HV đã lưu (server + studentExamBank); không seed từ file cứng. */
+function loadInitialStudentQuestions() {
+  try {
+    const raw = localStorage.getItem(STUDENT_QUESTIONS_KEY);
+    if (raw != null) return JSON.parse(raw);
+  } catch (e) { /* ignore */ }
+  return [];
+}
+
+const STUDENT_EXAM_MINUTES_KEY = 'thvp_studentExamMinutes';
+const TEACHER_EXAM_TIME_LIMIT_KEY = 'thvp_teacherExamTimeLimitMinutes';
+const DEFAULT_STUDENT_EXAM_MINUTES = { coban: 90, word: 90, excel: 90, powerpoint: 90 };
+
+function loadInitialStudentExamMinutes() {
+  const out = { ...DEFAULT_STUDENT_EXAM_MINUTES };
+  try {
+    const raw = localStorage.getItem(STUDENT_EXAM_MINUTES_KEY);
+    if (!raw) return out;
+    const p = JSON.parse(raw);
+    if (!p || typeof p !== 'object') return out;
+    for (const k of Object.keys(DEFAULT_STUDENT_EXAM_MINUTES)) {
+      const n = Number(p[k]);
+      if (Number.isFinite(n) && n >= 1 && n <= 600) out[k] = Math.round(n);
+    }
+  } catch { /* ignore */ }
+  return out;
+}
+
 export const DataProvider = ({ children, user, onLogout }) => {
   const [currentUser, setCurrentUser] = useState(user || null);
 
@@ -127,9 +157,146 @@ export const DataProvider = ({ children, user, onLogout }) => {
   // ── STUDENT TRAINING DATA (Admin quản lý, Học viên xem) ─────────────────────────────────
   const [studentTrainingData, setStudentTrainingData] = useState(() => loadState('thvp_studentTrainingData', INITIAL_TRAINING));
 
-  // ── QUESTION BANK (Admin CRUD) ─────────────────────────────────────────────
-  const [questions, setQuestions] = useState(() => loadState('thvp_questions', QUESTION_BANK));
-  const [studentQuestions, setStudentQuestions] = useState(() => loadState('thvp_studentQuestions', []));
+  // ── QUESTION BANK GV (Admin CRUD, đồng bộ server — không seed câu cứng trong repo)
+  const [questions, setQuestions] = useState(() => loadState('thvp_questions', []));
+  const [teacherExamBankHydrated, setTeacherExamBankHydrated] = useState(false);
+  /** Phút làm bài test trắc nghiệm GV (tổng). null = tự động theo số câu trên client */
+  const [teacherExamTimeLimitMinutes, setTeacherExamTimeLimitMinutes] = useState(() =>
+    loadState(TEACHER_EXAM_TIME_LIMIT_KEY, null)
+  );
+  const [studentQuestions, setStudentQuestions] = useState(loadInitialStudentQuestions);
+  const [studentExamMinutes, setStudentExamMinutes] = useState(loadInitialStudentExamMinutes);
+
+  const applyStudentExamConfigFromServer = useCallback((d) => {
+    if (!d) return;
+    if (d.hasStudentExamBank) {
+      setStudentQuestions(Array.isArray(d.studentQuestions) ? d.studentQuestions : []);
+    }
+    if (d.studentExamMinutes && typeof d.studentExamMinutes === 'object') {
+      setStudentExamMinutes(() => {
+        const next = { ...DEFAULT_STUDENT_EXAM_MINUTES };
+        for (const k of Object.keys(DEFAULT_STUDENT_EXAM_MINUTES)) {
+          const n = Number(d.studentExamMinutes[k]);
+          if (Number.isFinite(n) && n >= 1 && n <= 600) next[k] = Math.round(n);
+        }
+        return next;
+      });
+    }
+  }, []);
+
+  // Admin/Staff: tải ngân hàng GV từ server trước (tránh autosave [] ghi đè dữ liệu)
+  useEffect(() => {
+    if (currentUser?.role !== 'admin' && currentUser?.role !== 'staff') {
+      setTeacherExamBankHydrated(false);
+      return;
+    }
+    let cancelled = false;
+    setTeacherExamBankHydrated(false);
+    (async () => {
+      try {
+        const res = await api.settings.getTeacherExamConfig();
+        if (cancelled || !res?.success || !res.data) return;
+        if (res.data.hasTeacherExamBank) {
+          setQuestions(Array.isArray(res.data.questions) ? res.data.questions : []);
+        }
+        const tm = res.data.timeLimitMinutes;
+        setTeacherExamTimeLimitMinutes(
+          tm != null && Number.isFinite(Number(tm)) ? Math.round(Number(tm)) : null
+        );
+      } catch { /* ignore */ }
+      if (!cancelled) setTeacherExamBankHydrated(true);
+    })();
+    return () => { cancelled = true; };
+  }, [currentUser?.id, currentUser?.role]);
+
+  // Admin/Staff: autosave ngân hàng GV + thời gian thi lên server
+  useEffect(() => {
+    if (currentUser?.role !== 'admin' && currentUser?.role !== 'staff') return;
+    if (!teacherExamBankHydrated) return;
+    const t = setTimeout(() => {
+      api.settings
+        .updateTeacherExamConfig({ questions, timeLimitMinutes: teacherExamTimeLimitMinutes })
+        .catch(() => {});
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [questions, teacherExamTimeLimitMinutes, currentUser?.role, teacherExamBankHydrated]);
+
+  // Admin/Staff: lưu ngân hàng + phút thi lên server (học viên đọc chung, không phụ thuộc localStorage từng máy)
+  useEffect(() => {
+    if (currentUser?.role !== 'admin' && currentUser?.role !== 'staff') return;
+    const t = setTimeout(() => {
+      api.settings
+        .updateStudentExamConfig({ studentQuestions, studentExamMinutes })
+        .catch(() => {});
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [studentQuestions, studentExamMinutes, currentUser?.role]);
+
+  // Giảng viên: tải ngân hàng câu hỏi thi từ server (đồng bộ với Admin)
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'teacher') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.settings.getTeacherExamConfig();
+        if (cancelled || !res?.success || !res.data) return;
+        if (res.data.hasTeacherExamBank) {
+          setQuestions(Array.isArray(res.data.questions) ? res.data.questions : []);
+        }
+        const tm = res.data.timeLimitMinutes;
+        setTeacherExamTimeLimitMinutes(
+          tm != null && Number.isFinite(Number(tm)) ? Math.round(Number(tm)) : null
+        );
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [currentUser?.id, currentUser?.role]);
+
+  // Học viên: tải cấu hình thi từ server ngay khi đăng nhập (tránh hiện bộ câu cứng/LocalStorage máy khác)
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'student') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.settings.getStudentExamConfig();
+        if (cancelled || !res?.success || !res.data) return;
+        applyStudentExamConfigFromServer(res.data);
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [currentUser?.id, currentUser?.role, applyStudentExamConfigFromServer]);
+
+  // Một lần: máy cũ đã persist thvp_studentQuestions = [] trong khi GV vẫn có câu → điền bản sao GV.
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(HV_QUESTIONS_LEGACY_SEED)) return;
+      const raw = localStorage.getItem(STUDENT_QUESTIONS_KEY);
+      if (raw == null) {
+        localStorage.setItem(HV_QUESTIONS_LEGACY_SEED, '1');
+        return;
+      }
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        localStorage.setItem(HV_QUESTIONS_LEGACY_SEED, '1');
+        return;
+      }
+      if (!Array.isArray(parsed) || parsed.length > 0) {
+        localStorage.setItem(HV_QUESTIONS_LEGACY_SEED, '1');
+        return;
+      }
+      const tq = loadState('thvp_questions', []);
+      if (Array.isArray(tq) && tq.length > 0) {
+        setStudentQuestions(JSON.parse(JSON.stringify(tq)));
+      }
+      localStorage.setItem(HV_QUESTIONS_LEGACY_SEED, '1');
+    } catch {
+      try {
+        localStorage.setItem(HV_QUESTIONS_LEGACY_SEED, '1');
+      } catch (e2) { /* ignore */ }
+    }
+  }, []);
 
   // ── SOCKET LISTENERS (Global Data Sync) ───────────────────────────────────
   const { 
@@ -273,7 +440,11 @@ export const DataProvider = ({ children, user, onLogout }) => {
   useEffect(() => { localStorage.setItem('thvp_trainingData', JSON.stringify(trainingData)); }, [trainingData]);
   useEffect(() => { localStorage.setItem('thvp_studentTrainingData', JSON.stringify(studentTrainingData)); }, [studentTrainingData]);
   useEffect(() => { localStorage.setItem('thvp_questions', JSON.stringify(questions)); }, [questions]);
+  useEffect(() => {
+    localStorage.setItem(TEACHER_EXAM_TIME_LIMIT_KEY, JSON.stringify(teacherExamTimeLimitMinutes));
+  }, [teacherExamTimeLimitMinutes]);
   useEffect(() => { localStorage.setItem('thvp_studentQuestions', JSON.stringify(studentQuestions)); }, [studentQuestions]);
+  useEffect(() => { localStorage.setItem(STUDENT_EXAM_MINUTES_KEY, JSON.stringify(studentExamMinutes)); }, [studentExamMinutes]);
   useEffect(() => { localStorage.setItem('thvp_systemLogs', JSON.stringify(systemLogs)); }, [systemLogs]);
   useEffect(() => { localStorage.setItem('thvp_examResults', JSON.stringify(examResults)); }, [examResults]);
 
@@ -420,6 +591,27 @@ export const DataProvider = ({ children, user, onLogout }) => {
       if (studentTrainingRes?.success) {
         setStudentTrainingData(studentTrainingRes.data);
       }
+
+      // Giảng viên: làm mới ngân hàng câu hỏi thi từ server khi sync
+      if (isTeacher) {
+        const teRes = await api.settings.getTeacherExamConfig().catch(() => null);
+        if (teRes?.success && teRes.data) {
+          if (teRes.data.hasTeacherExamBank) {
+            setQuestions(Array.isArray(teRes.data.questions) ? teRes.data.questions : []);
+          }
+          const tm = teRes.data.timeLimitMinutes;
+          setTeacherExamTimeLimitMinutes(
+            tm != null && Number.isFinite(Number(tm)) ? Math.round(Number(tm)) : null
+          );
+        }
+      }
+
+      if (isStudent || isAdmin) {
+        const examCfg = await api.settings.getStudentExamConfig().catch(() => null);
+        if (examCfg?.success && examCfg.data) {
+          applyStudentExamConfigFromServer(examCfg.data);
+        }
+      }
     } catch (e) {
       if (e.status === 401 && onLogout) {
         onLogout();
@@ -427,7 +619,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
     } finally {
       setTimeout(() => setIsRefetching(false), 500);
     }
-  }, [currentUser, onLogout]);
+  }, [currentUser, onLogout, applyStudentExamConfigFromServer]);
 
   // ── BACKGROUND SYNC NGẦM (Multi-tab & Window Focus) ────────────────────────
   useEffect(() => {
@@ -1873,7 +2065,7 @@ export const DataProvider = ({ children, user, onLogout }) => {
       setStudentTrainingData(prev => {
         const newData = {
           ...prev,
-          [category]: (prev[category] || []).map(item => item.id === id ? { ...item, ...updates } : item)
+          [category]: (prev[category] || []).map(item => String(item.id) === String(id) ? { ...item, ...updates } : item)
         };
         api.settings?.updateStudentTrainingData(newData).catch(console.error);
         return newData;
@@ -1925,6 +2117,18 @@ export const DataProvider = ({ children, user, onLogout }) => {
     addQuestion: useCallback((q) => {
       setQuestions(prev => [...prev, { ...q, id: `q_${Date.now()}` }]);
     }, []),
+    addQuestionsBulk: useCallback((items) => {
+      if (!items?.length) return;
+      setQuestions((prev) => {
+        const base = Date.now();
+        const appended = items.map((q, i) => ({
+          ...q,
+          id: `q_${base + i}_${Math.random().toString(36).slice(2, 9)}`,
+          createdAt: q.createdAt ?? base + i,
+        }));
+        return [...prev, ...appended];
+      });
+    }, []),
     updateQuestion: useCallback((id, updates) => {
       setQuestions(prev => prev.map(q => q.id === id ? { ...q, ...updates } : q));
     }, []),
@@ -1932,13 +2136,27 @@ export const DataProvider = ({ children, user, onLogout }) => {
       setQuestions(prev => prev.filter(q => q.id !== id));
     }, []),
     resetQuestions: useCallback(() => {
-      setQuestions(QUESTION_BANK);
+      setQuestions([]);
     }, []),
+    teacherExamTimeLimitMinutes,
+    setTeacherExamTimeLimitMinutes,
 
     // ── Student Question Bank CRUD ─────────────────────────────────────────────
     studentQuestions,
     addStudentQuestion: useCallback((q) => {
       setStudentQuestions(prev => [...prev, { ...q, id: `sq_${Date.now()}` }]);
+    }, []),
+    addStudentQuestionsBulk: useCallback((items) => {
+      if (!items?.length) return;
+      setStudentQuestions((prev) => {
+        const base = Date.now();
+        const appended = items.map((q, i) => ({
+          ...q,
+          id: `sq_${base + i}_${Math.random().toString(36).slice(2, 9)}`,
+          createdAt: q.createdAt ?? base + i,
+        }));
+        return [...prev, ...appended];
+      });
     }, []),
     updateStudentQuestion: useCallback((id, updates) => {
       setStudentQuestions(prev => prev.map(q => q.id === id ? { ...q, ...updates } : q));
@@ -1948,6 +2166,22 @@ export const DataProvider = ({ children, user, onLogout }) => {
     }, []),
     resetStudentQuestions: useCallback(() => {
       setStudentQuestions([]);
+    }, []),
+    copyTeacherQuestionBankToStudents: useCallback(() => {
+      setStudentQuestions(() => JSON.parse(JSON.stringify((questions || []).filter(Boolean))));
+    }, [questions]),
+    studentExamMinutes,
+    updateStudentExamMinutes: useCallback((patch) => {
+      if (!patch || typeof patch !== 'object') return;
+      setStudentExamMinutes((prev) => {
+        const next = { ...prev };
+        for (const [k, v] of Object.entries(patch)) {
+          if (!Object.prototype.hasOwnProperty.call(DEFAULT_STUDENT_EXAM_MINUTES, k)) continue;
+          const n = Number(v);
+          if (Number.isFinite(n) && n >= 1 && n <= 600) next[k] = Math.round(n);
+        }
+        return next;
+      });
     }, []),
 
     // ── System Logs ────────────────────────────────────────────────────────────

@@ -296,6 +296,179 @@ router.put('/student-training-data', authMiddleware, isAdmin, async (req, res) =
   }
 });
 
+const DEFAULT_EXAM_MINUTES_SERVER = { coban: 90, word: 90, excel: 90, powerpoint: 90 };
+
+function sanitizeStudentExamMinutesPayload(body) {
+  const out = { ...DEFAULT_EXAM_MINUTES_SERVER };
+  if (!body || typeof body !== 'object') return out;
+  for (const k of Object.keys(DEFAULT_EXAM_MINUTES_SERVER)) {
+    const n = Number(body[k]);
+    if (Number.isFinite(n) && n >= 1 && n <= 600) out[k] = Math.round(n);
+  }
+  return out;
+}
+
+// ── GET /api/settings/student-exam-config ── Ngân hàng TN HV + phút làm bài (mọi role đăng nhập)
+router.get('/student-exam-config', authMiddleware, async (req, res) => {
+  try {
+    const settings = await getSettings();
+    const bank = settings.studentExamBankRawData;
+    const hasStudentExamBank = bank != null;
+    const minsRaw = settings.studentExamMinutesRaw;
+    const hasMinutesOnServer = minsRaw != null && typeof minsRaw === 'object';
+    return res.json({
+      success: true,
+      data: {
+        hasStudentExamBank,
+        studentQuestions: hasStudentExamBank && Array.isArray(bank) ? bank : [],
+        studentExamMinutes: hasMinutesOnServer ? sanitizeStudentExamMinutesPayload(minsRaw) : undefined,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
+
+function sanitizeTeacherExamTimeLimitMinutes(raw) {
+  if (raw === null || raw === undefined || raw === '') return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  const rounded = Math.round(n);
+  if (rounded < 5 || rounded > 600) return null;
+  return rounded;
+}
+
+// ── GET /api/settings/teacher-exam-config ── Ngân hàng câu hỏi thi GV (mọi role đăng nhập — chỉ GV cần)
+router.get('/teacher-exam-config', authMiddleware, async (req, res) => {
+  try {
+    const settings = await getSettings();
+    const bank = settings.teacherExamBankRawData;
+    const hasTeacherExamBank = bank != null;
+    const tm = settings.teacherExamTimeLimitMinutes;
+    const timeLimitMinutes =
+      tm != null && Number.isFinite(Number(tm)) ? sanitizeTeacherExamTimeLimitMinutes(tm) : null;
+    return res.json({
+      success: true,
+      data: {
+        hasTeacherExamBank,
+        questions: hasTeacherExamBank && Array.isArray(bank) ? bank : [],
+        timeLimitMinutes,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
+
+// ── PUT /api/settings/teacher-exam-config ── Admin/Staff lưu ngân hàng thi GV (+ phút làm bài tùy chọn)
+router.put('/teacher-exam-config', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    const { questions, timeLimitMinutes } = req.body || {};
+    const $set = {};
+    if (questions !== undefined) {
+      if (!Array.isArray(questions)) {
+        return res.status(400).json({ success: false, message: 'questions phải là mảng' });
+      }
+      $set.teacherExamBankRawData = questions;
+    }
+    if (timeLimitMinutes !== undefined) {
+      if (timeLimitMinutes === null || timeLimitMinutes === '') {
+        $set.teacherExamTimeLimitMinutes = null;
+      } else {
+        const n = sanitizeTeacherExamTimeLimitMinutes(timeLimitMinutes);
+        if (n === null) {
+          return res.status(400).json({
+            success: false,
+            message: 'timeLimitMinutes phải từ 5 đến 600 (phút), hoặc null để tự động',
+          });
+        }
+        $set.teacherExamTimeLimitMinutes = n;
+      }
+    }
+    if (Object.keys($set).length === 0) {
+      return res.status(400).json({ success: false, message: 'Cần questions và/hoặc timeLimitMinutes' });
+    }
+    await SystemSettings.findOneAndUpdate({ _key: 'main' }, { $set }, { upsert: true, new: true });
+    const io = req.app.get('io');
+    if (io) io.emit('data:refresh');
+    return res.json({ success: true, message: 'Đã lưu cấu hình thi giảng viên' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── PUT /api/settings/student-exam-config ── Admin/Staff lưu ngân hàng + thời gian thi HV
+router.put('/student-exam-config', authMiddleware, isAdmin, async (req, res) => {
+  try {
+    const { studentQuestions, studentExamMinutes } = req.body || {};
+    const updates = {};
+    if (studentQuestions !== undefined) {
+      if (!Array.isArray(studentQuestions)) {
+        return res.status(400).json({ success: false, message: 'studentQuestions phải là mảng' });
+      }
+      updates.studentExamBankRawData = studentQuestions;
+    }
+    if (studentExamMinutes !== undefined) {
+      updates.studentExamMinutesRaw = sanitizeStudentExamMinutesPayload(studentExamMinutes);
+    }
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ success: false, message: 'Không có dữ liệu để lưu' });
+    }
+    await SystemSettings.findOneAndUpdate({ _key: 'main' }, { $set: updates }, { upsert: true, new: true });
+    const io = req.app.get('io');
+    if (io) io.emit('data:refresh');
+    return res.json({ success: true, message: 'Đã lưu cấu hình thi học viên' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ── POST /api/settings/upload-training-file ── Tài liệu đào tạo GV/HV (Admin) ──
+const trainingDir = path.join(__dirname, '..', 'uploads', 'training');
+if (!fs.existsSync(trainingDir)) fs.mkdirSync(trainingDir, { recursive: true });
+
+const ALLOWED_TRAINING_EXT = new Set([
+  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.zip', '.rar',
+]);
+
+const trainingStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, trainingDir),
+  filename: (req, file, cb) => {
+    const rawExt = path.extname(file.originalname || '').toLowerCase();
+    const ext = ALLOWED_TRAINING_EXT.has(rawExt) ? rawExt : '';
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    cb(null, `training-${uniqueSuffix}${ext}`);
+  },
+});
+
+const uploadTraining = multer({
+  storage: trainingStorage,
+  limits: { fileSize: 25 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    if (!ALLOWED_TRAINING_EXT.has(ext)) {
+      return cb(new Error('Chỉ cho phép PDF, Word, Excel, PowerPoint, ZIP, RAR.'));
+    }
+    cb(null, true);
+  },
+});
+
+router.post('/upload-training-file', authMiddleware, isAdmin, (req, res) => {
+  uploadTraining.single('file')(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ success: false, message: 'File quá lớn (tối đa 25MB).' });
+      }
+      return res.status(400).json({ success: false, message: err.message || 'Lỗi upload' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'Chưa chọn file' });
+    }
+    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/training/${req.file.filename}`;
+    return res.json({ success: true, fileUrl, message: 'Tải tài liệu thành công' });
+  });
+});
+
 // ── POST /api/settings/upload-logo ── Upload logo thương hiệu ────────────────
 const logoDir = path.join(__dirname, '..', 'uploads', 'logo');
 if (!fs.existsSync(logoDir)) fs.mkdirSync(logoDir, { recursive: true });

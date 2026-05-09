@@ -473,7 +473,8 @@ const ExamMonitor = forwardRef(({ isActive, onViolate, requireWebcam = true }, r
   );
 });
 
-export const CameraHeaderPanel = ({ monitorRef }) => {
+export const CameraHeaderPanel = ({ monitorRef, variant = 'default' }) => {
+  const isLarge = variant === 'large';
   const [stats, setStats] = useState({
     cameraWarnings: 0,
     tabWarnings: 0,
@@ -509,8 +510,20 @@ export const CameraHeaderPanel = ({ monitorRef }) => {
   }, [monitorRef]);
 
   return (
-    <div className="flex items-center gap-4 p-2.5 bg-slate-900/90 backdrop-blur-xl rounded-2xl border border-white/5 shadow-2xl">
-      <div className="relative w-24 h-16 bg-black/40 rounded-xl overflow-hidden hidden sm:block border border-white/10">
+    <div
+      className={`backdrop-blur-xl shadow-2xl ${
+        isLarge
+          ? 'flex flex-col gap-1.5 rounded-xl border border-white/15 bg-gradient-to-br from-slate-800/95 to-slate-950/95 p-2 md:gap-2 md:rounded-2xl md:p-2.5'
+          : 'flex items-center gap-4 rounded-2xl border border-white/5 bg-slate-900/90 p-2.5'
+      }`}
+    >
+      <div
+        className={`relative bg-black/40 overflow-hidden border border-white/10 rounded-lg ${
+          isLarge
+            ? 'block aspect-[5/3] w-full max-h-[4.75rem] sm:max-h-[5.25rem] md:max-h-24'
+            : 'hidden h-16 w-24 sm:block'
+        }`}
+      >
         <video ref={previewVideoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
         {/* Khung oval gợi ý — trùng logic vùng kiểm tra phía trên */}
         <div className="absolute inset-0 flex items-start justify-center pt-0.5 pointer-events-none">
@@ -522,7 +535,7 @@ export const CameraHeaderPanel = ({ monitorRef }) => {
         <div className={`absolute inset-0 pointer-events-none ${stats.lastFaceDetected ? 'bg-emerald-500/10' : 'bg-red-500/25 animate-pulse'}`} />
         <div className="absolute top-1 left-1.5 flex items-center gap-1">
           <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse" />
-          <span className="text-[8px] text-white/60 font-black uppercase">Live</span>
+          <span className={`text-white/60 font-black uppercase ${isLarge ? 'text-[9px]' : 'text-[8px]'}`}>Live</span>
         </div>
         {!stats.lastFaceDetected && (
           <div className="absolute bottom-0.5 left-0 right-0 text-center px-0.5">
@@ -532,12 +545,12 @@ export const CameraHeaderPanel = ({ monitorRef }) => {
           </div>
         )}
       </div>
-      <div className="flex flex-col pr-3">
-        <div className="flex items-center gap-2">
-           <ShieldCheck size={14} className="text-blue-400" />
-           <span className="text-xs text-white/50 uppercase font-black tracking-wider">Giám sát bài thi</span>
+      <div className={`flex flex-col ${isLarge ? 'w-full min-w-0' : 'pr-3'}`}>
+        <div className="flex items-center gap-1.5">
+           <ShieldCheck size={14} className="text-sky-400 shrink-0" />
+           <span className={`text-white/60 uppercase font-black tracking-wider ${isLarge ? 'text-[10px] md:text-[11px]' : 'text-xs text-white/50'}`}>Giám sát bài thi</span>
         </div>
-        <div className="flex flex-col gap-0.5 mt-1.5 font-mono">
+        <div className={`flex flex-col font-mono ${isLarge ? 'mt-1 gap-0' : 'mt-1.5 gap-0.5'}`}>
            {stats.cameraStatus === 'denied' && (
              <span className="text-[9px] font-bold text-red-400 leading-tight">
                Camera bị chặn — cho phép truy cập camera và tải lại trang.
@@ -546,15 +559,15 @@ export const CameraHeaderPanel = ({ monitorRef }) => {
            {stats.cameraStatus === 'loading' && (
              <span className="text-[9px] font-bold text-amber-200/90 leading-tight">Đang bật camera…</span>
            )}
-           <span className="text-[10px] font-bold text-white/70 leading-tight">
+           <span className={`font-bold text-white/75 leading-tight ${isLarge ? 'text-[10px] md:text-[11px]' : 'text-[10px] text-white/70'}`}>
              Khung hình:{' '}
              <span className={stats.lastFaceDetected ? 'text-emerald-400' : 'text-amber-300'}>
                {stats.lastFaceDetected ? 'đạt' : 'chưa đạt'}
              </span>
            </span>
-           <div className="flex items-center gap-4">
+           <div className={`flex flex-wrap items-center ${isLarge ? 'gap-x-3 gap-y-0' : 'gap-4'}`}>
              <span
-               className="text-xs font-bold text-white"
+               className={`font-bold text-white ${isLarge ? 'text-[10px] md:text-xs' : 'text-xs'}`}
                title={`Số lần liên tiếp không nhận được mặt trong khung (đủ ${CONFIG.MAX_CONSECUTIVE_NO_FACE} lần sẽ hủy bài). Không phải số lượng camera.`}
              >
                Mặt (lỗi liên tiếp):{' '}
@@ -562,7 +575,7 @@ export const CameraHeaderPanel = ({ monitorRef }) => {
                  {stats.consecutiveNoFace || 0}/{CONFIG.MAX_CONSECUTIVE_NO_FACE}
                </span>
              </span>
-             <span className="text-xs font-bold text-white">
+             <span className={`font-bold text-white ${isLarge ? 'text-[10px] md:text-xs' : 'text-xs'}`}>
                Tab:{' '}
                <span className={stats.tabWarnings > 0 ? 'text-orange-400' : 'text-emerald-400'}>{stats.tabWarnings}/2</span>
              </span>

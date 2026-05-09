@@ -99,12 +99,27 @@ const exportPDF = async (data = {}) => {
       creator:  'QUANLYCMS v1.0',
     });
 
-    // ── 6. Lưu file ───────────────────────────────────────────────────────
+    // ── 6. Lưu file (đảm bảo đúng tên + .pdf trên mọi trình duyệt) ─────────
     const studentName = data.studentName || 'HocVien';
     const dateStr     = new Date().toLocaleDateString('vi-VN').replace(/\//g, '-');
-    const fileName    = `HoaDon_${studentName.replace(/\s+/g, '_')}_${dateStr}.pdf`;
+    const safeName = String(studentName)
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')      // bỏ dấu tiếng Việt
+      .replace(/[^a-zA-Z0-9 _-]/g, '')                       // bỏ ký tự lạ
+      .trim()
+      .replace(/\s+/g, '_')
+      .slice(0, 60) || 'HocVien';
+    const fileName = `HoaDon_${safeName}_${dateStr}.pdf`;
 
-    pdf.save(fileName);
+    // jsPDF.save() đôi khi bị browser đổi tên → dùng Blob + <a download> để cố định tên file
+    const blob = pdf.output('blob');
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
 
     return true;
 

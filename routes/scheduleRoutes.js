@@ -341,8 +341,14 @@ router.post('/', authMiddleware, async (req, res) => {
 // Cập nhật lịch học (hoàn thành, huỷ, điểm danh...)
 router.put('/:scheduleId', authMiddleware, async (req, res) => {
   try {
-    // Authorization: Chỉ Admin, Staff, hoặc Teacher mới được sửa lịch
-    if (!['admin', 'staff', 'teacher'].includes(req.user.role)) {
+    // Authorization:
+    // - Admin/Staff/Teacher: sửa lịch đầy đủ
+    // - Student: chỉ được gửi ghi chú (studentNote) cho lịch của chính mình
+    const role = String(req.user.role || '').toLowerCase();
+    const isStaffSide = ['admin', 'staff', 'teacher'].includes(role);
+    const isStudent = role === 'student';
+
+    if (!isStaffSide && !isStudent) {
       return res.status(403).json({ success: false, message: 'Bạn không có quyền chỉnh sửa lịch học' });
     }
     const { status, note, linkHoc, startTime, endTime, date } = req.body;
@@ -350,6 +356,24 @@ router.put('/:scheduleId', authMiddleware, async (req, res) => {
     const schedule = await Schedule.findById(req.params.scheduleId);
     if (!schedule) {
       return res.status(404).json({ success: false, message: 'Không tìm thấy lịch học' });
+    }
+
+    // Student restriction: chỉ cho phép cập nhật studentNote/hasUnreadStudentNote, đúng lịch của chính mình
+    if (isStudent) {
+      const myId = String(req.user.id || req.user._id);
+      const scheduleStudentId = schedule.studentId ? String(schedule.studentId) : '';
+      const onlyStudentNoteChange =
+        Object.keys(req.body || {}).every((k) => ['studentNote', 'hasUnreadStudentNote'].includes(k));
+
+      if (!scheduleStudentId || scheduleStudentId !== myId) {
+        return res.status(403).json({ success: false, message: 'Bạn chỉ có thể gửi ghi chú cho lịch của chính mình' });
+      }
+      if (!('studentNote' in req.body) && !('hasUnreadStudentNote' in req.body)) {
+        return res.status(400).json({ success: false, message: 'Thiếu studentNote' });
+      }
+      if (!onlyStudentNoteChange) {
+        return res.status(403).json({ success: false, message: 'Bạn chỉ được phép cập nhật ghi chú học viên' });
+      }
     }
 
     // Cập nhật các field được phép
@@ -375,13 +399,23 @@ router.put('/:scheduleId', authMiddleware, async (req, res) => {
       const notifDate = new Date(schedule.date).toLocaleDateString();
       
       if (status === 'cancelled' && schedule.status !== 'cancelled') {
+         // Persist cancel reason into `note` so student UI can render it
+         const cancelReason = String(req.body?.cancelReason || req.body?.reason || req.body?.note || '').trim();
+         if (cancelReason) updates.note = cancelReason;
+
          NotificationService.send(io, {
            type: 'SCHEDULE',
            title: '❌ Lịch học bị hủy',
-           content: `Lịch học ngày ${notifDate} đã bị hủy.`,
+           content: cancelReason
+             ? `Lịch học ngày ${notifDate} đã bị hủy. Lý do: ${cancelReason}`
+             : `Lịch học ngày ${notifDate} đã bị hủy.`,
            receivers: schedule.studentId.toString(),
+           payload: { scheduleId: schedule._id.toString(), reason: cancelReason },
            link: '/student#schedule'
          });
+
+         // Emit cancelled event so clients refetch / update UI immediately
+         io.emit('schedule:cancelled', { scheduleId: schedule._id.toString(), reason: cancelReason });
       }
       else if (status === 'completed' && schedule.status !== 'completed') {
          NotificationService.send(io, {
@@ -489,6 +523,11 @@ router.patch('/:scheduleId/cancel', authMiddleware, async (req, res) => {
     const schedule = await Schedule.findById(req.params.scheduleId);
     if (!schedule) return res.status(404).json({ success: false, message: 'Không tìm thấy lịch học' });
 
+    // Authorization: Chỉ Admin/Staff/Teacher được hủy lịch
+    if (!['admin', 'staff', 'teacher'].includes(String(req.user?.role || '').toLowerCase())) {
+      return res.status(403).json({ success: false, message: 'Bạn không có quyền hủy lịch học' });
+    }
+
     if (schedule.status === 'cancelled') {
       return res.status(400).json({ success: false, message: 'Lịch này đã bị hủy rồi' });
     }
@@ -502,8 +541,12 @@ router.patch('/:scheduleId/cancel', authMiddleware, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Không thể hủy lịch trong quá khứ' });
     }
 
-    const oldValue = { status: schedule.status };
+    const oldValue = { status: schedule.status, note: schedule.note || '' };
     schedule.status = 'cancelled';
+    // Persist reason so Student UI can show it (frontend currently renders `sch.note`)
+    if (typeof reason === 'string' && reason.trim()) {
+      schedule.note = reason.trim();
+    }
     await schedule.save();
 
     const actor = req.user || {};
@@ -514,7 +557,7 @@ router.patch('/:scheduleId/cancel', authMiddleware, async (req, res) => {
       actorRole: actor.role || 'teacher',
       action: 'CANCELLED',
       reason,
-      oldValue: { status: schedule.status, startTime: schedule.startTime, endTime: schedule.endTime },
+      oldValue: { ...oldValue, startTime: schedule.startTime, endTime: schedule.endTime },
       newValue: { status: 'cancelled', startTime: schedule.startTime, endTime: schedule.endTime },
       studentName: schedule.studentName,
       teacherName: schedule.teacherName,
@@ -523,7 +566,29 @@ router.patch('/:scheduleId/cancel', authMiddleware, async (req, res) => {
     });
 
     const io = req.app.get('io');
-    if (io) io.emit('schedule:cancelled', { scheduleId: schedule._id.toString(), reason });
+    if (io) {
+      io.emit('schedule:cancelled', { scheduleId: schedule._id.toString(), reason });
+
+      // Notify student with reason (if any)
+      if (schedule.studentId) {
+        try {
+          const NotificationService = require('../services/NotificationService');
+          const d = new Date(schedule.date).toLocaleDateString('vi-VN');
+          await NotificationService.send(io, {
+            type: 'SCHEDULE',
+            title: '❌ Lịch học bị hủy',
+            content: reason && String(reason).trim()
+              ? `Lịch học ngày ${d} đã bị hủy. Lý do: ${String(reason).trim()}`
+              : `Lịch học ngày ${d} đã bị hủy.`,
+            receivers: schedule.studentId.toString(),
+            payload: { scheduleId: schedule._id.toString(), type: 'schedule', reason: String(reason || '') },
+            link: '/student#schedule'
+          });
+        } catch (e) {
+          logger.error('[SCHEDULE] Cancel notify student error:', e);
+        }
+      }
+    }
 
     res.json({ success: true, data: schedule });
   } catch (err) {

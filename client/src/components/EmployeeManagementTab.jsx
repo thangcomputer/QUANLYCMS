@@ -10,8 +10,9 @@ import {
   ChevronDown, Briefcase, Loader2, AlertCircle, X, CreditCard, QrCode
 } from 'lucide-react';
 import { useBranch } from '../context/BranchContext';
+import { useSocket } from '../context/SocketContext';
 
-const API = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || "");
+const API = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL : '';
 
 function getToken() {
   for (const role of ['admin','staff','teacher','student']) {
@@ -157,6 +158,24 @@ export default function EmployeeManagementTab() {
   }, [posFilter, search, selectedBranchId]);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const { socket } = useSocket();
+  useEffect(() => {
+    if (!socket) return;
+    let debounceTimer = null;
+    const bump = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+        fetchAll();
+      }, 400);
+    };
+    socket.on('employees:updated', bump);
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      socket.off('employees:updated', bump);
+    };
+  }, [socket, fetchAll]);
 
   // ── CRUD Handlers ──
   const handleSave = async () => {

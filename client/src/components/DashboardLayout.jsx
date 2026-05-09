@@ -6,7 +6,7 @@ import { useData } from '../context/DataContext';
 import api, { setTokens } from '../services/api';
 import { 
   Bell, LogOut, CheckCircle2, Clock, X, ChevronRight, Lock,
-  Calendar, DollarSign, UserPlus, Zap, BookOpen, Award, Activity
+  Calendar, DollarSign, UserPlus, Zap, BookOpen, Award, Activity, MessageSquare
 } from 'lucide-react';
 
 const getNotifStyle = (type) => {
@@ -49,6 +49,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
   const location = useLocation();
   const { teachers, isRefetching, triggerBackgroundSync, notifications: allNotifications, markNotificationRead } = useData();
   const API = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || "");
+  const myId = String(session?.id || session?._id || '');
 
   useEffect(() => {
     const key = `${role}_user`;
@@ -168,12 +169,12 @@ const DashboardLayout = ({ role, session, onLogout }) => {
       if (n.receivers.includes('ALL_TEACHER') && role !== 'teacher') return false;
       if (n.receivers.includes('ALL_STUDENT') && role !== 'student') return false;
       // Nếu có ID cụ thể trong receivers
-      const isForMe = n.receivers.includes(String(session?.id)) || 
+      const isForMe = (myId && n.receivers.includes(myId)) || 
                       n.receivers.includes(role) || 
                       (role === 'admin' && n.receivers.includes('ALL_ADMIN'));
       if (!isForMe && !n.receivers.includes('ALL')) return false;
     }
-    return (String(n.userId) === String(session?.id) || !n.userId) && 
+    return ((myId && String(n.userId) === myId) || !n.userId) && 
            (n.role === role || !n.role);
   }).sort((a, b) => new Date(b.time || Date.now()) - new Date(a.time || Date.now()));
 
@@ -355,12 +356,29 @@ const DashboardLayout = ({ role, session, onLogout }) => {
           </div>
         </header>
 
-        <div className="flex-1 p-4 sm:p-6 md:p-10 w-full overflow-x-hidden overflow-y-auto hide-scrollbar">
+        <div
+          className={
+            role === 'teacher' && location.pathname === '/teacher/test'
+              ? 'flex-1 min-h-0 w-full overflow-hidden flex flex-col p-0'
+              : 'flex-1 min-h-0 p-4 sm:p-6 md:p-10 w-full overflow-x-hidden overflow-y-auto hide-scrollbar'
+          }
+        >
           <Outlet />
         </div>
       </main>
 
       <ChangePasswordModal session={session} role={role} />
+
+      {/* FAB - Inbox (Admin/Teacher) */}
+      {role !== 'student' && (
+        <button
+          onClick={() => navigate(`/${role}/inbox`)}
+          className="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white p-4 rounded-full shadow-2xl z-[80] active:scale-90 transition"
+          title="Nhắn tin"
+        >
+          <MessageSquare size={24} />
+        </button>
+      )}
     </div>
   );
 };

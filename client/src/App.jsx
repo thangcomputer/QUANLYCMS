@@ -124,12 +124,14 @@ function StudentTestWrapper({ session }) {
   const nav = useNavigate();
   return (
     <ErrorBoundary>
-      <StudentTest
-        subjectId={subjectId || 'word'}
-        studentSbd={session?.phone || session?.sbd || '---'}
-        studentName={session?.name || 'Học viên'}
-        onBack={() => nav('/student/exam')}
-      />
+      <div className="h-[100dvh] max-h-[100dvh] overflow-hidden">
+        <StudentTest
+          subjectId={subjectId || 'word'}
+          studentSbd={session?.phone || session?.sbd || '---'}
+          studentName={session?.name || 'Học viên'}
+          onBack={() => nav('/student/exam')}
+        />
+      </div>
     </ErrorBoundary>
   );
 }

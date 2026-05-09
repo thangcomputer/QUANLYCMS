@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Plus, Move, Edit3, Trash2, Video, ChevronDown, ChevronUp, Save, Layers, ArrowUp, ArrowDown } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { ArrowLeft, Plus, Edit3, Trash2, Video, ChevronDown, ChevronUp, Save, Layers, ArrowUp, ArrowDown } from 'lucide-react';
 import { useToast } from '../utils/toast.jsx';
 
 const AdminCourseBuilder = ({ course, onBack, onSave }) => {
@@ -116,10 +117,10 @@ const AdminCourseBuilder = ({ course, onBack, onSave }) => {
     }
   };
 
-  return (
-    <div className="fixed inset-0 bg-gray-50 z-[100] flex flex-col overflow-hidden animate-in slide-in-from-bottom-5 duration-300">
-      {/* HEADER */}
-      <div className="h-16 bg-white border-b border-gray-200 px-6 flex items-center justify-between shadow-sm shrink-0">
+  const ui = (
+    <div className="fixed inset-0 z-[500] flex flex-col overflow-hidden bg-gray-50 animate-in fade-in duration-200">
+      {/* HEADER — portal ra body để fixed luôn full viewport, không kẹt transform/padding layout cha */}
+      <div className="h-14 sm:h-16 bg-white border-b border-gray-200 px-4 sm:px-6 flex items-center justify-between shadow-sm shrink-0">
         <div className="flex items-center gap-4">
           <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-xl transition cursor-pointer text-gray-600 hover:text-blue-600 flex items-center gap-2 font-bold text-sm">
             <ArrowLeft size={18} /> Quay lại
@@ -256,6 +257,11 @@ const AdminCourseBuilder = ({ course, onBack, onSave }) => {
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined') {
+    return createPortal(ui, document.body);
+  }
+  return ui;
 };
 
 export default AdminCourseBuilder;

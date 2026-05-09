@@ -48,6 +48,16 @@ const systemSettingsSchema = new mongoose.Schema({
     default: { videos: [], guides: [], files: [] } 
   },
 
+  // ── Ngân hàng câu hỏi thi + thời gian làm bài (HV) — đồng bộ mọi máy ───
+  // Chỉ ghi khi admin PUT; undefined = chưa cấu hình trên server (client dùng local seed cũ)
+  studentExamBankRawData: { type: mongoose.Schema.Types.Mixed },
+  studentExamMinutesRaw: { type: mongoose.Schema.Types.Mixed },
+
+  // ── Ngân hàng câu hỏi thi Giảng viên (Admin CRUD) — đồng bộ GV mọi máy ───
+  teacherExamBankRawData: { type: mongoose.Schema.Types.Mixed },
+  /** Tổng thời gian làm bài test trắc nghiệm GV (phút). null = client tự tính theo số câu */
+  teacherExamTimeLimitMinutes: { type: Number, default: null },
+
   // ── Invoice Settings ─────────────────────────────────────────────
   invoiceLogoUrl:      { type: String, default: '' },
   invoiceSignatureUrl: { type: String, default: '' },

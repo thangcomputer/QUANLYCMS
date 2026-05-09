@@ -7,7 +7,7 @@ import {
   TrendingUp, DollarSign, Star, Printer, Trash2, Filter,
   FileSpreadsheet, Download, Eye, AlertTriangle, Unlock, Lock, User,
   Phone, CalendarCheck, MessageSquare, Video, FileText, ShieldAlert,
-  Edit3, X, PlayCircle, Save, RefreshCw, Trophy, ClipboardList, CreditCard, HelpCircle,
+  Edit3, X, PlayCircle, Save, RefreshCw, Trophy, ClipboardList, CreditCard, HelpCircle, Upload,
   MoreHorizontal, AlertCircle, Landmark, Loader2, Settings, RotateCcw, MapPin, Layers, Camera, KeyRound, Share2
 } from 'lucide-react';
 
@@ -19,8 +19,14 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useToast } from '../utils/toast.jsx';
 import { useBranch } from '../context/BranchContext';
 import InvoiceTemplate from './InvoiceTemplate';
-import exportPDF from '../utils/exportPDF';
+import exportPDF, { printInvoice } from '../utils/exportPDF';
 import { exportStudentsExcel, exportToCSV } from '../utils/exportExcel';
+import {
+  downloadStudentQuestionsExcelTemplate,
+  downloadTeacherQuestionsExcelTemplate,
+  parseQuestionBankExcel,
+} from '../utils/studentQuestionsExcel';
+import { getStudentMcQuestionsForExam } from '../utils/htmlContent';
 import api from '../services/api';
 import { BankSelect, generateVietQRUrl } from './BankSelect';
 import { useModal } from '../utils/Modal.jsx';
@@ -32,6 +38,10 @@ import StudentDetailModal from './StudentDetailModal';
 import StudentImportModal from './StudentImportModal';
 import TeacherScheduleHistoryPanel from './TeacherScheduleHistoryPanel';
 import AdminCourseBuilder from './AdminCourseBuilder';
+import { applyAnchorNewTabPolicy } from '../utils/htmlContent';
+
+/** Đào tạo HV → Kết quả thi: cần đủ danh sách HV (examProgress), không giới hạn PAGE_SIZE tab Học viên */
+const EXAM_RESULTS_STUDENTS_FETCH_CAP = 5000;
 
 // ─── RICH TEXT EDITOR (tương thích React 18, không dùng prompt) ──────────────
 const RichTextEditor = ({ value, onChange, placeholder }) => {
@@ -121,6 +131,8 @@ const RichTextEditor = ({ value, onChange, placeholder }) => {
     if (linkUrl.trim()) {
       restoreSelection();
       exec('createLink', linkUrl.trim().startsWith('http') ? linkUrl.trim() : 'https://' + linkUrl.trim());
+      if (editorRef.current) applyAnchorNewTabPolicy(editorRef.current);
+      handleInput();
     }
     setShowLinkInput(false);
   };
@@ -235,6 +247,41 @@ const RichTextEditor = ({ value, onChange, placeholder }) => {
     </div>
   );
 };
+
+/** Ngày/giờ thi hiển thị: ưu tiên testDate; nếu thiếu (dữ liệu cũ) dùng updatedAt khi đã có dấu hiệu đã thi */
+function resolveTeacherExamDate(t) {
+  if (!t) return null;
+  if (t.testDate) {
+    const d = new Date(t.testDate);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  const attempted =
+    t.testStatus === 'passed' ||
+    t.testStatus === 'failed' ||
+    Number(t.testScore) > 0 ||
+    (String(t.status) === 'Locked' && t.lockReason);
+  if (attempted && t.updatedAt) {
+    const d = new Date(t.updatedAt);
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  return null;
+}
+
+function isTeacherExamDateApproximate(t) {
+  return !t?.testDate && resolveTeacherExamDate(t) != null;
+}
+
+function trainingUploadDisplayName(fileUrl, fileOriginalName) {
+  if (fileOriginalName && String(fileOriginalName).trim()) return String(fileOriginalName).trim();
+  if (!fileUrl || typeof fileUrl !== 'string') return '';
+  try {
+    const pathOnly = fileUrl.replace(/^https?:\/\/[^/]+/i, '');
+    const seg = pathOnly.split('/').filter(Boolean).pop() || '';
+    return decodeURIComponent(seg) || 'Tệp đính kèm';
+  } catch {
+    return 'Tệp đính kèm';
+  }
+}
 
 // ─── STAT CARD (Nâng cấp Premium) ──────────────────────────────────────────────
 const StatCard = ({ icon: Icon, label, value, sub, color, trend }) => (
@@ -710,8 +757,8 @@ const AddStudentModal = ({ onAdd, onClose, teachers }) => {
                 </div>
               </div>
               <div>
-                <span className="text-sm font-black text-gray-800 block uppercase tracking-tight group-hover:text-red-600 transition-colors">Đính kèm biên lai / Đã thanh toán</span>
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Học sinh đã nộp tiền mặt hoặc chuyển khoản trực tiếp</p>
+                <span className="text-sm font-black text-gray-800 block uppercase tracking-tight group-hover:text-red-600 transition-colors">Thanh toán tiền mặt</span>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Học sinh đã nộp tiền mặt trực tiếp</p>
               </div>
             </label>
 
@@ -1007,8 +1054,10 @@ const AdminDashboard = ({ onNavigate }) => {
     trainingData, addTrainingItem, updateTrainingItem, removeTrainingItem,
     studentTrainingData, addStudentTrainingItem, updateStudentTrainingItem, removeStudentTrainingItem,
     approveStudentExam, revokeStudentExam,
-    questions, addQuestion, updateQuestion, removeQuestion, resetQuestions,
-    studentQuestions, addStudentQuestion, updateStudentQuestion, removeStudentQuestion, resetStudentQuestions,
+    questions, addQuestion, addQuestionsBulk, updateQuestion, removeQuestion, resetQuestions,
+    teacherExamTimeLimitMinutes, setTeacherExamTimeLimitMinutes,
+    studentQuestions, addStudentQuestion, addStudentQuestionsBulk, updateStudentQuestion, removeStudentQuestion, resetStudentQuestions,
+    studentExamMinutes, updateStudentExamMinutes,
     grantPending,
     triggerBackgroundSync,
     examResults, addExamResult, updateExamResult, removeExamResult,
@@ -1133,6 +1182,7 @@ const AdminDashboard = ({ onNavigate }) => {
   const [filterCourse, setFilterCourse] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 10;
+  const sTrainingTabRef = React.useRef('videos');
   const [actionMenuId, setActionMenuId] = useState(null); // 3-dot menu
   const [showModal, setShowModal] = useState(false);
   const [showTeacherModal, setShowTeacherModal] = useState(false);
@@ -1140,6 +1190,66 @@ const AdminDashboard = ({ onNavigate }) => {
   const [showStudentDetailId, setShowStudentDetailId] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const BLANK_Q = { type: 'multiple', section: 'excel', q: '', options: ['', '', '', ''], correct: 0, difficulty: 'medium', sampleAnswer: '' };
+  const studentQuestionsExcelInputRef = React.useRef(null);
+  const teacherQuestionsExcelInputRef = React.useRef(null);
+
+  const handleStudentQuestionsExcelFile = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const { questions, errors, skipped } = parseQuestionBankExcel(evt.target.result);
+        if (!questions.length) {
+          toast.error(errors[0] || 'Không có câu hỏi hợp lệ trong file.');
+          errors.slice(1, 5).forEach((m) => toast.error(m));
+          return;
+        }
+        addStudentQuestionsBulk(questions);
+        toast.success(
+          `Đã nhập ${questions.length} câu hỏi từ Excel.${skipped ? ` (${skipped} dòng trống đã bỏ qua)` : ''}`
+        );
+        if (errors.length) {
+          toast.error(
+            `${errors.length} dòng lỗi: ${errors.slice(0, 2).join(' — ')}${errors.length > 2 ? '…' : ''}`
+          );
+        }
+      } catch {
+        toast.error('Không đọc được file. Dùng mẫu .xlsx và thử lại.');
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleTeacherQuestionsExcelFile = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const { questions: imported, errors, skipped } = parseQuestionBankExcel(evt.target.result);
+        if (!imported.length) {
+          toast.error(errors[0] || 'Không có câu hỏi hợp lệ trong file.');
+          errors.slice(1, 5).forEach((m) => toast.error(m));
+          return;
+        }
+        addQuestionsBulk(imported);
+        toast.success(
+          `Đã nhập ${imported.length} câu hỏi GV từ Excel.${skipped ? ` (${skipped} dòng trống đã bỏ qua)` : ''}`
+        );
+        if (errors.length) {
+          toast.error(
+            `${errors.length} dòng lỗi: ${errors.slice(0, 2).join(' — ')}${errors.length > 2 ? '…' : ''}`
+          );
+        }
+      } catch {
+        toast.error('Không đọc được file. Dùng mẫu .xlsx Giảng viên và thử lại.');
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
 
   // Nhật ký hệ thống từ DB
   const [dbLogs, setDbLogs] = useState([]);
@@ -1197,7 +1307,14 @@ const AdminDashboard = ({ onNavigate }) => {
     const runBump = () => {
       mutate(['admin_stats', selectedBranchId]);
       mutate(['admin_finance', selectedBranchId]);
-      if (activeTab === 'students') {
+      if (activeTab === 'student-training' && sTrainingTabRef.current === 'exam-results') {
+        fetchStudentsPaginated({
+          page: 1,
+          limit: EXAM_RESULTS_STUDENTS_FETCH_CAP,
+          search: '',
+          branch_id: selectedBranchId,
+        });
+      } else if (activeTab === 'students') {
         fetchStudentsPaginated({
           page: currentPage,
           limit: PAGE_SIZE,
@@ -1355,8 +1472,67 @@ const AdminDashboard = ({ onNavigate }) => {
 
   // Student Training management state
   const [sTrainingTab, setSTrainingTab] = useState('videos');
+  useEffect(() => {
+    sTrainingTabRef.current = sTrainingTab;
+  }, [sTrainingTab]);
+  useEffect(() => {
+    if (activeTab !== 'student-training' || sTrainingTab !== 'exam-results') return;
+    fetchStudentsPaginated({
+      page: 1,
+      limit: EXAM_RESULTS_STUDENTS_FETCH_CAP,
+      search: '',
+      branch_id: selectedBranchId,
+    });
+  }, [activeTab, sTrainingTab, selectedBranchId, fetchStudentsPaginated]);
   const [sTrainingForm, setSTrainingForm] = useState(null);
+  /** Giáo trình / video từng khóa — Đào tạo học viên (tách biệt courseBuilderMode của GV) */
+  const [sCourseBuilderMode, setSCourseBuilderMode] = useState(null);
+  useEffect(() => {
+    if (activeTab !== 'student-training') setSCourseBuilderMode(null);
+  }, [activeTab]);
   const [sDeleteConfirm, setSDeleteConfirm] = useState(null);
+  const [trainingFileUploading, setTrainingFileUploading] = useState(false);
+  const [sTrainingFileUploading, setSTrainingFileUploading] = useState(false);
+
+  const formatTrainingFileSize = (bytes) => {
+    if (bytes == null || Number.isNaN(bytes)) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const extToTrainingFileType = (fileName) => {
+    const ext = (fileName.split('.').pop() || '').toUpperCase();
+    const map = {
+      PDF: 'PDF', DOC: 'DOCX', DOCX: 'DOCX', XLS: 'XLSX', XLSX: 'XLSX', PPT: 'PPTX', PPTX: 'PPTX', ZIP: 'ZIP', RAR: 'ZIP',
+    };
+    return map[ext] || (ext.length <= 5 ? ext : 'FILE');
+  };
+
+  const handleTrainingDocUpload = async (e, which) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const setForm = which === 'teacher' ? setTrainingForm : setSTrainingForm;
+    const setBusy = which === 'teacher' ? setTrainingFileUploading : setSTrainingFileUploading;
+    setBusy(true);
+    try {
+      const data = await api.settings.uploadTrainingFile(file);
+      if (!data.success) throw new Error(data.message || 'Upload thất bại');
+      setForm((prev) => ({
+        ...prev,
+        fileUrl: data.fileUrl,
+        fileType: extToTrainingFileType(file.name),
+        fileSize: formatTrainingFileSize(file.size),
+        fileOriginalName: file.name,
+      }));
+      toast.success('Đã tải tài liệu lên');
+    } catch (err) {
+      toast.error(err.message || 'Không tải được file');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   // Student Question Bank states
   const [sqSearch, setSqSearch] = useState('');
@@ -1489,7 +1665,6 @@ const AdminDashboard = ({ onNavigate }) => {
               <div className="flex flex-wrap justify-center gap-3 mt-12 w-full max-w-lg relative z-20">
                 <button 
                   onClick={() => {
-                    const { printInvoice } = require('../utils/exportPDF');
                     printInvoice();
                   }}
                   className="flex-1 min-w-[120px] py-3.5 bg-blue-600 text-white font-bold rounded-xl shadow-lg hover:bg-blue-700 transform hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
@@ -2199,7 +2374,16 @@ const AdminDashboard = ({ onNavigate }) => {
                                 )}
                               </div>
 
-                              {t.testDate && <span className="text-xs text-gray-400">Ngày thi: {new Date(t.testDate).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
+                              {(() => {
+                                const d = resolveTeacherExamDate(t);
+                                if (!d) return null;
+                                const fmt = d.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                                return (
+                                  <span className={`text-xs ${isTeacherExamDateApproximate(t) ? 'text-amber-600' : 'text-gray-400'}`}>
+                                    Ngày thi{isTeacherExamDateApproximate(t) ? ' (ước lượng)' : ''}: {fmt}
+                                  </span>
+                                );
+                              })()}
 
                               {(() => {
                                 const rating = getTeacherRating(t.id);
@@ -2831,11 +3015,13 @@ const AdminDashboard = ({ onNavigate }) => {
                     <button onClick={() => setTrainingForm(null)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {trainingTab !== 'files' && (
                     <div>
                       <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Tiêu đề</label>
                       <input value={trainingForm.title || ''} onChange={e => setTrainingForm({ ...trainingForm, title: e.target.value })}
                         className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-purple-400 outline-none" placeholder="Nhập tiêu đề..." />
                     </div>
+                    )}
                     {trainingTab === 'videos' && (
                       <div className="sm:col-span-2">
                         <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Mô tả Khóa học (Tóm tắt)</label>
@@ -2853,16 +3039,31 @@ const AdminDashboard = ({ onNavigate }) => {
                     {trainingTab === 'files' && (
                       <>
                         <div>
-                          <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Loại file</label>
-                          <select value={trainingForm.fileType || 'PDF'} onChange={e => setTrainingForm({ ...trainingForm, fileType: e.target.value })}
-                            className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-purple-400 outline-none">
-                            {['PDF', 'PPTX', 'XLSX', 'DOCX', 'ZIP'].map(t => <option key={t} value={t}>{t}</option>)}
-                          </select>
+                          <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Tiêu đề</label>
+                          <input value={trainingForm.title || ''} onChange={e => setTrainingForm({ ...trainingForm, title: e.target.value })}
+                            className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-purple-400 outline-none" placeholder="Nhập tiêu đề..." />
                         </div>
                         <div>
-                          <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Dung lượng</label>
-                          <input value={trainingForm.fileSize || ''} onChange={e => setTrainingForm({ ...trainingForm, fileSize: e.target.value })}
-                            className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-purple-400 outline-none" placeholder="2.4MB" />
+                          <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Tải tệp</label>
+                          <div className="flex flex-wrap items-center gap-2 min-h-[46px]">
+                            <label className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-purple-300 bg-purple-50/50 text-purple-800 text-xs font-black uppercase tracking-wide cursor-pointer hover:bg-purple-100 transition-colors shrink-0 ${trainingFileUploading ? 'opacity-60 pointer-events-none' : ''}`}>
+                              {trainingFileUploading ? <Loader2 className="animate-spin" size={18} /> : <Upload size={18} />}
+                              {trainingFileUploading ? 'Đang tải...' : 'TẢI FILE'}
+                              <input type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar" onChange={(e) => handleTrainingDocUpload(e, 'teacher')} />
+                            </label>
+                            {trainingForm.fileUrl && (
+                              <a
+                                href={trainingForm.fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-2 max-w-[min(100%,14rem)] px-3 py-2 rounded-xl bg-purple-100/80 border border-purple-200 text-purple-900 text-xs font-bold hover:bg-purple-200/80 transition-colors truncate"
+                                title={trainingUploadDisplayName(trainingForm.fileUrl, trainingForm.fileOriginalName)}
+                              >
+                                <FileText size={16} className="shrink-0 text-purple-600" />
+                                <span className="truncate">{trainingUploadDisplayName(trainingForm.fileUrl, trainingForm.fileOriginalName)}</span>
+                              </a>
+                            )}
+                          </div>
                         </div>
                       </>
                     )}
@@ -2883,10 +3084,13 @@ const AdminDashboard = ({ onNavigate }) => {
                         showGlobalModal({ title: 'Thiếu thông tin', content: 'Vui lòng nhập tiêu đề bài học!', type: 'warning' });
                         return; 
                     }
+                    const trainingPayload = trainingTab === 'files'
+                      ? { ...trainingForm, fileType: trainingForm.fileType || 'PDF' }
+                      : trainingForm;
                     if (trainingForm.id) {
-                      updateTrainingItem(trainingTab, trainingForm.id, trainingForm);
+                      updateTrainingItem(trainingTab, trainingForm.id, trainingPayload);
                     } else {
-                      addTrainingItem(trainingTab, { ...trainingForm, createdAt: new Date().toISOString().split('T')[0] });
+                      addTrainingItem(trainingTab, { ...trainingPayload, createdAt: new Date().toISOString().split('T')[0] });
                     }
                     setTrainingForm(null);
                   }} className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-md transition flex items-center gap-2">
@@ -2974,7 +3178,17 @@ const AdminDashboard = ({ onNavigate }) => {
                                     </span>
                                   </td>
                                   <td className="px-4 py-3">
-                                    <span className="text-xs text-gray-400 font-bold">{t.testDate ? new Date(t.testDate).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}</span>
+                                    <span className="text-xs text-gray-400 font-bold">
+                                      {(() => {
+                                        const d = resolveTeacherExamDate(t);
+                                        return d
+                                          ? d.toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                          : 'N/A';
+                                      })()}
+                                    </span>
+                                    {isTeacherExamDateApproximate(t) && (
+                                      <span className="block text-[9px] text-amber-600 font-bold mt-0.5">Ước lượng từ cập nhật hồ sơ</span>
+                                    )}
                                   </td>
                                   <td className="px-4 py-3 text-right">
                                     <div className="flex justify-end gap-1">
@@ -2986,7 +3200,29 @@ const AdminDashboard = ({ onNavigate }) => {
                                       ) : String(t.status || '').toLowerCase() === 'active' ? (
                                         <span className="text-[10px] text-green-600 font-black">XONG</span>
                                       ) : String(t.status || '').toLowerCase() === 'locked' ? (
-                                        <button onClick={() => ctxUpdateTeacher(t.id || t._id, { status: 'pending', lockReason: null, practicalStatus: 'none', testScore: 0 })} className="px-2 py-1.5 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 text-[10px] font-black">CHO THI LẠI</button>
+                                        <button
+                                          type="button"
+                                          onClick={async () => {
+                                            const id = t.id || t._id;
+                                            try {
+                                              await ctxUpdateTeacher(id, {
+                                                status: 'pending',
+                                                lockReason: null,
+                                                practicalStatus: 'none',
+                                                practicalFile: null,
+                                                testScore: 0,
+                                                testStatus: null,
+                                                testDate: null,
+                                              });
+                                              toast.success('Đã mở khóa — giảng viên có thể vào thi lại.');
+                                            } catch (e) {
+                                              toast.error(e?.message || 'Không cập nhật được. Cần quyền Super Admin hoặc quyền Đào tạo trên tài khoản nhân viên.');
+                                            }
+                                          }}
+                                          className="relative z-10 px-2 py-1.5 rounded-lg bg-white text-gray-800 hover:bg-gray-50 text-[10px] font-black border-2 border-gray-800 shadow-sm cursor-pointer"
+                                        >
+                                          CHO THI LẠI
+                                        </button>
                                       ) : (
                                         <span className="text-[10px] text-gray-400 font-bold border px-2 py-1 border-gray-100 rounded-lg">ĐANG THI...</span>
                                       )}
@@ -3043,20 +3279,41 @@ const AdminDashboard = ({ onNavigate }) => {
                             <h2 className="text-md font-bold text-gray-800 flex items-center gap-2">
                               <ClipboardList size={18} className="text-red-500" /> Ngân hàng câu hỏi bài test GV
                             </h2>
-                            <div className="flex gap-2 flex-wrap">
-                              <button onClick={() => { 
-                                showGlobalModal({
-                                  title: 'Reset ngân hàng câu hỏi?',
-                                  content: 'Bạn có chắc chắn muốn reset toàn bộ câu hỏi về mặc định? Hành động này không thể hoàn tác.',
-                                  type: 'warning',
-                                  confirmText: 'Xác nhận Reset',
-                                  cancelText: 'Huỷ bỏ',
-                                  onConfirm: () => resetQuestions()
-                                });
-                              }}
-                                className="px-3 py-2 border-2 border-gray-200 text-gray-500 rounded-xl text-xs font-bold hover:bg-gray-50 flex items-center gap-1">
-                                <RefreshCw size={12} /> Reset
+                            <div className="flex gap-2 flex-wrap items-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  showGlobalModal({
+                                    title: 'Xóa toàn bộ ngân hàng câu hỏi giảng viên?',
+                                    content:
+                                      'Toàn bộ câu trắc nghiệm và câu tự luận trong ngân hàng bài test giảng viên sẽ bị xóa. Thao tác không thể hoàn tác.',
+                                    type: 'warning',
+                                    confirmText: 'Xóa toàn bộ',
+                                    cancelText: 'Huỷ bỏ',
+                                    onConfirm: () => resetQuestions(),
+                                  });
+                                }}
+                                className="px-3 py-2 border-2 border-amber-200 text-amber-800 bg-amber-50/80 rounded-xl text-xs font-bold hover:bg-amber-100 flex items-center gap-1"
+                              >
+                                <Trash2 size={12} /> Xóa toàn bộ (TN & tự luận)
                               </button>
+                              <button
+                                type="button"
+                                onClick={() => downloadTeacherQuestionsExcelTemplate()}
+                                className="bg-white border-2 border-red-500 text-red-600 hover:bg-red-50 px-3 py-2 rounded-xl text-xs font-bold shadow-sm flex items-center gap-1"
+                              >
+                                <Download size={14} /> Tải mẫu Excel
+                              </button>
+                              <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border-2 border-dashed border-red-300 bg-red-50/50 text-red-800 hover:bg-red-100 cursor-pointer">
+                                <FileSpreadsheet size={14} /> Nhập từ Excel
+                                <input
+                                  ref={teacherQuestionsExcelInputRef}
+                                  type="file"
+                                  accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                                  className="hidden"
+                                  onChange={handleTeacherQuestionsExcelFile}
+                                />
+                              </label>
                               <button onClick={() => setQForm({ ...BLANK_Q })}
                                 className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow flex items-center gap-2">
                                 <Plus size={14} /> Thêm câu hỏi
@@ -3083,6 +3340,37 @@ const AdminDashboard = ({ onNavigate }) => {
                               <option value="medium">🟡 Trung bình</option>
                               <option value="hard">🔴 Nâng cao</option>
                             </select>
+                          </div>
+
+                          <div className="w-full flex flex-wrap items-end gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                            <div className="flex flex-col gap-1">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                                <Clock size={12} className="text-red-500" /> Thời gian làm bài test GV (phút)
+                              </label>
+                              <input
+                                type="number"
+                                min={5}
+                                max={600}
+                                value={teacherExamTimeLimitMinutes ?? ''}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  if (v === '') setTeacherExamTimeLimitMinutes(null);
+                                  else {
+                                    const n = parseInt(v, 10);
+                                    if (Number.isFinite(n)) {
+                                      setTeacherExamTimeLimitMinutes(Math.min(600, Math.max(5, n)));
+                                    }
+                                  }
+                                }}
+                                placeholder="Tự động"
+                                className="w-40 border-2 border-gray-200 rounded-xl px-3 py-2 text-sm font-bold focus:border-red-400 outline-none bg-white"
+                              />
+                            </div>
+                            <p className="text-[11px] text-gray-600 max-w-2xl pb-1 leading-relaxed">
+                              <span className="font-black text-gray-800">Để trống (ô Tự động):</span>{' '}
+                              thời gian tính theo toàn bộ số câu (~90 giây/câu, tối thiểu 10 phút, tối đa 120 phút).{' '}
+                              <span className="font-black text-gray-800">Nhập 5–600:</span> cố định tổng phút cho bài trắc nghiệm GV (lưu cùng ngân hàng, ~2 giây).
+                            </p>
                           </div>
 
                           {/* Add/Edit Modal */}
@@ -3419,6 +3707,17 @@ const AdminDashboard = ({ onNavigate }) => {
           {/* ===== ĐÀO TẠO HỌC VIÊN ===== */}
           {activeTab === 'student-training' && (
             <div className="space-y-6">
+              {sCourseBuilderMode ? (
+                <AdminCourseBuilder
+                  course={sCourseBuilderMode}
+                  onBack={() => setSCourseBuilderMode(null)}
+                  onSave={(updatedCourse) => {
+                    updateStudentTrainingItem('videos', sCourseBuilderMode.id, updatedCourse);
+                    setSCourseBuilderMode(null);
+                  }}
+                />
+              ) : (
+              <>
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                   <BookOpen size={20} className="text-green-600" /> Quản lý Đào tạo Học viên
@@ -3434,7 +3733,7 @@ const AdminDashboard = ({ onNavigate }) => {
                   { key: 'questions', icon: HelpCircle, label: 'Ngân hàng câu hỏi', count: studentQuestions?.length || 0 },
                   { key: 'exam-results', icon: Trophy, label: 'Kết quả thi', count: (students || []).reduce((acc, s) => acc + (s.examProgress || []).filter(ep => ep.status && ep.status !== 'chua_thi').length, 0) },
                 ].map(t => (
-                  <button key={t.key} onClick={() => { setSTrainingTab(t.key); setSTrainingForm(null); }}
+                  <button key={t.key} onClick={() => { setSTrainingTab(t.key); setSTrainingForm(null); setSCourseBuilderMode(null); }}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
                       sTrainingTab === t.key
                         ? t.key === 'exam-results' ? 'bg-amber-600 text-white shadow-md' : 'bg-green-600 text-white shadow-md'
@@ -3444,19 +3743,108 @@ const AdminDashboard = ({ onNavigate }) => {
                   </button>
                 ))}
               </div>
+              {sTrainingTab === 'questions' && (
+                <div className="space-y-3 max-w-4xl">
+                  <p className="text-xs text-gray-500 leading-relaxed">
+                    Học viên đọc đúng <strong className="text-gray-700">danh sách câu trong ngân hàng này</strong> (mục Ôn tập và phòng thi dùng chung một danh sách).
+                    Phần <strong className="text-gray-700">Máy tính &amp; Windows</strong> khi thi môn <strong className="text-gray-700">Cơ bản</strong> được khớp tự động.
+                  </p>
+                  <p className="text-[11px] text-gray-600 flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="font-bold text-gray-800">Tổng: {studentQuestions?.length || 0} câu</span>
+                    <span className="text-gray-300">|</span>
+                    <span className="flex flex-wrap gap-x-2 gap-y-1">
+                      {[
+                        { id: 'coban', label: 'Cơ bản' },
+                        { id: 'word', label: 'Word' },
+                        { id: 'excel', label: 'Excel' },
+                        { id: 'powerpoint', label: 'PowerPoint' },
+                      ].map((s) => (
+                        <span key={s.id} className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded-lg font-semibold">
+                          {s.label}: {getStudentMcQuestionsForExam(studentQuestions, s.id).length} TN
+                        </span>
+                      ))}
+                    </span>
+                  </p>
+                  <div className="bg-amber-50/80 border border-amber-100 rounded-2xl p-4">
+                    <div className="flex items-center gap-2 text-amber-900 font-bold text-sm mb-3">
+                      <Clock size={18} /> Thời gian làm trắc nghiệm (phút)
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      {[
+                        { key: 'coban', label: 'Máy tính (Cơ bản)' },
+                        { key: 'word', label: 'Microsoft Word' },
+                        { key: 'excel', label: 'Microsoft Excel' },
+                        { key: 'powerpoint', label: 'Microsoft PowerPoint' },
+                      ].map((row) => (
+                        <label key={row.key} className="flex flex-col gap-1 text-xs font-bold text-gray-600">
+                          {row.label}
+                          <input
+                            type="number"
+                            min={1}
+                            max={600}
+                            value={studentExamMinutes?.[row.key] ?? 90}
+                            onChange={(e) => updateStudentExamMinutes({ [row.key]: e.target.value })}
+                            className="border-2 border-amber-100 rounded-xl px-3 py-2 text-sm font-black text-gray-800 outline-none focus:border-amber-400"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-amber-800/80 mt-2">Giới hạn 1–600 phút. Học viên vào thi sẽ thấy đếm ngược theo số phút đã cấu hình.</p>
+                  </div>
+                </div>
+              )}
 
               {/* Add button */}
               {sTrainingTab !== 'questions' && sTrainingTab !== 'exam-results' && (
-                <button onClick={() => setSTrainingForm({})}
+                <button onClick={() => { setSCourseBuilderMode(null); setSTrainingForm({}); }}
                   className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-md transition flex items-center gap-2">
                   <Plus size={15} /> {sTrainingTab === 'videos' ? 'Thêm Khóa học' : 'Thêm tài liệu'}
                 </button>
               )}
               {sTrainingTab === 'questions' && (
-                <button onClick={() => setSqForm({ ...BLANK_Q })}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-md transition flex items-center gap-2">
-                  <Plus size={15} /> Thêm câu hỏi
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      showGlobalModal({
+                        title: 'Xóa toàn bộ ngân hàng câu hỏi học viên?',
+                        content:
+                          'Toàn bộ câu trắc nghiệm và câu tự luận trong ngân hàng học viên sẽ bị xóa. Thao tác không thể hoàn tác.',
+                        type: 'warning',
+                        confirmText: 'Xóa toàn bộ',
+                        cancelText: 'Huỷ bỏ',
+                        onConfirm: () => resetStudentQuestions(),
+                      });
+                    }}
+                    className="px-3 py-2.5 border-2 border-amber-200 text-amber-800 bg-amber-50/80 rounded-xl text-sm font-bold hover:bg-amber-100 flex items-center gap-2"
+                  >
+                    <Trash2 size={15} /> Xóa toàn bộ (TN & tự luận)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSqForm({ ...BLANK_Q })}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-md transition flex items-center gap-2"
+                  >
+                    <Plus size={15} /> Thêm câu hỏi
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => downloadStudentQuestionsExcelTemplate()}
+                    className="bg-white border-2 border-green-600 text-green-700 hover:bg-green-50 px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm transition flex items-center gap-2"
+                  >
+                    <Download size={15} /> Tải mẫu Excel
+                  </button>
+                  <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold border-2 border-dashed border-green-400 bg-green-50/60 text-green-800 hover:bg-green-100 cursor-pointer transition">
+                    <FileSpreadsheet size={15} /> Nhập từ Excel
+                    <input
+                      ref={studentQuestionsExcelInputRef}
+                      type="file"
+                      accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                      className="hidden"
+                      onChange={handleStudentQuestionsExcelFile}
+                    />
+                  </label>
+                </div>
               )}
               {/* Kết quả thi tự động từ bài thi của học viên - không cần thêm thủ công */}
 
@@ -3470,11 +3858,13 @@ const AdminDashboard = ({ onNavigate }) => {
                     <button onClick={() => setSTrainingForm(null)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {sTrainingTab !== 'files' && (
                     <div>
                       <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Tiêu đề</label>
                       <input value={sTrainingForm.title || ''} onChange={e => setSTrainingForm({ ...sTrainingForm, title: e.target.value })}
                         className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-green-400 outline-none" placeholder="Nhập tiêu đề..." />
                     </div>
+                    )}
                     {sTrainingTab === 'videos' && (
                       <div className="sm:col-span-2">
                         <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Mô tả Khóa học (Tóm tắt)</label>
@@ -3486,16 +3876,31 @@ const AdminDashboard = ({ onNavigate }) => {
                     {sTrainingTab === 'files' && (
                       <>
                         <div>
-                          <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Loại file</label>
-                          <select value={sTrainingForm.fileType || 'PDF'} onChange={e => setSTrainingForm({ ...sTrainingForm, fileType: e.target.value })}
-                            className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-green-400 outline-none">
-                            {['PDF', 'PPTX', 'XLSX', 'DOCX', 'ZIP'].map(t => <option key={t} value={t}>{t}</option>)}
-                          </select>
+                          <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Tiêu đề</label>
+                          <input value={sTrainingForm.title || ''} onChange={e => setSTrainingForm({ ...sTrainingForm, title: e.target.value })}
+                            className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-green-400 outline-none" placeholder="Nhập tiêu đề..." />
                         </div>
                         <div>
-                          <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Dung lượng</label>
-                          <input value={sTrainingForm.fileSize || ''} onChange={e => setSTrainingForm({ ...sTrainingForm, fileSize: e.target.value })}
-                            className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-green-400 outline-none" placeholder="2.4MB" />
+                          <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Tải tệp</label>
+                          <div className="flex flex-wrap items-center gap-2 min-h-[46px]">
+                            <label className={`inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-green-300 bg-green-50/50 text-green-800 text-xs font-black uppercase tracking-wide cursor-pointer hover:bg-green-100 transition-colors shrink-0 ${sTrainingFileUploading ? 'opacity-60 pointer-events-none' : ''}`}>
+                              {sTrainingFileUploading ? <Loader2 className="animate-spin" size={18} /> : <Upload size={18} />}
+                              {sTrainingFileUploading ? 'Đang tải...' : 'TẢI FILE'}
+                              <input type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar" onChange={(e) => handleTrainingDocUpload(e, 'student')} />
+                            </label>
+                            {sTrainingForm.fileUrl && (
+                              <a
+                                href={sTrainingForm.fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-2 max-w-[min(100%,14rem)] px-3 py-2 rounded-xl bg-green-100/80 border border-green-200 text-green-900 text-xs font-bold hover:bg-green-200/80 transition-colors truncate"
+                                title={trainingUploadDisplayName(sTrainingForm.fileUrl, sTrainingForm.fileOriginalName)}
+                              >
+                                <FileText size={16} className="shrink-0 text-green-600" />
+                                <span className="truncate">{trainingUploadDisplayName(sTrainingForm.fileUrl, sTrainingForm.fileOriginalName)}</span>
+                              </a>
+                            )}
+                          </div>
                         </div>
                       </>
                     )}
@@ -3514,10 +3919,13 @@ const AdminDashboard = ({ onNavigate }) => {
                         showGlobalModal({ title: 'Thiếu thông tin', content: 'Vui lòng nhập tiêu đề tài liệu!', type: 'warning' });
                         return; 
                     }
+                    const sTrainingPayload = sTrainingTab === 'files'
+                      ? { ...sTrainingForm, fileType: sTrainingForm.fileType || 'PDF' }
+                      : sTrainingForm;
                     if (sTrainingForm.id) {
-                      updateStudentTrainingItem(sTrainingTab, sTrainingForm.id, sTrainingForm);
+                      updateStudentTrainingItem(sTrainingTab, sTrainingForm.id, sTrainingPayload);
                     } else {
-                      addStudentTrainingItem(sTrainingTab, { ...sTrainingForm, createdAt: new Date().toISOString().split('T')[0] });
+                      addStudentTrainingItem(sTrainingTab, { ...sTrainingPayload, createdAt: new Date().toISOString().split('T')[0] });
                     }
                     setSTrainingForm(null);
                   }} className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-md transition flex items-center gap-2">
@@ -3664,9 +4072,14 @@ const AdminDashboard = ({ onNavigate }) => {
                                         <Download size={12} /> Tải bài
                                       </a>
                                     ) : (
-                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black bg-green-50 text-green-700 border border-green-200">
-                                        ✅ Đã nộp
-                                      </span>
+                                      <div className="flex flex-col items-center gap-1 max-w-[200px] mx-auto">
+                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black bg-green-50 text-green-700 border border-green-200">
+                                          ✅ Đã nộp
+                                        </span>
+                                        <span className="text-[9px] text-amber-700 font-semibold leading-tight text-center">
+                                          Không có file — HV cần nộp lại phần tự luận để lưu bài.
+                                        </span>
+                                      </div>
                                     )
                                   ) : (
                                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-black bg-gray-50 text-gray-400 border border-gray-200">
@@ -3869,7 +4282,7 @@ const AdminDashboard = ({ onNavigate }) => {
                         { value: 'excel', label: 'Microsoft Excel' },
                         { value: 'word', label: 'Microsoft Word' },
                         { value: 'powerpoint', label: 'Microsoft PowerPoint' },
-                        { value: 'computer', label: 'Máy tính & Windows' },
+                        { value: 'computer', label: 'Máy tính & Windows (thi Cơ bản)' },
                         { value: 'situation', label: 'Tình Huống Sư Phạm' },
                         { value: 'other', label: 'Kiến thức Khác' },
                       ];
@@ -4009,7 +4422,7 @@ const AdminDashboard = ({ onNavigate }) => {
                             <option value="excel">Microsoft Excel</option>
                             <option value="word">Microsoft Word</option>
                             <option value="powerpoint">Microsoft PowerPoint</option>
-                            <option value="computer">Máy tính & Windows</option>
+                            <option value="computer">Máy tính & Windows (thi Cơ bản)</option>
                             <option value="situation">Tình Huống Sư Phạm</option>
                             <option value="other">Kiến thức Khác</option>
                           </select>
@@ -4077,6 +4490,8 @@ const AdminDashboard = ({ onNavigate }) => {
                   </div>
                 </div>
               )}
+            </>
+            )}
             </div>
           )}
 

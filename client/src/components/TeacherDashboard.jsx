@@ -236,9 +236,15 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
   const fetchStudentAssignments = async () => {
     setLoadingAssign(true);
     try {
-      const res = await api.assignments.getByCourse(student.course);
+      const sid = student.id || student._id;
+      const res = await api.assignments.getByStudentAndCourse(sid, student.course);
       if (res.success) {
-        setCourseAssignments(res.data);
+        setCourseAssignments(
+          res.data.map((a) => ({
+            ...a,
+            submissions: a.mySubmission ? [a.mySubmission] : [],
+          }))
+        );
       }
     } catch (e) { void 0 }
     setLoadingAssign(false);
@@ -250,7 +256,8 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
       const res = await api.assignments.create({
         ...newAssign,
         courseId: student.course,
-        teacherId: student.teacherId || 'current'
+        teacherId: student.teacherId || 'current',
+        studentId: student.id || student._id,
       });
       if (res.success) {
         setShowAddAssign(false);
@@ -472,7 +479,7 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
                  <div className="grid grid-cols-2 gap-4">
                    {/* CỘT TRÁI: Nút ĐIỂM DANH */}
                    {attendanceGate?.status === 'not_yet' ? (
-                     <div className="flex items-center justify-center py-5 text-[10px] font-black text-gray-300 uppercase tracking-widest border-2 border-dashed border-gray-100 rounded-3xl opacity-50">
+                     <div className="flex items-center justify-center py-5 text-[10px] font-black text-slate-600 uppercase tracking-widest border-2 border-dashed border-slate-300 rounded-3xl bg-slate-50">
                         Chưa đến giờ dạy
                      </div>
                    ) : (
@@ -492,11 +499,11 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
                        }
                        className={`py-5 rounded-3xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-xl ${
                          isCompleted 
-                           ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-2 border-gray-200'
+                           ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-2 border-gray-300'
                          : attendanceGate?.status === 'no_schedule'
-                           ? 'bg-gray-100 text-gray-300 cursor-not-allowed opacity-40 border-2 border-gray-100 grayscale scale-[0.98]'
+                           ? 'bg-slate-100 text-slate-800 cursor-not-allowed border-2 border-slate-300 shadow-md'
                          : !canCheckIn
-                           ? 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50 border-2 border-gray-200 pointer-events-none select-none'
+                           ? 'bg-slate-50 text-slate-600 cursor-not-allowed border-2 border-slate-200 pointer-events-none select-none'
                            : 'bg-gradient-to-br from-emerald-500 to-green-600 text-white hover:shadow-green-200 shadow-green-100 active:scale-[0.97]'
                        }`}
                      >
@@ -524,8 +531,8 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
                      }
                      className={`py-5 rounded-3xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-2 transition-all border-2 ${
                        canCancelAttendance && !isCompleted
-                         ? 'bg-red-50 border-red-200 text-red-500 hover:bg-red-100 active:scale-[0.97] shadow-sm cursor-pointer'
-                         : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed opacity-40 pointer-events-none select-none'
+                         ? 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100 hover:border-red-400 active:scale-[0.97] shadow-sm cursor-pointer'
+                         : 'bg-slate-50 border-slate-300 text-slate-700 cursor-not-allowed pointer-events-none select-none shadow-sm'
                      }`}
                    >
                      <X size={20} />
@@ -963,7 +970,7 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
             <div className="grid grid-cols-2 gap-3">
               {/* CỘT TRÁI: Nút ĐIỂM DANH */}
               {attendanceGate?.status === 'not_yet' ? (
-                <div className="flex items-center justify-center py-4 text-[10px] font-black text-gray-300 uppercase tracking-widest border-2 border-dashed border-gray-100 rounded-2xl opacity-50">
+                <div className="flex items-center justify-center py-4 text-[10px] font-black text-slate-600 uppercase tracking-widest border-2 border-dashed border-slate-300 rounded-2xl bg-slate-50">
                   Chưa đến giờ
                 </div>
               ) : (
@@ -980,14 +987,14 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
                     !canCheckIn ? `Đã điểm danh. Mở khóa sau ${cooldownHours} tiếng.` : 
                     'Bấm để điểm danh'
                   }
-                  className={`py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md ${
+                  className={`py-4 rounded-2xl font-black text-sm uppercase tracking-tight flex items-center justify-center gap-2 transition-all shadow-md ${
                     isCompleted 
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      ? 'bg-gray-100 text-gray-500 cursor-not-allowed border-2 border-gray-300'
                     : attendanceGate?.status === 'no_schedule'
-                      ? 'bg-gray-100 text-gray-300 cursor-not-allowed opacity-40 border-2 border-gray-100'
+                      ? 'bg-slate-100 text-slate-800 cursor-not-allowed border-2 border-slate-300'
                     : !canCheckIn
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed opacity-50 pointer-events-none select-none border-2 border-gray-200'
-                      : 'bg-gradient-to-br from-green-500 to-emerald-600 text-white hover:shadow-green-200 shadow-green-100 active:scale-[0.97]'
+                      ? 'bg-slate-50 text-slate-600 cursor-not-allowed pointer-events-none select-none border-2 border-slate-200'
+                      : 'bg-gradient-to-br from-green-500 to-emerald-600 text-white hover:shadow-green-200 shadow-green-100 active:scale-[0.97] border-2 border-transparent'
                   }`}>
                   <CheckCircle size={18} />
                   <span className="text-xs text-center leading-tight">
@@ -1007,10 +1014,10 @@ const StudentCard = ({ student, onAttendance, onUpdateLink, onSaveGrade, onUpdat
                 onClick={() => { if (hasAttendedToday) handleUndoAttendance(); }}
                 disabled={!hasAttendedToday || isCompleted}
                 title={hasAttendedToday ? 'Hủy điểm danh hôm nay (sửa lỗi)' : 'Chưa điểm danh hôm nay'}
-                className={`py-4 rounded-2xl font-bold text-sm flex items-center justify-center gap-2 transition-all border-2 ${
+                className={`py-4 rounded-2xl font-black text-sm uppercase tracking-tight flex items-center justify-center gap-2 transition-all border-2 ${
                   hasAttendedToday && !isCompleted
-                    ? 'bg-red-50 border-red-200 text-red-500 hover:bg-red-100 active:scale-[0.97] cursor-pointer shadow-sm'
-                    : 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed opacity-40 pointer-events-none select-none'
+                    ? 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100 hover:border-red-400 active:scale-[0.97] cursor-pointer shadow-sm'
+                    : 'bg-slate-50 border-slate-300 text-slate-700 cursor-not-allowed pointer-events-none select-none shadow-sm'
                 }`}>
                 <X size={18} />
                 <span className="text-xs text-center leading-tight">HỦY<br/>ĐIỂM DANH</span>

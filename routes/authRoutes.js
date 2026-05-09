@@ -452,10 +452,17 @@ router.post('/login', loginLimiter, async (req, res) => {
     }
 
     // ⭐ Kiểm tra Device Fingerprint (── 1 máy / 1 tài khoản ──)
+    // Chỉ chặn khi vẫn còn refreshToken (phiên thật sự đang mở). Sau logout đã xóa FP + refresh → không báo oan.
     const { deviceFingerprint: fp1, force: force1 } = req.body;
     const storedFp1 = await (userRole === 'student' ? Student : Teacher)
-      .findById(user._id).select('deviceFingerprint').lean();
-    if (fp1 && storedFp1?.deviceFingerprint && storedFp1.deviceFingerprint !== fp1 && !force1) {
+      .findById(user._id).select('+refreshToken +deviceFingerprint').lean();
+    if (
+      fp1 &&
+      storedFp1?.refreshToken &&
+      storedFp1?.deviceFingerprint &&
+      storedFp1.deviceFingerprint !== fp1 &&
+      !force1
+    ) {
       return res.status(409).json({
         success: false,
         code: 'DEVICE_CONFLICT',
@@ -610,8 +617,14 @@ router.post('/login/public', loginLimiter, async (req, res) => {
     // ⭐ Kiểm tra Device Fingerprint
     const { deviceFingerprint: fp2, force: force2 } = req.body;
     const storedFp2 = await (userRole === 'student' ? Student : Teacher)
-      .findById(user._id).select('deviceFingerprint').lean();
-    if (fp2 && storedFp2?.deviceFingerprint && storedFp2.deviceFingerprint !== fp2 && !force2) {
+      .findById(user._id).select('+refreshToken +deviceFingerprint').lean();
+    if (
+      fp2 &&
+      storedFp2?.refreshToken &&
+      storedFp2?.deviceFingerprint &&
+      storedFp2.deviceFingerprint !== fp2 &&
+      !force2
+    ) {
       return res.status(409).json({
         success: false,
         code: 'DEVICE_CONFLICT',
@@ -723,8 +736,14 @@ router.post('/login/internal', loginLimiter, async (req, res) => {
 
     // ⭐ Kiểm tra Device Fingerprint (internal/admin)
     const { deviceFingerprint: fp3, force: force3 } = req.body;
-    const storedFp3 = await Teacher.findById(user._id).select('deviceFingerprint').lean();
-    if (fp3 && storedFp3?.deviceFingerprint && storedFp3.deviceFingerprint !== fp3 && !force3) {
+    const storedFp3 = await Teacher.findById(user._id).select('+refreshToken +deviceFingerprint').lean();
+    if (
+      fp3 &&
+      storedFp3?.refreshToken &&
+      storedFp3?.deviceFingerprint &&
+      storedFp3.deviceFingerprint !== fp3 &&
+      !force3
+    ) {
       return res.status(409).json({
         success: false,
         code: 'DEVICE_CONFLICT',
@@ -813,9 +832,9 @@ router.post('/logout', authMiddleware, async (req, res) => {
 
     if (userId && userId !== 'admin') {
       if (role === 'student') {
-        await Student.findByIdAndUpdate(userId, { $unset: { refreshToken: 1 } });
+        await Student.findByIdAndUpdate(userId, { $unset: { refreshToken: 1, deviceFingerprint: 1 } });
       } else {
-        await Teacher.findByIdAndUpdate(userId, { $unset: { refreshToken: 1 } });
+        await Teacher.findByIdAndUpdate(userId, { $unset: { refreshToken: 1, deviceFingerprint: 1 } });
       }
     }
 

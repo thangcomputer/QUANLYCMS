@@ -1,73 +1,38 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   ArrowLeft, Send, ChevronLeft, ChevronRight,
-  Upload, CheckCircle, Download, Paperclip, Monitor, XCircle
+  Upload, CheckCircle, Download, Paperclip, Monitor, XCircle,
+  LayoutGrid, Shield, Clock,
 } from 'lucide-react';
 import ExamMonitor, { CameraHeaderPanel } from './ExamMonitor';
 import { useSocket } from '../context/SocketContext';
 import { useData } from '../context/DataContext';
 import { useModal } from '../utils/Modal.jsx';
-
-// ─── Dữ liệu câu hỏi mẫu ──────────────────────────────────────────────────────
-const QUESTIONS_DB = {
-  word: [
-    { id: 1, text: 'Để tạo một văn bản mới trống, bạn nhấn tổ hợp phím:', options: ['CTRL + C', 'CTRL + N', 'CTRL + D', 'CTRL + Z'], answer: 1 },
-    { id: 2, text: 'Lệnh nào dùng để căn đều hai lề (Justify)?',           options: ['CTRL + L', 'CTRL + R', 'CTRL + E', 'CTRL + J'], answer: 3 },
-    { id: 3, text: 'Phím tắt in đậm (Bold) trong Word là:',                options: ['CTRL + I', 'CTRL + B', 'CTRL + U', 'CTRL + D'], answer: 1 },
-    { id: 4, text: 'Chèn bảng biểu (Table) vào Word, vào tab:',           options: ['Home', 'Insert', 'View', 'Layout'],             answer: 1 },
-    { id: 5, text: 'Track Changes trong Word dùng để:',                    options: ['Theo dõi thay đổi văn bản', 'Đổi font chữ', 'In tài liệu', 'Lưu file'], answer: 0 },
-    { id: 6, text: 'Để ngắt trang trong Word, bạn dùng:',                 options: ['CTRL + Enter', 'CTRL + N', 'CTRL + P', 'CTRL + B'], answer: 0 },
-    { id: 7, text: 'Mail Merge trong Word dùng để:',                       options: ['Thiết kế bảng', 'Gộp văn bản từ nhiều nguồn', 'In hàng loạt thư từ danh sách', 'Tạo hiệu ứng'], answer: 2 },
-    { id: 8, text: 'Phím tắt Undo (hoàn tác) trong Word là:',             options: ['CTRL + Y', 'CTRL + Z', 'CTRL + X', 'CTRL + A'], answer: 1 },
-    { id: 9, text: 'Để xem tài liệu trước khi in (Print Preview):',       options: ['CTRL + F2', 'CTRL + P', 'File > Print', 'Cả 3 đều đúng'], answer: 3 },
-    { id: 10, text: 'Header & Footer trong Word hiện ở:',                  options: ['Giữa trang', 'Đầu và cuối mỗi trang', 'Phần chú thích', 'Cạnh trang'], answer: 1 },
-    { id: 11, text: 'Lệnh Find & Replace dùng phím tắt:',                  options: ['CTRL + H', 'CTRL + F', 'CTRL + G', 'CTRL + R'], answer: 0 },
-    { id: 12, text: 'Để chèn ký hiệu đặc biệt (Symbol), vào:',            options: ['Insert > Symbol', 'Home > Symbol', 'View > Symbol', 'Layout > Symbol'], answer: 0 },
-    { id: 13, text: 'Lưu file dưới dạng PDF trong Word 2016+:',           options: ['Save As > PDF', 'Export > PDF', 'File > Save As PDF', 'Cả A và B đều đúng'], answer: 3 },
-    { id: 14, text: 'Để đánh số trang tự động trong Word, vào:',          options: ['Insert > Page Number', 'Home > Pages', 'View > Page', 'Format > Numbering'], answer: 0 },
-    { id: 15, text: 'Paragraph Spacing dùng để điều chỉnh:',               options: ['Cỡ chữ', 'Khoảng cách giữa dòng', 'Khoảng cách giữa đoạn', 'Lề trang'], answer: 2 },
-  ],
-  excel: [
-    { id: 1,  text: 'Hàm tính tổng trong Excel là:',                      options: ['COUNT', 'SUM', 'AVERAGE', 'MAX'],                answer: 1 },
-    { id: 2,  text: 'VLOOKUP tìm kiếm theo:',                             options: ['Hàng ngang', 'Cột dọc', 'Ô đơn lẻ', 'Sheet'],   answer: 1 },
-    { id: 3,  text: 'Phím tắt Insert hàng mới trong Excel:',             options: ['CTRL + +', 'CTRL + -', 'CTRL + R', 'CTRL + D'],  answer: 0 },
-    { id: 4,  text: 'Hàm IF trả về kết quả dựa trên:',                   options: ['Điều kiện đúng/sai', 'Tổng số', 'Giá trị lớn nhất', 'Font chữ'], answer: 0 },
-    { id: 5,  text: 'Pivot Table dùng để:',                               options: ['Vẽ biểu đồ', 'Tổng hợp & phân tích dữ liệu', 'Định dạng bảng', 'Lưu file'], answer: 1 },
-    { id: 6,  text: 'Hàm đếm ô không trống trong Excel:',                options: ['COUNT', 'COUNTA', 'COUNTIF', 'COUNTBLANK'],       answer: 1 },
-    { id: 7,  text: 'Ký tự cố định địa chỉ ô trong Excel là:',           options: ['#', '%', '$', '&'],                              answer: 2 },
-    { id: 8,  text: 'Hàm CONCATENATE (hoặc &) dùng để:',                 options: ['Tính tổng', 'Nối chuỗi', 'Đếm ký tự', 'So sánh'], answer: 1 },
-    { id: 9,  text: 'Freeze Panes trong Excel dùng để:',                  options: ['Đóng băng hàng/cột khi cuộn', 'Ẩn hàng', 'Lọc dữ liệu', 'Tô màu'], answer: 0 },
-    { id: 10, text: 'Định dạng ngày tháng trong Excel thuộc nhóm:',       options: ['Number', 'Date', 'Text', 'Custom'],              answer: 0 },
-    { id: 11, text: 'Hàm tìm giá trị lớn nhất trong Excel:',             options: ['MIN', 'MAX', 'LARGE', 'TOP'],                    answer: 1 },
-    { id: 12, text: 'Data Validation dùng để:',                           options: ['Kiểm tra dữ liệu nhập vào', 'Lọc dữ liệu', 'Tạo biểu đồ', 'In bảng'], answer: 0 },
-    { id: 13, text: 'HLOOKUP tìm kiếm theo:',                             options: ['Cột dọc', 'Hàng ngang', 'Sheet', 'Tên ô'],      answer: 1 },
-    { id: 14, text: 'Phím tắt chọn toàn bộ bảng tính:',                  options: ['CTRL + A', 'CTRL + S', 'CTRL + E', 'CTRL + T'], answer: 0 },
-    { id: 15, text: 'Conditional Formatting dùng để:',                    options: ['Định dạng theo điều kiện', 'In màu', 'Thêm hàng', 'Tính toán'], answer: 0 },
-  ],
-  powerpoint: [
-    { id: 1,  text: 'Chèn Slide mới trong PowerPoint:',                   options: ['CTRL + M', 'CTRL + N', 'CTRL + D', 'CTRL + S'], answer: 0 },
-    { id: 2,  text: 'Slide Master dùng để:',                              options: ['Thêm hiệu ứng', 'Tạo bố cục mẫu chung', 'Lưu bài', 'Chèn hình'], answer: 1 },
-    { id: 3,  text: 'F5 trong PowerPoint:',                               options: ['Lưu file', 'Bắt đầu trình chiếu từ đầu', 'In ấn', 'Chèn slide'], answer: 1 },
-    { id: 4,  text: 'Hiệu ứng chuyển slide gọi là:',                     options: ['Animation', 'Transition', 'Design', 'Layout'],   answer: 1 },
-    { id: 5,  text: 'Xuất file sang PDF:',                                options: ['Save As > PDF', 'Export > PDF', 'File > Save As PDF', 'Cả A và B'], answer: 3 },
-    { id: 6,  text: 'Để nhóm nhiều đối tượng (Group):',                   options: ['CTRL + G', 'CTRL + H', 'CTRL + K', 'CTRL + M'], answer: 0 },
-    { id: 7,  text: 'SmartArt trong PowerPoint dùng để:',                 options: ['Chèn hình ảnh', 'Tạo biểu đồ thông tin đồ họa', 'Thêm bảng', 'Vẽ tự do'], answer: 1 },
-    { id: 8,  text: 'Presenter View trong PowerPoint dùng để:',           options: ['Xem slide trên màn hình phụ', 'In slide', 'Chia sẻ file', 'Thêm ghi chú'], answer: 0 },
-    { id: 9,  text: 'Phím tắt kết thúc trình chiếu sớm:',               options: ['ESC', 'F1', 'CTRL + Q', 'CTRL + W'],             answer: 0 },
-    { id: 10, text: 'Sắp xếp thứ tự layer (đối tượng) dùng:',           options: ['Bring Forward / Send Backward', 'Group', 'Align', 'Rotate'], answer: 0 },
-    { id: 11, text: 'Để chèn video vào slide:',                           options: ['Insert > Video', 'Home > Video', 'View > Video', 'Layout > Video'], answer: 0 },
-    { id: 12, text: 'Morph transition xuất hiện từ phiên bản:',           options: ['2010', '2013', '2016', '2019'],                  answer: 2 },
-    { id: 13, text: 'Để căn giữa đối tượng trên slide:',                 options: ['Align Center', 'Center Object', 'Format > Align', 'Distribute'], answer: 0 },
-    { id: 14, text: 'Theme trong PowerPoint là:',                         options: ['Bộ màu + font + hiệu ứng chia sẻ chung', 'Loại slide', 'Hiệu ứng riêng', 'Kích thước slide'], answer: 0 },
-    { id: 15, text: 'Để xem ghi chú (Notes) khi trình bày:',             options: ['View > Notes Page', 'Presenter View', 'Slide Show > Notes', 'Cả A và B'], answer: 3 },
-  ],
-};
+import { getStudentMcQuestionsForExam } from '../utils/htmlContent';
+import api from '../services/api';
 
 const SUBJECT_META = {
+  coban:       { label: 'Máy vi tính (Cơ bản)', short: 'Cơ bản',     examFile: 'De_thi_Co_ban.docx', time: 90 * 60 },
   word:        { label: 'Microsoft Word',       short: 'Word',       examFile: 'De_thi_Word.docx',   time: 90 * 60 },
   excel:       { label: 'Microsoft Excel',      short: 'Excel',      examFile: 'De_thi_Excel.xlsx',  time: 90 * 60 },
   powerpoint:  { label: 'Microsoft PowerPoint', short: 'PowerPoint', examFile: 'De_thi_PPT.pptx',   time: 90 * 60 },
 };
+
+/** Logo từ cấu hình web (đồng bộ sidebar); fallback SVG chỉnh tông cho nền tối */
+function ExamBrandLogo({ resolvedUrl, className }) {
+  return (
+    <img
+      src={resolvedUrl || '/logo-thang-tin-hoc.svg'}
+      alt="Logo"
+      className={className}
+      style={
+        resolvedUrl
+          ? { objectFit: 'contain' }
+          : { filter: 'brightness(0) invert(1)' }
+      }
+    />
+  );
+}
 
 // ─── Confirm Modal ────────────────────────────────────────────────────────────
 const ConfirmModal = ({ title, message, boldText, onConfirm, onCancel, confirmLabel = 'Nộp bài', cancelLabel = 'Làm tiếp' }) => (
@@ -88,14 +53,38 @@ const ConfirmModal = ({ title, message, boldText, onConfirm, onCancel, confirmLa
 
 // ─── Main StudentTest ─────────────────────────────────────────────────────────
 const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = 'THIÊN TRANG', onBack }) => {
-  const meta      = SUBJECT_META[subjectId] || SUBJECT_META.word;
-  const questions = QUESTIONS_DB[subjectId] || QUESTIONS_DB.word;
-  const TOTAL     = questions.length;
-
   // Socket & Data
   const session = JSON.parse(localStorage.getItem('student_user') || '{}');
   const STUDENT_ID = session.id || 101;
-  const { students, updateStudent, addNotification } = useData() || { students: [], updateStudent: ()=>{}, addNotification: ()=>{} };
+  const { students, studentQuestions, studentExamMinutes, updateStudent, addNotification } = useData() || {
+    students: [],
+    studentQuestions: [],
+    studentExamMinutes: { coban: 90, word: 90, excel: 90, powerpoint: 90 },
+    updateStudent: () => {},
+    addNotification: () => {},
+  };
+
+  const meta = useMemo(() => {
+    const base = SUBJECT_META[subjectId] || SUBJECT_META.word;
+    const mins = Number(studentExamMinutes?.[subjectId]);
+    const m = Number.isFinite(mins) && mins >= 1 ? mins : base.time / 60;
+    const secs = Math.max(60, Math.min(8 * 3600, Math.round(m * 60)));
+    return { ...base, time: secs };
+  }, [subjectId, studentExamMinutes]);
+
+  const questions = useMemo(() => {
+    const raw = getStudentMcQuestionsForExam(studentQuestions, subjectId);
+    return raw.map((q, i) => ({
+      id: q.id ?? `sq-${subjectId}-${i}`,
+      text: q.q || '',
+      options: (q.options || []).filter((o) => o && String(o).trim()),
+      answer: q.correct,
+    }));
+  }, [studentQuestions, subjectId]);
+
+  const TOTAL = questions.length;
+
+  const questionIdsKey = useMemo(() => questions.map((q) => q.id).join('|'), [questions]);
   const { socket } = useSocket() || {};
   const student = students?.find(s => String(s.id) === String(STUDENT_ID));
   const { showModal } = useModal();
@@ -103,31 +92,69 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
 
   const [tab, setTab]           = useState('trac_nghiem');
   const [isTracNghiemSubmitted, setIsTracNghiemSubmitted] = useState(false);
-  const [answers, setAnswers]   = useState(Array(TOTAL).fill(null));
+  const [answers, setAnswers]   = useState([]);
   const [currentQ, setCurrentQ] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(meta.time);
+  const [timeLeft, setTimeLeft] = useState(() => meta.time);
   const [phase, setPhase]       = useState('hardware_check'); // hardware_check | test | result | banned
   const [banReason, setBanReason] = useState('');
-
-  // ── BỎ QUA YÊU CẦU CAMERA NẾU ADMIN ĐÃ TẮT ──
-  useEffect(() => {
-    if (student?.requireWebcam === false && phase === 'hardware_check') {
-      setPhase('test');
-    }
-  }, [student?.requireWebcam, phase]);
 
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const previewRef = useRef(null);
 
+  const API_BASE = import.meta.env.VITE_API_URL || '';
+  const [webLogoUrl, setWebLogoUrl] = useState('');
+  useEffect(() => {
+    fetch(`${API_BASE}/api/settings/web`)
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.success && res.data?.logoUrl) {
+          const u = res.data.logoUrl;
+          setWebLogoUrl(u.startsWith('http') ? u : `${API_BASE}${u}`);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Modals
   const [showSubmitConfirm, setShowSubmitConfirm]   = useState(false);
   const [showNoFileConfirm, setShowNoFileConfirm]   = useState(false);
 
+  useEffect(() => {
+    if (phase !== 'test') return;
+    const prevBody = document.body.style.overflow;
+    const prevHtml = document.documentElement.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevBody;
+      document.documentElement.style.overflow = prevHtml;
+    };
+  }, [phase]);
+
   // Tự luận
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadDone, setUploadDone] = useState(false);
+  const [tuLuanSubmitting, setTuLuanSubmitting] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+
+  useEffect(() => {
+    setAnswers(Array(TOTAL).fill(null));
+    setCurrentQ(0);
+    setIsTracNghiemSubmitted(false);
+    setTab('trac_nghiem');
+  }, [questionIdsKey, TOTAL]);
+
+  useEffect(() => {
+    setTimeLeft(meta.time);
+  }, [meta.time, subjectId]);
+
+  // ── BỎ QUA YÊU CẦU CAMERA NẾU ADMIN ĐÃ TẮT ──
+  useEffect(() => {
+    if (student?.requireWebcam === false && phase === 'hardware_check' && TOTAL > 0) {
+      setPhase('test');
+    }
+  }, [student?.requireWebcam, phase, TOTAL]);
 
   const timerRef   = useRef(null);
   const monitorRef = useRef(null);
@@ -171,7 +198,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
 
   // ── Timer ──
   useEffect(() => {
-    if (phase !== 'test') return;
+    if (phase !== 'test' || TOTAL < 1) return;
     timerRef.current = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 1) { clearInterval(timerRef.current); handleSubmitFinal(); return 0; }
@@ -179,7 +206,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
       });
     }, 1000);
     return () => clearInterval(timerRef.current);
-  }, [phase]);
+  }, [phase, TOTAL]);
 
   // ── Browser Trap (Chống F5, Ctrl+R, Back) ──
   const failAndExitRef = useRef();
@@ -313,8 +340,9 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
   };
 
   const handleSubmitFinal = () => {
+    if (TOTAL < 1) return;
     const finalScore = answers.reduce((acc, a, i) => acc + (a === questions[i]?.answer ? 1 : 0), 0);
-    const finalPct = Math.round((finalScore / TOTAL) * 100);
+    const finalPct = TOTAL > 0 ? Math.round((finalScore / TOTAL) * 100) : 0;
     const passedTN = finalPct >= 50;
 
     setIsTracNghiemSubmitted(true);
@@ -343,16 +371,43 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
     }
   };
 
-  const handleFinalTuLuan = () => {
+  const handleFinalTuLuan = useCallback(async () => {
     clearInterval(timerRef.current);
+    let essayFileStored = '';
+    if (uploadFile) {
+      setTuLuanSubmitting(true);
+      try {
+        const res = await api.assignments.uploadFile(uploadFile);
+        if (!res?.success || !res.fileUrl) {
+          throw new Error(res?.message || 'Tải file lên thất bại');
+        }
+        const raw = String(res.fileUrl);
+        try {
+          essayFileStored = raw.startsWith('http') ? new URL(raw).pathname : raw;
+        } catch {
+          essayFileStored = raw;
+        }
+      } catch (err) {
+        setTuLuanSubmitting(false);
+        showModal({
+          title: 'Không tải được bài làm',
+          content: err?.message || 'Vui lòng kiểm tra kết nối và định dạng file (tối đa 3MB theo hệ thống).',
+          type: 'error',
+          confirmText: 'Đóng',
+        });
+        return;
+      }
+      setTuLuanSubmitting(false);
+    }
     updateExamProgress({
       thucHanh: 'da_nop',
-      status: 'dat'
+      status: 'dat',
+      ...(essayFileStored ? { essayFile: essayFileStored } : {}),
     });
+    setUploadDone(true);
     setPhase('result');
-    // 🔔 Thông báo admin
-    addNotification(null, 'admin', `📝 Học viên ${studentName} đã nộp bài thực hành môn ${meta.label}. Vui lòng chấm điểm.`);
-  };
+    addNotification(null, 'admin', `📝 Học viên ${session.name || studentName} đã nộp bài thực hành môn ${meta.label}. Vui lòng chấm điểm.`);
+  }, [uploadFile, updateExamProgress, showModal, addNotification, session.name, studentName, meta.label]);
 
   const trySubmit = () => {
     const unanswered = answers.filter(a => a === null).length;
@@ -362,7 +417,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
 
   const trySubmitTuLuan = () => {
     if (!uploadFile) setShowNoFileConfirm(true);
-    else { setUploadDone(true); handleFinalTuLuan(); }
+    else void handleFinalTuLuan();
   };
 
   // Drag & drop
@@ -373,8 +428,8 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
   };
 
   const score  = answers.reduce((acc, a, i) => acc + (a === questions[i]?.answer ? 1 : 0), 0);
-  const pct    = Math.round((score / TOTAL) * 100);
-  const passed = pct >= 50;
+  const pct    = TOTAL > 0 ? Math.round((score / TOTAL) * 100) : 0;
+  const passed = TOTAL > 0 && pct >= 50;
   const mins   = Math.floor(timeLeft / 60);
   const secs   = timeLeft % 60;
 
@@ -386,6 +441,11 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
       <div className="absolute inset-0 border-[12px] border-blue-500/30 pointer-events-none rounded-[32px] m-4 animate-pulse" />
       <div className="bg-white rounded-[28px] p-5 max-w-[320px] w-full text-center shadow-[0_0_80px_rgba(32,61,181,0.4)] z-10 border-t-[6px] border-blue-600 animate-in zoom-in duration-500 overflow-y-auto max-h-[90vh] no-scrollbar">
          <h2 className="text-lg font-black text-slate-900 tracking-tight mt-0">Yêu cầu bật Camera</h2>
+         {TOTAL === 0 && (
+           <div className="mb-3 px-2 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[10px] font-bold leading-relaxed">
+             Chưa có câu hỏi trắc nghiệm cho môn <span className="text-amber-950">{meta.short}</span> trong ngân hàng. Vui lòng liên hệ Admin.
+           </div>
+         )}
          <p className="text-slate-500 font-bold mt-1 mb-3 px-2 text-[10px] leading-relaxed">
              Để đảm bảo tính công bằng, bạn <span className="text-red-500">bắt buộc phải bật camera</span> xuyên suốt quá trình làm bài thi.
          </p>
@@ -448,15 +508,20 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
 
          {/* Nút Vào thi */}
          <button 
-             disabled={!cameraReady}
+             disabled={!cameraReady || TOTAL === 0}
              onClick={() => setPhase('test')} 
              className={`w-full py-2.5 font-black rounded-[14px] transition-all text-[11px] flex items-center justify-center gap-2 ${
-                 cameraReady 
+                 cameraReady && TOTAL > 0
                  ? 'bg-red-500 text-white shadow-xl shadow-red-500/30 hover:bg-red-600 hover:scale-[1.02] active:scale-95' 
                  : 'bg-slate-100 text-slate-300 cursor-not-allowed opacity-70'
              }`}>
              TÔI ĐÃ HIỂU VÀ BẮT ĐẦU THI
          </button>
+         {TOTAL === 0 && (
+           <button type="button" onClick={() => onBack?.()} className="w-full mt-2 py-2 font-bold rounded-[14px] text-[11px] border border-slate-200 text-slate-600 hover:bg-slate-50">
+             ← Quay lại
+           </button>
+         )}
       </div>
     </div>
   );
@@ -496,7 +561,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
     <div className="min-h-screen bg-gray-50 font-sans">
       {/* Simple result header */}
       <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-4 md:px-8 py-4 flex items-center gap-4">
-        <img src="/logo-thang-tin-hoc.svg" alt="Logo" className="h-7 brightness-0 invert" />
+        <ExamBrandLogo resolvedUrl={webLogoUrl} className="h-7 w-auto max-w-[140px] flex-shrink-0" />
         <span className="text-white font-bold text-sm">Kết quả — {meta.label}</span>
       </div>
       <div className="p-4 md:p-8 max-w-3xl mx-auto space-y-4">
@@ -541,7 +606,14 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
                   ? <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl border border-blue-100 mb-3 text-sm"><span className="text-blue-700 font-medium truncate">{uploadFile.name}</span><button onClick={() => setUploadFile(null)} className="text-gray-400 hover:text-red-500 ml-2 flex-shrink-0">×</button></div>
                   : <button onClick={() => fileRef.current?.click()} className="w-full border-2 border-dashed border-gray-200 rounded-xl py-5 text-gray-400 hover:border-blue-300 hover:text-blue-500 text-sm flex flex-col items-center gap-1 mb-3"><Upload size={20}/> Chọn file</button>
                 }
-                <button onClick={() => { if (!uploadFile) return; setUploadDone(true); handleFinalTuLuan(); }} className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl text-sm">Nộp bài tự luận</button>
+                <button
+                  type="button"
+                  disabled={tuLuanSubmitting}
+                  onClick={() => { if (!uploadFile) return; void handleFinalTuLuan(); }}
+                  className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white font-bold rounded-xl text-sm"
+                >
+                  {tuLuanSubmitting ? 'Đang tải lên…' : 'Nộp bài tự luận'}
+                </button>
               </>
             )}
           </div>
@@ -560,24 +632,42 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
   // ══════════════════════════════════════════════════════
   // TEST — Main Layout
   // ══════════════════════════════════════════════════════
+  if (phase === 'test' && TOTAL < 1) {
+    return (
+      <div className="min-h-screen bg-[#f0f2f5] flex items-center justify-center p-6 font-sans">
+        <div className="bg-white rounded-3xl shadow-xl max-w-md w-full p-8 text-center border border-gray-100">
+          <p className="text-gray-800 font-bold text-sm mb-2">Không có câu hỏi trắc nghiệm cho môn {meta.label}.</p>
+          <p className="text-gray-500 text-xs mb-6">Admin cần thêm câu hỏi (phần thi khớp Word/Excel/PowerPoint) vào ngân hàng học viên.</p>
+          <button type="button" onClick={() => onBack?.()} className="w-full py-3 bg-gray-900 text-white font-bold rounded-xl text-sm hover:bg-black">← Quay lại</button>
+        </div>
+      </div>
+    );
+  }
+
   const q              = questions[currentQ];
   const answeredCount  = answers.filter(a => a !== null).length;
   const unanswered     = TOTAL - answeredCount;
 
   return (
-    <div className="min-h-screen bg-[#f0f2f5] font-sans">
+    <div className="relative flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-slate-100 font-sans text-slate-900">
+      <div
+        className="pointer-events-none fixed inset-0 opacity-[0.35]"
+        style={{
+          backgroundImage: `radial-gradient(at 0% 0%, rgb(224, 231, 255) 0px, transparent 50%),
+            radial-gradient(at 100% 0%, rgb(254, 226, 226) 0px, transparent 45%),
+            radial-gradient(at 50% 100%, rgb(226, 232, 240) 0px, transparent 40%)`,
+        }}
+      />
 
-      {/* ══════════ HEADER CARD — Floating dark rounded ══════════ */}
-      <div className="px-3 md:px-6 pt-4 pb-0">
-        <div className="bg-[#161d2f] rounded-3xl overflow-hidden shadow-2xl">
-          <div className="p-4 md:p-5">
-            <div className="flex items-start justify-between gap-3">
-
-              {/* ── LEFT column ── */}
-              <div className="flex flex-col gap-4 min-w-0">
-                {/* Trở về */}
+      {/* ══════════ HEADER — 3 cột cân đối, tập trung tiêu đề giữa ══════════ */}
+      <header className="relative z-20 shrink-0 px-2 pt-1.5 pb-1.5 md:px-4 md:pt-2 md:pb-2">
+        <div className="mx-auto max-w-[min(100%,90rem)] rounded-xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 shadow-[0_16px_50px_-18px_rgba(15,23,42,0.5)] overflow-hidden md:rounded-2xl">
+          <div className="absolute inset-0 opacity-[0.07] bg-[linear-gradient(rgba(255,255,255,.06)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.06)_1px,transparent_1px)] bg-[size:24px_24px]" />
+          <div className="relative border-b border-white/10 px-3 py-2 md:px-4 md:py-2">
+            <div className="flex flex-wrap items-center gap-2">
                 <button
-                  onClick={() => { 
+                  type="button"
+                  onClick={() => {
                     showModal({
                       title: 'CẢNH BÁO TỪ HỆ THỐNG',
                       content: 'Nếu bạn quay lại bây giờ, bài thi sẽ lập tức BỊ HỦY và hệ thống sẽ hiển thị RỚT. Bạn có chắc chắn muốn thoát?',
@@ -589,222 +679,387 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
                           tracNghiem: { score: 0, total: TOTAL },
                           thucHanh: 'chua_nop',
                           status: 'khong_dat',
-                          lockUntil: Date.now() + 7 * 24 * 60 * 60 * 1000
+                          lockUntil: Date.now() + 7 * 24 * 60 * 60 * 1000,
                         });
                         onBack?.();
-                      }
+                      },
                     });
                   }}
-                  className="self-start flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3.5 py-2 rounded-xl transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm shadow-black/20 backdrop-blur-sm transition hover:bg-white/15 md:px-3 md:py-2 md:text-xs"
                 >
-                  <ArrowLeft size={13} /> Trở về
+                  <ArrowLeft size={14} /> Thoát phòng thi
                 </button>
-
-                {/* Logo */}
-                <img src="/logo-thang-tin-hoc.svg" alt="Logo" className="h-9 self-start" />
-
-                {/* Timer box */}
-                <div className="bg-[#0e1623] rounded-2xl px-4 py-3 self-start border border-white/5">
-                  <p className="text-[9px] text-slate-500 uppercase tracking-widest font-semibold mb-0.5">Thời gian còn lại</p>
-                  <p className={`font-mono font-black text-3xl md:text-4xl tracking-wider leading-none ${timeLeft < 300 ? 'text-red-400 animate-pulse' : 'text-white'}`}>
-                    {String(mins).padStart(2,'0')}:{String(secs).padStart(2,'0')}
-                  </p>
-                </div>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/35 bg-emerald-500/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-200 md:text-[11px]">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                  Đang giám sát
+                </span>
+            </div>
+          </div>
+          <div className="relative grid grid-cols-1 gap-2.5 p-2.5 md:gap-3 md:p-3 lg:grid-cols-12 lg:items-center lg:gap-4">
+            <div className="flex min-w-0 flex-col justify-center gap-2 lg:col-span-4">
+              <div className="flex flex-wrap items-center gap-1.5 md:gap-2 lg:justify-start">
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-black/35 px-2.5 py-1.5 font-mono text-[11px] text-slate-100 shadow-inner shadow-black/30 md:px-3 md:py-2 md:text-xs">
+                  <Shield size={12} className="shrink-0 text-sky-400" />
+                  <span className="text-slate-400">SBD</span>
+                  <span className="font-bold text-white">{studentSbd}</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-black/35 px-2.5 py-1.5 text-[11px] text-slate-200 shadow-inner shadow-black/30 md:px-3 md:py-2 md:text-xs">
+                  <LayoutGrid size={12} className="shrink-0 text-sky-400" />
+                  <span className="font-semibold text-white">{TOTAL}</span>
+                  <span className="text-slate-400">câu TN</span>
+                </span>
               </div>
-
-              {/* ── CENTER ── */}
-              <div className="flex-1 flex flex-col items-center justify-center gap-2 pt-1">
-                {/* Pill badge */}
-                <div className="flex items-center gap-2 bg-red-900/40 border border-red-700/40 px-4 py-1.5 rounded-full">
-                  <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                  <span className="text-red-400 text-xs font-bold tracking-wide">HỆ THỐNG THI TRỰC TUYẾN</span>
-                </div>
-                {/* Subject title */}
-                <div className="text-center">
-                  <h1 className="text-white font-black text-3xl md:text-4xl tracking-tight">
-                    Thi <span className="text-red-400">{meta.short}</span>
-                  </h1>
-                  <p className="text-slate-400 text-sm mt-1">SBD: {studentSbd}</p>
-                </div>
+              <div
+                className={`flex w-full max-w-[13.5rem] shrink-0 flex-col items-center text-center self-start rounded-xl border px-3 py-2 shadow-md backdrop-blur-md md:px-3.5 md:py-2.5 ${
+                  timeLeft < 300
+                    ? 'border-red-500/45 bg-gradient-to-b from-red-950/50 to-red-950/30 shadow-[0_0_28px_-8px_rgba(239,68,68,0.4)]'
+                    : 'border-white/15 bg-gradient-to-b from-white/10 to-black/25'
+                }`}
+              >
+                <p className="flex items-center justify-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-300 md:text-[11px]">
+                  <Clock size={12} className="shrink-0 text-sky-400" />
+                  Thời gian còn lại
+                </p>
+                <p
+                  className={`mt-0.5 w-full text-center font-mono text-2xl font-black tabular-nums leading-none tracking-tight md:text-3xl ${
+                    timeLeft < 300 ? 'text-red-200' : 'text-white'
+                  }`}
+                >
+                  {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
+                </p>
               </div>
+            </div>
 
-              {/* ── RIGHT — Camera ── */}
-              <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-                {/* Camera AI label */}
-                <div className="flex items-center gap-2 text-right">
-                  <div>
-                    <p className="text-white text-sm font-bold text-right">Giám sát qua Camera AI</p>
-                    <p className="text-slate-500 text-xs text-right">Hệ thống tự động phát hiện vi phạm.</p>
-                  </div>
-                  <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse flex-shrink-0" />
-                </div>
-                {/* Camera preview box */}
-                <CameraHeaderPanel monitorRef={monitorRef} />
+            <div className="flex flex-col items-center text-center lg:col-span-4 lg:px-1">
+              <ExamBrandLogo
+                resolvedUrl={webLogoUrl}
+                className="h-8 w-auto max-w-[min(100%,200px)] md:h-9 lg:h-10"
+              />
+              <p className="mt-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-indigo-300 md:mt-2 md:text-[11px]">
+                Hệ thống thi trực tuyến
+              </p>
+              <h1 className="mt-0.5 text-lg font-black leading-tight tracking-tight text-white md:text-xl lg:text-2xl">
+                Ca thi
+              </h1>
+              <p className="mt-0.5 text-sm font-bold text-indigo-200 md:text-base lg:text-lg">{meta.label}</p>
+            </div>
+
+            <div className="flex min-w-0 w-full flex-col lg:col-span-4 lg:items-end">
+              <div className="w-full max-w-[17.5rem] min-w-0 lg:flex lg:justify-end">
+                <CameraHeaderPanel monitorRef={monitorRef} variant="large" />
               </div>
-
             </div>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* ══════════ TABS ══════════ */}
-      <div className="px-3 md:px-6 mt-3">
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-          <div className="flex border-b border-gray-100">
-            <button
-              onClick={() => setTab('trac_nghiem')}
-              className={`flex-1 py-3.5 text-sm font-semibold transition-all ${
-                tab === 'trac_nghiem' ? 'text-gray-800 bg-white border-b-0' : 'text-gray-400 bg-gray-50/50 hover:text-gray-600'
-              }`}
-            >
-              📝 Trắc nghiệm {isTracNghiemSubmitted && '✅'}
-            </button>
-            <button
-              onClick={() => { if (isTracNghiemSubmitted) setTab('tu_luan'); }}
-              disabled={!isTracNghiemSubmitted}
-              className={`flex-1 py-3.5 text-sm font-semibold transition-all ${
-                !isTracNghiemSubmitted
-                  ? 'opacity-50 cursor-not-allowed text-gray-300 bg-gray-100'
-                  : tab === 'tu_luan'
-                    ? 'text-gray-800 bg-white border-b-0'
-                    : 'text-gray-400 bg-gray-50/50 hover:text-gray-600'
-              }`}
-            >
-              🖥 Tự luận {!isTracNghiemSubmitted && '🔒'}
-            </button>
-          </div>
-          {/* Thin progress line */}
-          <div className="h-0.5 bg-gray-100">
-            <div className="h-full bg-red-500 transition-all duration-500" style={{ width: `${(answeredCount / TOTAL) * 100}%` }} />
-          </div>
-
-          {/* ── Trắc nghiệm ── */}
-          {tab === 'trac_nghiem' && (
-            <div className="p-4 md:p-6">
-              <p className="text-[11px] text-gray-400 font-bold uppercase tracking-wider mb-3">CÂU HỎI {currentQ + 1}/{TOTAL}</p>
-              <p className="text-base font-bold text-gray-800 mb-5">
-                {currentQ + 1}. {q.text}
-              </p>
-              <div className="space-y-2.5">
-                {q.options.map((opt, i) => (
-                  <button
-                    key={i}
-                    onClick={() => { if (!isTracNghiemSubmitted) handleAnswer(currentQ, i); }}
-                    disabled={isTracNghiemSubmitted}
-                    className={`w-full flex items-center gap-4 px-5 py-3.5 rounded-2xl border text-left transition-all ${
-                      answers[currentQ] === i
-                        ? 'border-transparent bg-gray-900 text-white shadow-lg'
-                        : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm text-gray-700'
-                    } ${isTracNghiemSubmitted ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  >
-                    <span className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${
-                      answers[currentQ] === i ? 'bg-white text-gray-900' : 'bg-gray-100 text-gray-500'
-                    }`}>
-                      {['A','B','C','D'][i]}
-                    </span>
-                    <span className="text-sm font-medium">{opt}</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* Nav */}
-              <div className="flex items-center justify-between mt-6">
-                <button onClick={() => setCurrentQ(p => Math.max(0, p - 1))} disabled={currentQ === 0}
-                  className="flex items-center gap-1.5 text-sm text-gray-500 disabled:opacity-30 hover:text-gray-700">
-                  <ChevronLeft size={16}/> Trước
+      {/* ══════════ MAIN — gói trong 100dvh, không cuộn trang ══════════ */}
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col px-3 pb-1.5 pt-0.5 md:px-6 md:pb-2">
+        <div className="mx-auto grid min-h-0 w-full max-w-[min(100%,90rem)] flex-1 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-12 lg:gap-4 xl:gap-5">
+          <main className="order-1 flex min-h-0 flex-col lg:order-2 lg:col-span-8 xl:col-span-9">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-xl shadow-slate-200/50 backdrop-blur-sm">
+              <div className="flex shrink-0 border-b border-slate-100 bg-slate-50/80">
+                <button
+                  type="button"
+                  onClick={() => setTab('trac_nghiem')}
+                  className={`relative flex flex-1 items-center justify-center gap-2 py-2.5 text-sm font-bold transition md:py-3 ${
+                    tab === 'trac_nghiem'
+                      ? 'text-indigo-900'
+                      : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  {tab === 'trac_nghiem' && (
+                    <span className="absolute bottom-0 left-4 right-4 h-0.5 rounded-full bg-indigo-600" />
+                  )}
+                  Trắc nghiệm
+                  {isTracNghiemSubmitted && <CheckCircle size={16} className="text-emerald-500" />}
                 </button>
-                <span className="text-sm text-gray-400">{currentQ + 1} / {TOTAL}</span>
-                <button onClick={() => setCurrentQ(p => Math.min(TOTAL - 1, p + 1))} disabled={currentQ === TOTAL - 1}
-                  className="flex items-center gap-1.5 text-sm text-gray-500 disabled:opacity-30 hover:text-gray-700">
-                  Tiếp <ChevronRight size={16}/>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isTracNghiemSubmitted) setTab('tu_luan');
+                  }}
+                  disabled={!isTracNghiemSubmitted}
+                  className={`relative flex flex-1 items-center justify-center gap-2 py-2.5 text-sm font-bold transition md:py-3 ${
+                    !isTracNghiemSubmitted
+                      ? 'cursor-not-allowed text-slate-300'
+                      : tab === 'tu_luan'
+                        ? 'text-indigo-900'
+                        : 'text-slate-400 hover:text-slate-600'
+                  }`}
+                >
+                  {tab === 'tu_luan' && isTracNghiemSubmitted && (
+                    <span className="absolute bottom-0 left-4 right-4 h-0.5 rounded-full bg-indigo-600" />
+                  )}
+                  Thực hành / Tự luận
+                  {!isTracNghiemSubmitted && <span className="text-xs font-semibold text-slate-400">(Khoá)</span>}
                 </button>
               </div>
-            </div>
-          )}
+              <div className="h-1 shrink-0 bg-slate-100">
+                <div
+                  className="h-full bg-gradient-to-r from-indigo-500 to-violet-500 transition-all duration-500"
+                  style={{ width: `${TOTAL > 0 ? (answeredCount / TOTAL) * 100 : 0}%` }}
+                />
+              </div>
 
-          {/* ── Tự luận ── */}
-          {tab === 'tu_luan' && (
-            <div className="p-4 md:p-6">
-              {uploadDone ? (
-                /* Success state */
-                <div className="text-center py-10">
-                  <div className="text-5xl mb-4">📬</div>
-                  <h3 className="font-black text-gray-800 text-xl mb-2">Đã nộp bài tự luận!</h3>
-                  <p className="text-gray-500 text-sm">File đã được gửi đến giám khảo.</p>
-                  <button onClick={() => onBack?.()} className="mt-6 px-6 py-2.5 border border-gray-200 rounded-xl text-gray-600 text-sm font-semibold hover:bg-gray-50">Quay về danh sách môn thi</button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* Exam file download */}
-                  <div className="flex gap-4">
-                    <div className="w-32 flex-shrink-0 bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
-                      <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-2">Tài liệu đính kèm</p>
-                      <a href="#" className="flex items-center gap-1.5 text-xs text-red-600 font-semibold hover:text-red-700 justify-center">
-                        <Download size={13}/> Tải file đề thi
-                      </a>
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-bold text-gray-800 mb-2">Đề thi {meta.short}</h3>
-                      <p className="text-sm text-red-500">Thí sinh tải file đề về máy và chia đôi màn hình để làm cho dễ và nhanh hơn, bấm bên cột trái có chữ "Tải File để thi"</p>
-                    </div>
+              <div className="min-h-0 flex-1 overflow-hidden">
+              {tab === 'trac_nghiem' && (
+                <div className="flex h-full min-h-0 flex-col p-2.5 md:p-3 lg:p-4">
+                  <div className="shrink-0 border-b border-slate-100 pb-2 md:pb-2.5">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500 md:text-xs">
+                      Câu hỏi {currentQ + 1} / {TOTAL}
+                    </p>
+                    <h2 className="mt-1 text-sm font-bold leading-snug text-slate-900 md:text-base lg:text-lg">
+                      {q.text}
+                    </h2>
+                    <p className="mt-1 text-[10px] font-medium text-slate-500 md:text-[11px]">
+                      Chọn một đáp án · Có thể sửa trước khi nộp
+                    </p>
                   </div>
-
-                  {/* Upload area */}
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700 flex items-center gap-1.5 mb-2"><Paperclip size={14}/> Nộp bài tự luận</p>
-                    <input ref={fileRef} type="file" accept=".xlsx,.xls,.docx,.pptx" className="hidden"
-                      onChange={e => setUploadFile(e.target.files[0])} />
-
-                    {uploadFile ? (
-                      <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl border border-blue-100 mb-3">
-                        <span className="text-sm text-blue-700 font-medium truncate">{uploadFile.name}</span>
-                        <button onClick={() => setUploadFile(null)} className="text-gray-400 hover:text-red-500 ml-2 flex-shrink-0 text-lg leading-none">×</button>
-                      </div>
-                    ) : (
-                      <div
-                        onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
-                        onDragLeave={() => setIsDragging(false)}
-                        onDrop={handleDrop}
-                        onClick={() => fileRef.current?.click()}
-                        className={`w-full border-2 border-dashed rounded-2xl py-10 cursor-pointer text-center transition-all mb-3 ${
-                          isDragging ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-gray-50/50 hover:border-gray-300'
-                        }`}
+                  <div className="min-h-0 flex-1 space-y-1 overflow-y-auto py-1 pr-0.5 md:space-y-1.5 md:py-1.5 hide-scrollbar">
+                    {q.options.map((opt, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => {
+                          if (!isTracNghiemSubmitted) handleAnswer(currentQ, i);
+                        }}
+                        disabled={isTracNghiemSubmitted}
+                        className={`group flex w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-all md:gap-2.5 md:px-3 md:py-2 ${
+                          answers[currentQ] === i
+                            ? 'border-indigo-600 bg-indigo-50 shadow-sm shadow-indigo-500/10'
+                            : 'border-slate-200 bg-white hover:border-slate-300'
+                        } ${isTracNghiemSubmitted ? 'cursor-not-allowed opacity-65' : ''}`}
                       >
-                        <Upload size={28} className="text-gray-300 mx-auto mb-2" />
-                        <p className="text-sm text-gray-500">Kéo thả file vào đây hoặc <span className="text-blue-500 font-semibold hover:underline">click để chọn file</span></p>
-                        <p className="text-xs text-gray-400 mt-1">Word, Excel, PowerPoint · Tối đa 50MB</p>
-                      </div>
-                    )}
+                        <span
+                          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[10px] font-black md:h-8 md:w-8 md:text-[11px] ${
+                            answers[currentQ] === i
+                              ? 'bg-indigo-600 text-white'
+                              : 'bg-slate-100 text-slate-500 group-hover:bg-slate-200'
+                          }`}
+                        >
+                          {['A', 'B', 'C', 'D', 'E', 'F'][i] ?? i + 1}
+                        </span>
+                        <span
+                          className={`min-w-0 flex-1 text-[13px] leading-snug md:text-sm ${
+                            answers[currentQ] === i ? 'font-semibold text-indigo-950' : 'font-medium text-slate-700'
+                          }`}
+                        >
+                          {opt}
+                        </span>
+                      </button>
+                    ))}
                   </div>
-
-                  {/* Submit button */}
-                  <button
-                    onClick={trySubmitTuLuan}
-                    className="w-full py-3.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-sm transition-all flex items-center justify-center gap-2 shadow-lg shadow-red-100"
-                  >
-                    <Send size={15}/> NỘP BÀI TỰ LUẬN
-                  </button>
+                  <div className="flex shrink-0 items-center justify-between border-t border-slate-100 pt-2 md:pt-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentQ((p) => Math.max(0, p - 1))}
+                      disabled={currentQ === 0}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-35 md:px-3.5 md:py-2.5 md:text-sm"
+                    >
+                      <ChevronLeft size={18} /> Câu trước
+                    </button>
+                    <span className="font-mono text-xs font-semibold text-slate-500 md:text-sm">
+                      {currentQ + 1} / {TOTAL}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentQ((p) => Math.min(TOTAL - 1, p + 1))}
+                      disabled={currentQ === TOTAL - 1}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-35 md:px-3.5 md:py-2.5 md:text-sm"
+                    >
+                      Câu sau <ChevronRight size={18} />
+                    </button>
+                  </div>
                 </div>
               )}
-            </div>
-          )}
-        </div>
-      </div>
 
-      {/* ══════════ FOOTER: Nộp trắc nghiệm ══════════ */}
-      {tab === 'trac_nghiem' && !isTracNghiemSubmitted && (
-        <div className="px-3 md:px-6 py-4 flex items-center justify-between">
-          <span className="text-sm text-gray-400">
-            Đã làm: <span className={`font-bold ${answeredCount === TOTAL ? 'text-green-600' : 'text-orange-500'}`}>{answeredCount}/{TOTAL}</span>
-          </span>
-          <button
-            onClick={trySubmit}
-            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition-all active:scale-95 shadow-lg shadow-green-100"
-          >
-            <CheckCircle size={15}/> NỘP BÀI TRẮC NGHIỆM
-          </button>
+              {tab === 'tu_luan' && (
+                <div className="p-4 md:p-6 lg:p-7">
+                  {uploadDone ? (
+                    <div className="py-12 text-center">
+                      <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600">
+                        <CheckCircle size={36} />
+                      </div>
+                      <h3 className="text-xl font-black text-slate-900">Đã nộp bài thực hành</h3>
+                      <p className="mt-2 text-sm text-slate-500">Hồ sơ đã được ghi nhận trên hệ thống.</p>
+                      <button
+                        type="button"
+                        onClick={() => onBack?.()}
+                        className="mt-8 rounded-xl border border-slate-200 bg-white px-6 py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50"
+                      >
+                        Về phòng thi
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-5 md:flex md:gap-6">
+                        <div className="mb-4 flex w-full shrink-0 flex-col items-center justify-center rounded-xl border border-slate-200 bg-white p-4 md:mb-0 md:w-36">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Đề thi</p>
+                          <p className="mt-2 text-center text-xs font-bold text-slate-800">{meta.examFile}</p>
+                          <a
+                            href="#"
+                            className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:underline"
+                            onClick={(e) => e.preventDefault()}
+                          >
+                            <Download size={14} /> Tải đề
+                          </a>
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-900">Hướng dẫn nộp bài</h3>
+                          <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                            Tải đề về máy, làm bài theo yêu cầu, sau đó nộp đúng định dạng file quy định. Kiểm tra lại tên file trước khi gửi.
+                          </p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-800">
+                          <Paperclip size={16} className="text-indigo-500" />
+                          Tải lên bài làm
+                        </p>
+                        <input
+                          ref={fileRef}
+                          type="file"
+                          accept=".xlsx,.xls,.docx,.pptx"
+                          className="hidden"
+                          onChange={(e) => setUploadFile(e.target.files[0])}
+                        />
+                        {uploadFile ? (
+                          <div className="flex items-center justify-between rounded-2xl border border-indigo-200 bg-indigo-50/50 p-4">
+                            <span className="truncate text-sm font-semibold text-indigo-900">{uploadFile.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => setUploadFile(null)}
+                              className="ml-2 text-slate-400 hover:text-red-500"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ) : (
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => e.key === 'Enter' && fileRef.current?.click()}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              setIsDragging(true);
+                            }}
+                            onDragLeave={() => setIsDragging(false)}
+                            onDrop={handleDrop}
+                            onClick={() => fileRef.current?.click()}
+                            className={`cursor-pointer rounded-2xl border-2 border-dashed py-12 text-center transition ${
+                              isDragging
+                                ? 'border-indigo-400 bg-indigo-50'
+                                : 'border-slate-200 bg-slate-50/50 hover:border-slate-300'
+                            }`}
+                          >
+                            <Upload size={32} className="mx-auto text-slate-300" />
+                            <p className="mt-2 text-sm text-slate-600">
+                              Kéo thả hoặc <span className="font-bold text-indigo-600">chọn file</span>
+                            </p>
+                            <p className="mt-1 text-xs text-slate-400">Word, Excel, PowerPoint · tối đa 50MB</p>
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={tuLuanSubmitting}
+                        onClick={trySubmitTuLuan}
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 py-4 text-sm font-black text-white shadow-lg shadow-indigo-500/25 transition hover:from-indigo-500 hover:to-violet-500 disabled:opacity-60"
+                      >
+                        <Send size={18} /> {tuLuanSubmitting ? 'ĐANG TẢI LÊN…' : 'NỘP BÀI THỰC HÀNH'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              </div>
+            </div>
+          </main>
+
+          <aside className="order-2 flex max-h-[32vh] min-h-0 flex-col lg:order-1 lg:col-span-4 lg:max-h-none xl:col-span-3">
+            <div className="hide-scrollbar flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain lg:gap-3">
+              <div className="shrink-0 rounded-2xl border border-slate-200/80 bg-white/95 p-3 shadow-lg shadow-slate-200/40 backdrop-blur-sm md:p-4">
+                <div className="mb-4 flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-600">
+                    <LayoutGrid size={16} className="text-indigo-600" />
+                    Mục lục câu hỏi
+                  </span>
+                  <span className="rounded-lg bg-slate-100 px-2.5 py-1 font-mono text-xs font-bold text-slate-600 md:text-sm">
+                    {answeredCount}/{TOTAL}
+                  </span>
+                </div>
+                <div className="grid grid-cols-6 gap-2 sm:grid-cols-7 md:gap-2 lg:grid-cols-5">
+                  {questions.map((_, i) => {
+                    const done = answers[i] !== null;
+                    const active = i === currentQ;
+                    return (
+                      <button
+                        key={questions[i].id ?? i}
+                        type="button"
+                        disabled={isTracNghiemSubmitted || tab !== 'trac_nghiem'}
+                        onClick={() => setCurrentQ(i)}
+                        className={`flex aspect-square items-center justify-center rounded-lg text-xs font-black transition sm:rounded-xl sm:text-sm md:text-[0.95rem] ${
+                          active
+                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/30 ring-2 ring-indigo-300 ring-offset-1 ring-offset-white'
+                            : done
+                              ? 'border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                              : 'border border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 hover:bg-white'
+                        } ${isTracNghiemSubmitted || tab !== 'trac_nghiem' ? 'cursor-default opacity-60' : ''}`}
+                      >
+                        {i + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-100 pt-4 text-[11px] font-semibold text-slate-600 md:text-xs">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded bg-indigo-600" />
+                    Đang xem
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded bg-emerald-400" />
+                    Đã trả lời
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded border border-slate-300 bg-slate-100" />
+                    Chưa làm
+                  </span>
+                </div>
+              </div>
+              <div className="hidden shrink-0 rounded-2xl border border-slate-200 bg-white/90 p-3 text-xs leading-relaxed text-slate-600 shadow-sm lg:block lg:p-4">
+                <p className="font-bold text-slate-800">Lưu ý</p>
+                <p className="mt-2">
+                  Bạn có thể chuyển câu bất kỳ từ lưới bên trên. Thời gian làm bài được tính liên tục. Hệ thống ghi nhận hành vi
+                  chuyển tab và mất hình camera theo quy chế thi.
+                </p>
+              </div>
+            </div>
+          </aside>
         </div>
-      )}
+
+        {tab === 'trac_nghiem' && !isTracNghiemSubmitted && (
+          <div className="mx-auto mt-1 w-full max-w-[min(100%,90rem)] shrink-0 rounded-xl border border-slate-200/80 bg-white/90 px-3 py-2 shadow-sm backdrop-blur-md md:mt-2 md:flex md:items-center md:justify-between md:px-5 md:py-2.5">
+            <div className="mb-2 md:mb-0">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tiến độ</p>
+              <p className="text-sm font-semibold text-slate-700">
+                Đã trả lời{' '}
+                <span className={answeredCount === TOTAL ? 'text-emerald-600' : 'text-amber-600'}>
+                  {answeredCount}/{TOTAL}
+                </span>{' '}
+                câu
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={trySubmit}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3 text-sm font-black text-white shadow-md shadow-emerald-500/20 transition hover:from-emerald-500 hover:to-teal-500 active:scale-[0.98] md:w-auto md:rounded-2xl md:px-8 md:py-3.5 md:shadow-lg"
+            >
+              <CheckCircle size={18} /> NỘP BÀI TRẮC NGHIỆM
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* ExamMonitor (logic only) */}
       <ExamMonitor ref={monitorRef} isActive={phase === 'test'} onViolate={handleViolation} onResetExam={handleResetExam} requireWebcam={student?.requireWebcam !== false} />

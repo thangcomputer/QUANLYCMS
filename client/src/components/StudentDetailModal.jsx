@@ -12,6 +12,20 @@ import { useData } from '../context/DataContext';
 
 const fmt = (n) => n ? Number(n).toLocaleString('vi-VN') + 'đ' : '0đ';
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('vi-VN') : '—';
+const fmtDateTimeVN = (input) => {
+  if (!input) return '';
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return String(input);
+  return d.toLocaleString('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+};
 
 export default function StudentDetailModal({ studentId, onClose }) {
   const [loading, setLoading]     = useState(true);
@@ -83,7 +97,7 @@ export default function StudentDetailModal({ studentId, onClose }) {
   const fetchAssignments = async (course) => {
     setLoadingAssign(true);
     try {
-      const res = await api.assignments.getForStudent(studentId, course);
+      const res = await api.assignments.getByStudentAndCourse(studentId, course);
       if (res.success) setAssignments(res.data);
     } catch (err) { void 0 }
     finally { setLoadingAssign(false); }
@@ -96,6 +110,7 @@ export default function StudentDetailModal({ studentId, onClose }) {
         ...newAssign,
         courseId: data.student.course,
         teacherId: data.student.teacherId?._id || 'admin', // default to admin or current teacher
+        studentId: data.student._id || data.student.id || studentId,
       });
       if (res.success) {
         setShowAddAssign(false);
@@ -385,9 +400,13 @@ export default function StudentDetailModal({ studentId, onClose }) {
                             <td className="px-4 py-4 text-xs text-slate-400">{sch.note || sch.subject || 'Dạy thực tế'}</td>
                             <td className="px-4 py-4 text-center">
                               <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter ${
-                                sch.status === 'completed' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                                sch.status === 'completed'
+                                  ? 'bg-emerald-50 text-emerald-600'
+                                  : sch.status === 'cancelled'
+                                    ? 'bg-red-50 text-red-600'
+                                    : 'bg-amber-50 text-amber-600'
                               }`}>
-                                {sch.status === 'completed' ? 'Đã học' : 'Sắp tới'}
+                                {sch.status === 'completed' ? 'Đã học' : sch.status === 'cancelled' ? 'Đã hủy' : 'Sắp tới'}
                               </span>
                             </td>
                           </tr>
@@ -578,10 +597,17 @@ export default function StudentDetailModal({ studentId, onClose }) {
                                 <td className="px-6 py-4">
                                   <p className="text-xs font-black text-slate-800 uppercase tracking-tight mb-0.5">{a.title}</p>
                                   <p className="text-[10px] text-slate-400 font-bold truncate max-w-[200px]">{a.description || 'Không có mô tả'}</p>
-                                  {a.attachedFileUrl && (
-                                    <a href={a.attachedFileUrl} target="_blank" rel="noreferrer" className="text-[10px] text-indigo-500 font-bold flex items-center gap-1 mt-1 hover:underline">
+                                  {(a.fileUrl || a.attachedFileUrl) && (
+                                    <a href={(a.fileUrl || a.attachedFileUrl)} target="_blank" rel="noreferrer" className="text-[10px] text-indigo-500 font-bold flex items-center gap-1 mt-1 hover:underline">
                                       <Download size={10} /> Tải đề bài
                                     </a>
+                                  )}
+                                  {(a.assignedByRole || a.assignedByName) && (
+                                    <p className="text-[10px] text-slate-400 font-bold mt-1">
+                                      Giao bởi: <span className="text-slate-600">
+                                        {a.assignedByName || (String(a.assignedByRole).toLowerCase() === 'teacher' ? 'Giảng viên' : 'Admin')}
+                                      </span>
+                                    </p>
                                   )}
                                 </td>
                                 <td className="px-4 py-4">
@@ -707,7 +733,9 @@ export default function StudentDetailModal({ studentId, onClose }) {
                                     {i < data.student.grades.length - 1 && <div className="w-px h-full bg-slate-100 my-1" />}
                                  </div>
                                  <div className="flex-1 pb-4">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">{g.date || 'Giai đoạn học'}</p>
+                                   <p className="text-[10px] font-black text-slate-400 uppercase leading-none mb-1">
+                                     {g.date ? fmtDateTimeVN(g.date) : 'Giai đoạn học'}
+                                   </p>
                                     <p className="text-xs text-slate-700 font-semibold leading-relaxed">{g.note}</p>
                                  </div>
                               </div>

@@ -22,8 +22,9 @@ const formatTime = (date) => {
 };
 
 const roleBadge = (role) => {
-  if (role === 'admin') return { text: 'ADMIN', color: 'bg-red-100 text-red-700' };
-  if (role === 'teacher') return { text: 'GV', color: 'bg-blue-100 text-blue-700' };
+  const r = normalizeRole(String(role || '').toLowerCase());
+  if (r === 'admin') return { text: 'ADMIN', color: 'bg-red-100 text-red-700' };
+  if (r === 'teacher') return { text: 'GV', color: 'bg-blue-100 text-blue-700' };
   return { text: 'HV', color: 'bg-green-100 text-green-700' };
 };
 
@@ -32,8 +33,10 @@ const normalizeRole = (role) => (role === 'staff' ? 'admin' : role);
 const messageIsFromMe = (msg, currentUserId, currentUserRole) => {
   if (String(msg.senderId) === String(currentUserId)) return true;
   const r = String(currentUserRole || '').toLowerCase();
-  // Legacy: một số tin cũ có senderId='admin' (đã từng gom identity)
-  if ((r === 'admin' || r === 'staff') && String(msg.senderId) === 'admin') return true;
+  // Legacy: một số tin cũ có senderId='admin' (đã từng gom identity).
+  // Chỉ "hardcoded admin" (id='admin') mới coi đây là tin của mình,
+  // nếu không sẽ làm STAFF thấy tin của SUPER_ADMIN bị đảo chiều.
+  if ((r === 'admin' || r === 'staff') && String(currentUserId) === 'admin' && String(msg.senderId) === 'admin') return true;
   return false;
 };
 
@@ -837,7 +840,7 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
               <div className="flex-1 overflow-y-auto px-3 md:px-6 pt-6 pb-4 space-y-4 min-h-0 bg-[#F0F2F5]">
                 {messages.map(msg => {
                   const isMine = messageIsFromMe(msg, currentUserId, currentUserRole);
-                  const role = msg.senderRole;
+                  const role = normalizeRole(msg.senderRole);
 
                   let bubbleBg = isMine ? 'bg-[#0084FF] text-white' : 'bg-white text-gray-800';
                   if (!isMine) {

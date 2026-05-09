@@ -268,11 +268,14 @@ router.put('/:id', [authMiddleware, branchFilter], async (req, res) => {
       return res.status(403).json({ success: false, message: 'Không có quyền' });
     }
     if (!isSelfEdit && (req.user.role === 'admin' || req.user.role === 'staff')) {
-      // Kiểm tra phải Super Admin
       if (req.user.id !== 'admin') {
-        const me = await Teacher.findById(req.user.id).select('adminRole').lean();
-        if (me?.adminRole !== 'SUPER_ADMIN') {
-          return res.status(403).json({ success: false, message: '403 Forbidden — Chỉ Super Admin mới được sửa thông tin giảng viên.' });
+        const me = await Teacher.findById(req.user.id).select('adminRole permissions').lean();
+        const canTraining = Array.isArray(me?.permissions) && me.permissions.includes('manage_training');
+        if (me?.adminRole !== 'SUPER_ADMIN' && !canTraining) {
+          return res.status(403).json({
+            success: false,
+            message: '403 Forbidden — Chỉ Super Admin hoặc tài khoản có quyền Đào tạo (manage_training) mới được sửa thông tin giảng viên.',
+          });
         }
       }
     }
@@ -304,6 +307,14 @@ router.put('/:id', [authMiddleware, branchFilter], async (req, res) => {
     const updates = {};
     for (const key of allowedFields) {
       if (req.body[key] !== undefined) updates[key] = req.body[key];
+    }
+
+    // Luôn có ngày/giờ thi khi ghi nhận đạt/trượt trắc nghiệm (tránh cột "Ngày thi" N/A trên admin)
+    if (
+      (updates.testStatus === 'passed' || updates.testStatus === 'failed') &&
+      (updates.testDate === undefined || updates.testDate === null)
+    ) {
+      updates.testDate = new Date();
     }
 
     // Security check: teacher cannot set their own status to 'active'

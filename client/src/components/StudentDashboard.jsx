@@ -14,6 +14,7 @@ import StudentProfileUpdateModal from './StudentProfileUpdateModal';
 import StudentTrainingLMS from './StudentTrainingLMS';
 import api from '../services/api';
 import { useModal } from '../utils/Modal.jsx';
+import { htmlToPlainText } from '../utils/htmlContent';
 
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
@@ -304,6 +305,20 @@ const MaterialsView = ({ trainingData, courseName, studentQuestions, onSelectAss
   const [activeTab, setActiveTab] = useState('videos');
   const [searchQuery, setSearchQuery] = useState('');
 
+  const formatVNDateTime = (input) => {
+    if (!input) return '';
+    const d = new Date(input);
+    if (Number.isNaN(d.getTime())) return String(input);
+    return d.toLocaleString('vi-VN', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      hour: '2-digit',
+      minute: '2-digit',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  };
+
   const tabs = [
     { key: 'videos', label: 'Video học', icon: Video, color: 'text-purple-600', bgActive: 'bg-purple-100 text-purple-700' },
     { key: 'files', label: 'Tài liệu', icon: FileText, color: 'text-blue-600', bgActive: 'bg-blue-100 text-blue-700' },
@@ -312,9 +327,11 @@ const MaterialsView = ({ trainingData, courseName, studentQuestions, onSelectAss
   ];
 
   const currentList = trainingData?.[activeTab] || [];
-  const filtered = currentList.filter(m => 
-    (m.title?.toLowerCase().includes(searchQuery.toLowerCase()) || m.desc?.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const filtered = currentList.filter((m) => {
+    const q = searchQuery.toLowerCase();
+    const descPlain = htmlToPlainText(m.desc || '').toLowerCase();
+    return m.title?.toLowerCase().includes(q) || descPlain.includes(q);
+  });
 
   const typeColors = {
     VIDEO: 'bg-purple-500', PDF: 'bg-red-500', XLSX: 'bg-green-500', PPTX: 'bg-orange-500', DOCX: 'bg-blue-500',
@@ -348,7 +365,11 @@ const MaterialsView = ({ trainingData, courseName, studentQuestions, onSelectAss
                   {tab.label}
                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ml-1 ${
                     isActive ? 'bg-white ' + tab.color : 'bg-slate-100 text-slate-400'
-                  }`}>{trainingData?.[tab.key]?.length || 0}</span>
+                  }`}>{
+                    tab.key === 'questions'
+                      ? (studentQuestions?.length || 0)
+                      : (trainingData?.[tab.key]?.length || 0)
+                  }</span>
                 </button>
               );
             })}
@@ -390,9 +411,9 @@ const MaterialsView = ({ trainingData, courseName, studentQuestions, onSelectAss
                        {m.title}
                        {isLocked && <span className="bg-slate-200 text-slate-600 px-2 py-0.5 text-[9px] uppercase font-bold tracking-wider rounded border border-slate-300">Khóa</span>}
                      </h4>
-                     <p className="text-xs text-slate-500 line-clamp-1">{(m.desc?.replace(/<[^>]*>/g, '') || '')}</p>
+                     <p className="text-xs text-slate-500 line-clamp-1">{htmlToPlainText(m.desc) || ''}</p>
                      <p className="text-[11px] font-medium text-slate-400 mt-2 flex items-center gap-4">
-                       <span className="flex items-center gap-1.5"><Calendar size={12} /> {m.createdAt}</span>
+                       <span className="flex items-center gap-1.5"><Calendar size={12} /> {formatVNDateTime(m.createdAt)}</span>
                        <span className="flex items-center gap-1.5"><Clock size={12} /> {m.duration || '00:00'}</span>
                      </p>
                   </div>
@@ -420,7 +441,7 @@ const MaterialsView = ({ trainingData, courseName, studentQuestions, onSelectAss
       {activeTab === 'files' && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="divide-y divide-gray-50">
-            {filtered.map(m => (
+            {filtered.map((m) => (
               <div key={m.id} className="px-4 md:px-6 py-4 flex items-center justify-between hover:bg-blue-50/30 transition-colors group">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className={`w-10 h-10 rounded-xl ${typeColors[m.fileType] || 'bg-gray-400'} flex items-center justify-center text-white text-[10px] font-black flex-shrink-0`}>
@@ -428,12 +449,26 @@ const MaterialsView = ({ trainingData, courseName, studentQuestions, onSelectAss
                   </div>
                   <div className="min-w-0">
                     <p className="font-bold text-sm text-gray-800 truncate">{m.title}</p>
-                    <p className="text-[10px] text-gray-400">{(m.desc?.replace(/<[^>]*>/g, '') || '')} • {m.fileSize}</p>
+                    <p className="text-[10px] text-gray-400 line-clamp-2">
+                      {htmlToPlainText(m.desc) || '—'} {m.fileSize ? `• ${m.fileSize}` : ''}
+                    </p>
                   </div>
                 </div>
-                <button className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition flex-shrink-0 group-hover:bg-blue-100">
-                  <Download size={16} />
-                </button>
+                {m.fileUrl ? (
+                  <a
+                    href={m.fileUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition flex-shrink-0 group-hover:bg-blue-100"
+                    title="Tải về"
+                  >
+                    <Download size={16} />
+                  </a>
+                ) : (
+                  <span className="p-2 rounded-lg bg-gray-100 text-gray-400 flex-shrink-0 cursor-not-allowed" title="Chưa có file">
+                    <Download size={16} />
+                  </span>
+                )}
               </div>
             ))}
             {filtered.length === 0 && (
@@ -461,12 +496,14 @@ const MaterialsView = ({ trainingData, courseName, studentQuestions, onSelectAss
                         <div className="flex flex-wrap items-center gap-2">
                            <h4 className="font-bold text-base text-slate-800">{m.title}</h4>
                         </div>
-                        <p className="text-xs text-slate-500 mt-1 leading-relaxed">{(m.desc?.replace(/<[^>]*>/g, '') || '')}</p>
+                        <p className="text-xs text-slate-500 mt-1 leading-relaxed whitespace-pre-wrap">
+                          {htmlToPlainText(m.desc) || ''}
+                        </p>
                         
                         <div className="flex items-center gap-4 mt-3 flex-wrap">
-                          <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">📅 Ngày tạo: {m.createdAt}</span>
+                          <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">📅 Ngày tạo: {formatVNDateTime(m.createdAt)}</span>
                           {m.isDynamicAssignment && m.rawAssignment?.deadline && (
-                            <span className="text-[10px] font-bold text-orange-500 flex items-center gap-1">⏰ Hạn nộp: {new Date(m.rawAssignment.deadline).toLocaleString('vi-VN', {hour: '2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'})}</span>
+                            <span className="text-[10px] font-bold text-orange-500 flex items-center gap-1">⏰ Hạn nộp: {new Date(m.rawAssignment.deadline).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute:'2-digit', day:'2-digit', month:'2-digit', year:'numeric'})}</span>
                           )}
                         </div>
                       </div>
@@ -958,7 +995,7 @@ const StudentDashboard = ({ onNavigate }) => {
   const { showModal } = useModal();
   const session = JSON.parse(localStorage.getItem('student_user') || '{}');
   const STUDENT_ID = session.id || 101;
-  const { students, teachers, materials, schedules, getNotifications, getSchedulesByStudent, rateTeacher, getTeacherRating, RATING_CRITERIA, privateEvaluations, submitPrivateEvaluation, studentTrainingData, studentQuestions } = useData();
+  const { students, teachers, materials, schedules, getNotifications, getConversations, getSchedulesByStudent, rateTeacher, getTeacherRating, RATING_CRITERIA, privateEvaluations, submitPrivateEvaluation, studentTrainingData, studentQuestions } = useData();
   const student = students.find(s => String(s.id) === String(STUDENT_ID));
   const navigate = useNavigate();
   const location = useLocation();
@@ -981,8 +1018,23 @@ const StudentDashboard = ({ onNavigate }) => {
       ? student.teacherId.phone 
       : (teacherRecord?.phone || student.zalo || '');
 
+    const joinClassUrl = [student.linkHoc, student.online_meeting_url]
+      .map((u) => (u && String(u).trim()) || '')
+      .find(Boolean) || '';
+
+    let isLikelyLiveClass = false;
+    if (student.nextClassTime && joinClassUrl) {
+      const t = new Date(student.nextClassTime).getTime();
+      if (!Number.isNaN(t)) {
+        const now = Date.now();
+        isLikelyLiveClass = now >= t - 15 * 60 * 1000 && now <= t + 4 * 60 * 60 * 1000;
+      }
+    }
+
     return {
       ...student,
+      joinClassUrl,
+      isLikelyLiveClass,
       teacher: extractedTeacherName ? `Thầy ${extractedTeacherName}` : 'Chưa phân công',
       teacherId: actualTeacherId,
       teacherZalo: extractedTeacherPhone,
@@ -1154,6 +1206,14 @@ const StudentDashboard = ({ onNavigate }) => {
   }, [studentData?.completedSessions, studentData?.id, studentData?.totalSessions, privateEvaluations]);
 
   const myNotifs = getNotifications(STUDENT_ID, 'student').filter(n => !n.read).length;
+  const myUnreadMsgs = (() => {
+    try {
+      const convs = typeof getConversations === 'function' ? getConversations(STUDENT_ID) : [];
+      return (convs || []).reduce((sum, c) => sum + (c?.unread || 0), 0);
+    } catch {
+      return 0;
+    }
+  })();
 
   const handleFileUpload = (e) => {
     const f = e.target.files[0];
@@ -1276,7 +1336,7 @@ const StudentDashboard = ({ onNavigate }) => {
         {/* ClassReminder */}
         <ClassReminder
           nextClassTime={studentData.nextClassTime}
-          linkHoc={studentData.linkHoc}
+          linkHoc={studentData.joinClassUrl}
           courseName={studentData.course}
           studentName={studentData.name}
         />
@@ -1634,9 +1694,9 @@ const StudentDashboard = ({ onNavigate }) => {
                           </p>
                           <p className="text-xs font-bold bg-white/20 inline-block px-3 py-1 rounded-full uppercase">Sắp diễn ra</p>
                         </div>
-                        <a href={studentData.online_meeting_url || studentData.linkHoc || '#'} target="_blank" rel="noreferrer"
-                          className={`w-full md:w-auto ${studentData.online_meeting_url ? 'bg-indigo-600 text-white animate-pulse shadow-indigo-500/50 hover:bg-indigo-700' : 'bg-white text-red-600'} px-8 py-4 rounded-xl md:rounded-2xl font-black text-center shadow-lg active:scale-95 transition transform hover:scale-105 flex items-center justify-center gap-3`}>
-                          <Video size={22} /> {studentData.online_meeting_url ? '🔴 THAM GIA LỚP TRỰC TUYẾN' : 'VÀO LỚP NGAY'}
+                        <a href={studentData.joinClassUrl || '#'} target="_blank" rel="noreferrer"
+                          className={`w-full md:w-auto ${studentData.joinClassUrl && studentData.isLikelyLiveClass ? 'bg-indigo-600 text-white animate-pulse shadow-indigo-500/50 hover:bg-indigo-700' : 'bg-white text-red-600'} px-8 py-4 rounded-xl md:rounded-2xl font-black text-center shadow-lg active:scale-95 transition transform hover:scale-105 flex items-center justify-center gap-3`}>
+                          <Video size={22} /> {studentData.joinClassUrl && studentData.isLikelyLiveClass ? '🔴 THAM GIA LỚP TRỰC TUYẾN' : 'VÀO LỚP NGAY'}
                         </a>
                       </div>
                     </div>
@@ -1687,7 +1747,7 @@ const StudentDashboard = ({ onNavigate }) => {
                             </div>
                             <div>
                                <h4 className="font-bold text-slate-800 text-sm">Tin nhắn & Phản hồi</h4>
-                               <p className="text-purple-600 text-xs font-semibold mt-1">{myNotifs} thông báo mới</p>
+                               <p className="text-purple-600 text-xs font-semibold mt-1">{myUnreadMsgs} tin nhắn mới</p>
                             </div>
                          </div>
                      </div>

@@ -8,6 +8,13 @@ const Employee   = require('../models/Employee');
 const PayrollLog = require('../models/PayrollLog');
 const { authMiddleware, isAdmin, branchFilter } = require('../middleware/auth');
 
+function emitEmployeesChanged(req, action = 'update') {
+  const io = req.app.get('io');
+  if (!io) return;
+  io.emit('employees:updated', { action });
+  io.emit('data:refresh', { type: 'employees', action });
+}
+
 // ─── GET /api/employees ─────────────────────────────────────────────────────────
 // Danh sách nhân sự (branch-aware)
 router.get('/', [authMiddleware, isAdmin, branchFilter], async (req, res) => {
@@ -86,6 +93,7 @@ router.post('/', [authMiddleware, isAdmin, branchFilter], async (req, res) => {
       bankAccount: bankAccount || { bankCode: '', accountNumber: '', accountName: '' }
     });
 
+    emitEmployeesChanged(req, 'create');
     res.status(201).json({ success: true, data: employee });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -108,6 +116,7 @@ router.put('/:id', [authMiddleware, isAdmin, branchFilter], async (req, res) => 
 
     const employee = await Employee.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true });
     if (!employee) return res.status(404).json({ success: false, message: 'Không tìm thấy nhân viên' });
+    emitEmployeesChanged(req, 'update');
     res.json({ success: true, data: employee });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -125,6 +134,7 @@ router.delete('/:id', [authMiddleware, isAdmin, branchFilter], async (req, res) 
     }
     const employee = await Employee.findByIdAndDelete(req.params.id);
     if (!employee) return res.status(404).json({ success: false, message: 'Không tìm thấy nhân viên' });
+    emitEmployeesChanged(req, 'delete');
     res.json({ success: true, message: `Đã xóa nhân viên ${employee.name}` });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -162,6 +172,7 @@ router.post('/:id/pay', [authMiddleware, isAdmin, branchFilter], async (req, res
       salaryType:   'LUONG_CUNG',
     });
 
+    emitEmployeesChanged(req, 'pay');
     res.status(201).json({ success: true, data: log, message: `Đã trả lương ${employee.name}: ${Number(amount).toLocaleString('vi-VN')}đ` });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });

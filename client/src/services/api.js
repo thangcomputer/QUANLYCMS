@@ -803,6 +803,38 @@ export const settingsAPI = {
     });
     return res.json();
   },
+  getTeacherExamConfig: async () => {
+    const res = await apiFetch('/settings/teacher-exam-config');
+    return res.json();
+  },
+  updateTeacherExamConfig: async (payload) => {
+    const res = await apiFetch('/settings/teacher-exam-config', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+    return res.json();
+  },
+  getStudentExamConfig: async () => {
+    const res = await apiFetch('/settings/student-exam-config');
+    return res.json();
+  },
+  updateStudentExamConfig: async (payload) => {
+    const res = await apiFetch('/settings/student-exam-config', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+    return res.json();
+  },
+  uploadTrainingFile: async (file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch(`${API_BASE}/settings/upload-training-file`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getAccessToken()}` },
+      body: fd,
+    });
+    return res.json();
+  },
 };
 
 

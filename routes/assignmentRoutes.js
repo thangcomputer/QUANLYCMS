@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
+const mongoose = require('mongoose');
 const Assignment = require('../models/Assignment');
 const Submission = require('../models/Submission');
 const Student = require('../models/Student');
@@ -101,11 +102,49 @@ router.get('/course/:courseId', authMiddleware, async (req, res) => {
 router.get('/student/:studentId/course/:courseId', authMiddleware, async (req, res) => {
   try {
     // Authorization: Học viên chỉ xem bài của mình
-    if (req.user.role === 'student' && String(req.user.id) !== String(req.params.studentId)) {
+    if (req.user.role === 'student' && String(req.user.id || req.user._id) !== String(req.params.studentId)) {
       return res.status(403).json({ success: false, message: 'Không có quyền xem bài tập của học viên khác' });
     }
 
-    const assignments = await Assignment.find({ courseId: req.params.courseId }).sort({ createdAt: -1 });
+    // Course matching: tolerate case/whitespace differences, and handle "course code" vs "full label"
+    // Examples:
+    // - stored courseId: "THVP" while student.course: "THVP NÂNG CAO (12 BUỔI)"
+    // - stored courseId: "THVP Nâng Cao" vs "THVP  NÂNG   CAO"
+    const escapeRegex = (s) => String(s || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const rawCourse = String(req.params.courseId || '');
+    const normalizedCourse = rawCourse.trim().replace(/\s+/g, ' ');
+    const spaced = escapeRegex(normalizedCourse).replace(/\\ /g, '\\s+');
+    const exactCourseRegex = new RegExp(`^${spaced}$`, 'i');
+
+    // Try to extract a short "course code" token (e.g. THVP, MOS, AUTOCAD, PYTHON)
+    const token = (normalizedCourse.match(/[A-Z0-9]{2,}/) || [])[0] || '';
+    const tokenRegex = token ? new RegExp(escapeRegex(token), 'i') : null;
+
+    // Chỉ bài giao đích danh cho học viên này (bài cũ không có studentId không còn hiển thị ở đây)
+    const sid = String(req.params.studentId || '');
+    const studentOnlyScope = {
+      $or: [
+        { studentId: sid },
+        ...(mongoose.Types.ObjectId.isValid(sid)
+          ? [{ studentId: new mongoose.Types.ObjectId(sid) }]
+          : []),
+      ],
+    };
+
+    const assignments = await Assignment.find({
+      $and: [
+        {
+          $or: [
+            { courseId: { $regex: exactCourseRegex } },
+            { courseId: { $regex: new RegExp(escapeRegex(normalizedCourse), 'i') } },
+            ...(tokenRegex ? [{ courseId: { $regex: tokenRegex } }] : []),
+          ],
+        },
+        studentOnlyScope,
+      ],
+    })
+      .sort({ createdAt: -1 })
+      .limit(200);
     const data = await Promise.all(assignments.map(async (a) => {
       const sub = await Submission.findOne({ assignmentId: a._id, studentId: req.params.studentId });
       return { ...a.toObject(), mySubmission: sub };
@@ -123,32 +162,64 @@ router.post('/', authMiddleware, async (req, res) => {
       return res.status(403).json({ success: false, message: 'Không có quyền tạo bài tập' });
     }
 
-    const newAssignment = new Assignment(req.body);
+    const role = String(req.user.role || '').toLowerCase();
+    const userId = String(req.user.id || req.user._id || '');
+    const userName = String(req.user.name || req.user.fullName || req.user.username || '').trim();
+
+    const payload = { ...req.body };
+    if (payload.studentId != null && String(payload.studentId).trim() !== '') {
+      const rawSid = String(payload.studentId).trim();
+      if (mongoose.Types.ObjectId.isValid(rawSid)) {
+        payload.studentId = rawSid;
+      } else {
+        delete payload.studentId;
+      }
+    } else {
+      payload.studentId = null;
+    }
+    // Teacher tạo bài → tự gán teacherId nếu thiếu
+    if (role === 'teacher' && !payload.teacherId) payload.teacherId = userId;
+    // Admin/Staff tạo bài → teacherId optional (null)
+    if ((role === 'admin' || role === 'staff') && (payload.teacherId === 'admin' || payload.teacherId === '')) {
+      payload.teacherId = null;
+    }
+
+    payload.assignedById = userId;
+    payload.assignedByRole = role;
+    payload.assignedByName = userName || (role === 'teacher' ? 'Giảng viên' : 'Admin');
+
+    const newAssignment = new Assignment(payload);
     await newAssignment.save();
 
     const io = req.app.get('io');
     if (io) {
-      // Emit generic event to room
-      io.to(`course_${req.body.courseId}`).emit('assignment:new', newAssignment);
-      
+      if (newAssignment.studentId) {
+        io.to(`student_${newAssignment.studentId}`).emit('assignment:new', newAssignment);
+      } else {
+        io.to(`course_${req.body.courseId}`).emit('assignment:new', newAssignment);
+      }
+
       try {
         const NotificationService = require('../services/NotificationService');
-        const Student = require('../models/Student');
-        
-        // Find all students in this course
-        const students = await Student.find({ course: req.body.courseId }, '_id');
-        const studentIds = students.map(s => s._id.toString());
-        
+
+        let studentIds;
+        if (newAssignment.studentId) {
+          studentIds = [newAssignment.studentId.toString()];
+        } else {
+          const students = await Student.find({ course: req.body.courseId }, '_id');
+          studentIds = students.map(s => s._id.toString());
+        }
+
         if (studentIds.length > 0) {
           await NotificationService.send(io, {
             type: 'COURSE',
             title: '📝 Bài tập mới',
-            content: `Giảng viên vừa giao bài tập mới: "${newAssignment.title}"`,
+            content: `${newAssignment.assignedByRole === 'teacher' ? 'Giảng viên' : 'Admin'} vừa giao bài tập mới: "${newAssignment.title}"`,
             receivers: studentIds,
             link: '/student#materials'
           });
         }
-        
+
         io.emit('data:refresh', { type: 'assignment', action: 'create' });
       } catch (e) {
         logger.error('Error sending notif for new assignment:', e);
@@ -204,9 +275,24 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 router.post('/:id/submit', authMiddleware, async (req, res) => {
   try {
     const { studentId, teacherId, submittedFileUrl } = req.body;
-    
+
+    const assignmentForSubmit = await Assignment.findById(req.params.id);
+    if (!assignmentForSubmit) {
+      return res.status(404).json({ success: false, message: 'Không tìm thấy bài tập' });
+    }
+    if (assignmentForSubmit.studentId && String(assignmentForSubmit.studentId) !== String(studentId)) {
+      return res.status(403).json({ success: false, message: 'Bài tập này không được giao cho bạn' });
+    }
+
+    if (req.user.role === 'student' && !assignmentForSubmit.studentId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Bài tập không gắn học viên. Vui lòng nhờ giảng viên giao lại bài.',
+      });
+    }
+
     // Authorization: Học viên chỉ được nộp bài cho chính mình
-    if (req.user.role === 'student' && String(req.user.id) !== String(studentId)) {
+    if (req.user.role === 'student' && String(req.user.id || req.user._id) !== String(studentId)) {
       return res.status(403).json({ success: false, message: 'Không có quyền nộp bài cho học viên khác' });
     }
 
@@ -221,7 +307,7 @@ router.post('/:id/submit', authMiddleware, async (req, res) => {
     const student = await Student.findById(studentId);
     
     if (teacherId && teacherId !== 'current') {
-      const assignment = await Assignment.findById(req.params.id);
+      const assignment = assignmentForSubmit;
       
       await Notification.create({
         type: 'COURSE',

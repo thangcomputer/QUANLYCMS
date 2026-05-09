@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 
 import { useData } from '../context/DataContext';
+import { htmlToPlainText, sanitizeRichHtml } from '../utils/htmlContent';
 
 const MOCK_COURSES = [
   { _id: '1', title: 'Đào tạo Giảng viên Mới', progress: 0, 
@@ -77,7 +78,7 @@ const lmsApiFetch = async (endpoint, options = {}) => {
       try { return JSON.parse(localStorage.getItem('admin_user') || '{}').token; } catch { return null; }
     })();
 
-  const API_BASE = import.meta.env.VITE_API_URL || '${import.meta.env.VITE_API_URL || ""}/api';
+  const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
   const res = await fetch(`${API_BASE}/training-lms${endpoint}`, {
     ...options,
     headers: {
@@ -564,6 +565,7 @@ const TeacherTrainingLMS = ({ onBack, isAdmin = false }) => {
   const [expandedChapters, setExpandedChapters] = useState({});
   const [courseTab, setCourseTab] = useState('video'); // video | data | notice
   const [mainTab, setMainTab] = useState('courses'); // courses | guides | files
+  const [expandedGuideKey, setExpandedGuideKey] = useState(null);
 
   // Lấy tiến độ các khóa học của GV để hiển thị bên ngoài (Bổ sung mới)
   useEffect(() => {
@@ -641,7 +643,7 @@ const TeacherTrainingLMS = ({ onBack, isAdmin = false }) => {
                     (localStorage.getItem('teacher_user') ? JSON.parse(localStorage.getItem('teacher_user')).token : '') ||
                     localStorage.getItem('admin_access_token');
       
-      const API_BASE = import.meta.env.VITE_API_URL || '${import.meta.env.VITE_API_URL || ""}/api';
+      const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
       await fetch(`${API_BASE}/training-lms/complete-lesson`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -672,13 +674,19 @@ const TeacherTrainingLMS = ({ onBack, isAdmin = false }) => {
 
     setCompleting(true);
     try {
-      const token = localStorage.getItem('teacher_user') ? JSON.parse(localStorage.getItem('teacher_user')).token : '';
-      await fetch('/api/training/complete-lesson', {
+      const token =
+        localStorage.getItem('teacher_access_token') ||
+        (localStorage.getItem('teacher_user') ? JSON.parse(localStorage.getItem('teacher_user')).token : '') ||
+        localStorage.getItem('admin_access_token') ||
+        '';
+
+      const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
+      await fetch(`${API_BASE}/training-lms/complete-lesson`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          lessonId: currentLesson._id,
-          courseId: selectedCourse._id,
+          lessonId: currentLesson._id || currentLesson.id,
+          courseId: selectedCourse._id || selectedCourse.id,
           watchedSeconds: actualWatched, // Lưu luôn giây thực tế lúc complete
         }),
       });
@@ -705,7 +713,7 @@ const TeacherTrainingLMS = ({ onBack, isAdmin = false }) => {
                   (localStorage.getItem('teacher_user') ? JSON.parse(localStorage.getItem('teacher_user')).token : '') ||
                   localStorage.getItem('admin_access_token');
                   
-    const API_BASE = import.meta.env.VITE_API_URL || '${import.meta.env.VITE_API_URL || ""}/api';
+    const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
     fetch(`${API_BASE}/training-lms/save-watch-progress`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -872,16 +880,48 @@ const TeacherTrainingLMS = ({ onBack, isAdmin = false }) => {
              <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-3">
                <FileText className="text-blue-600" /> Quy trình & Hướng dẫn
              </h2>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               {trainingData?.guides?.map((guide, idx) => (
-                 <div key={idx} className="p-5 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 transition-all cursor-pointer flex gap-4 items-start">
-                   <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-2xl shrink-0">{guide.icon || '📄'}</div>
-                   <div>
-                     <h3 className="font-bold text-slate-800">{guide.title}</h3>
-                     <p className="text-xs text-slate-500 mt-1 line-clamp-2">{(guide.desc?.replace(/<[^>]*>/g, '') || '')}</p>
+             <div className="grid grid-cols-1 gap-4 w-full max-w-full">
+               {trainingData?.guides?.map((guide, idx) => {
+                 const gKey = guide.id ?? guide._id ?? `g-${idx}`;
+                 const descHtml = guide.desc || '';
+                 const plain = htmlToPlainText(descHtml);
+                 const hasHtml = /<[a-z][\s\S]*>/i.test(descHtml);
+                 const expanded = expandedGuideKey === gKey;
+                 const showToggle = plain.length > 120 || hasHtml;
+                 const emptyBody = !descHtml.trim() && !plain;
+                 return (
+                   <div
+                     key={gKey}
+                     className="p-5 sm:p-6 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 transition-all flex gap-4 sm:gap-5 items-start w-full"
+                   >
+                     <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-2xl shrink-0">{guide.icon || '📄'}</div>
+                     <div className="min-w-0 flex-1">
+                       <h3 className="font-bold text-slate-800">{guide.title}</h3>
+                       {emptyBody ? (
+                         <p className="text-xs text-slate-400 mt-1">Chưa có nội dung chi tiết.</p>
+                       ) : expanded && hasHtml ? (
+                         <div
+                           className="text-sm text-slate-600 mt-2 leading-relaxed break-words [&_p]:mb-2 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_b]:font-semibold [&_strong]:font-semibold [&_a]:text-blue-600 [&_a]:underline"
+                           dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(descHtml) }}
+                         />
+                       ) : (
+                         <p className={`text-xs text-slate-500 mt-1 ${showToggle && !expanded ? 'line-clamp-2' : ''} whitespace-pre-wrap`}>
+                           {plain}
+                         </p>
+                       )}
+                       {showToggle ? (
+                         <button
+                           type="button"
+                           onClick={() => setExpandedGuideKey(expanded ? null : gKey)}
+                           className="text-[11px] font-bold text-blue-600 hover:text-blue-800 mt-1"
+                         >
+                           {expanded ? 'Thu gọn' : 'Xem thêm'}
+                         </button>
+                       ) : null}
+                     </div>
                    </div>
-                 </div>
-               ))}
+                 );
+               })}
                {(!trainingData?.guides || trainingData.guides.length === 0) && (
                  <p className="text-slate-400 text-sm">Chưa có quy trình nào.</p>
                )}
@@ -905,7 +945,18 @@ const TeacherTrainingLMS = ({ onBack, isAdmin = false }) => {
                        <p className="text-xs text-slate-400">{file.fileSize || 'N/A'}</p>
                      </div>
                    </div>
-                   <button className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-600 group-hover:bg-green-500 group-hover:text-white group-hover:border-green-500 transition-all">Tải xuống</button>
+                   {file.fileUrl ? (
+                     <a
+                       href={file.fileUrl}
+                       target="_blank"
+                       rel="noreferrer"
+                       className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-600 group-hover:bg-green-500 group-hover:text-white group-hover:border-green-500 transition-all inline-block text-center"
+                     >
+                       Tải xuống
+                     </a>
+                   ) : (
+                     <span className="px-4 py-2 rounded-lg text-sm font-bold text-slate-400 border border-slate-100 bg-slate-50 cursor-not-allowed">Chưa có file</span>
+                   )}
                  </div>
                ))}
                {(!trainingData?.files || trainingData.files.length === 0) && (

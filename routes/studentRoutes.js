@@ -386,6 +386,9 @@ router.post('/', [authMiddleware, branchFilter], async (req, res) => {
 router.put('/:id', authMiddleware, async (req, res) => {
   try {
     const safeBody = { ...req.body };
+    const before = await Student.findById(req.params.id)
+      .select('studentExamUnlocked examApproved name examProgress')
+      .lean();
 
     // Nếu là Teacher, chỉ cho phép cập nhật thông tin điểm danh, thành tích
     if (req.user.role === 'teacher') {
@@ -418,6 +421,11 @@ router.put('/:id', authMiddleware, async (req, res) => {
       });
     }
 
+    // Một nguồn đúng cho link vào lớp: GV/Admin sửa linkHoc → đồng bộ online_meeting_url (tránh URL cũ chiếm ưu tiên ở client)
+    if (Object.prototype.hasOwnProperty.call(safeBody, 'linkHoc')) {
+      safeBody.online_meeting_url = safeBody.linkHoc || '';
+    }
+
     const student = await Student.findByIdAndUpdate(req.params.id, safeBody, {
       new: true,
       runValidators: true,
@@ -431,6 +439,80 @@ router.put('/:id', authMiddleware, async (req, res) => {
     if (io) {
       io.emit('student:updated', student._id);
       io.emit('data:refresh', { type: 'student', id: student._id });
+
+      // ── Notification: duyệt/thu hồi quyền thi (khi admin/staff cập nhật qua PUT /students/:id)
+      // AdminDashboard hiện dùng endpoint này cho approve/revoke exam, nên cần bắn noti ở đây.
+      try {
+        const NotificationService = require('../services/NotificationService');
+        const beforeUnlocked = Boolean(before?.studentExamUnlocked);
+        const afterUnlocked = Boolean(student.studentExamUnlocked);
+        const beforeApproved = Boolean(before?.examApproved);
+        const afterApproved = Boolean(student.examApproved);
+
+        // Chỉ bắn noti nếu có thay đổi trạng thái (tránh spam khi update fields khác)
+        if ((beforeUnlocked !== afterUnlocked) || (beforeApproved !== afterApproved)) {
+          if (afterUnlocked || afterApproved) {
+            await NotificationService.send(io, {
+              type: 'EXAM',
+              title: '✅ Bạn đã được duyệt thi',
+              content: 'Admin đã cấp quyền cho bạn vào phòng thi. Bạn có thể vào thi ngay.',
+              receivers: student._id.toString(),
+              payload: { studentId: student._id.toString(), action: 'exam_approved' },
+              link: '/student/exam'
+            });
+            io.emit('exam:unlocked', { studentId: student._id.toString(), studentName: student.name });
+          } else {
+            await NotificationService.send(io, {
+              type: 'EXAM',
+              title: '🔒 Quyền thi đã bị thu hồi',
+              content: 'Quyền vào phòng thi của bạn vừa bị khóa. Vui lòng liên hệ trung tâm nếu cần hỗ trợ.',
+              receivers: student._id.toString(),
+              payload: { studentId: student._id.toString(), action: 'exam_revoked' },
+              link: '/student/exam'
+            });
+            io.emit('exam:locked', { studentId: student._id.toString(), reason: 'revoked', message: '🔒 Quyền thi đã bị thu hồi' });
+          }
+        }
+
+        // ── Notification: cấp lại bài thi (thi lại) theo từng môn (examProgress reset)
+        // AdminDashboard reset môn thi bằng cách update examProgress[].lockUntil=null, status='chua_thi', score/null...
+        const beforeProg = Array.isArray(before?.examProgress) ? before.examProgress : null;
+        const afterProg = Array.isArray(student.examProgress) ? student.examProgress : null;
+        const isAdminActor = ['admin', 'staff'].includes(String(req.user?.role || '').toLowerCase());
+
+        if (isAdminActor && beforeProg && afterProg && Object.prototype.hasOwnProperty.call(safeBody, 'examProgress')) {
+          const beforeMap = new Map(beforeProg.map((p) => [String(p?.id || ''), p]));
+          const retakeSubjects = [];
+          for (const ap of afterProg) {
+            const sid = String(ap?.id || '');
+            if (!sid) continue;
+            const bp = beforeMap.get(sid);
+            if (!bp) continue;
+
+            const beforeLocked = bp.lockUntil != null;
+            const afterLocked = ap.lockUntil != null;
+            const becameUnlocked = beforeLocked && !afterLocked;
+            const statusReset = String(bp.status || '') === 'khong_dat' && String(ap.status || '') === 'chua_thi';
+
+            if (becameUnlocked || statusReset) retakeSubjects.push(sid);
+          }
+
+          if (retakeSubjects.length > 0) {
+            const uniq = Array.from(new Set(retakeSubjects));
+            const subjectText = uniq.length === 1 ? `môn "${uniq[0]}"` : `${uniq.length} môn thi`;
+            await NotificationService.send(io, {
+              type: 'EXAM',
+              title: '🔓 Đã cấp lại bài thi',
+              content: `Admin đã mở khóa để bạn thi lại ${subjectText}. Bạn có thể vào phòng thi để làm lại.`,
+              receivers: student._id.toString(),
+              payload: { studentId: student._id.toString(), action: 'exam_retake_granted', subjects: uniq },
+              link: '/student/exam'
+            });
+          }
+        }
+      } catch (notifErr) {
+        logger?.error?.('[STUDENTS] Exam approval notification error:', notifErr);
+      }
     }
 
     res.json({ success: true, data: student });
@@ -611,6 +693,19 @@ router.put('/:id/lock-exam', authMiddleware, isAdmin, async (req, res) => {
 
     const io = req.app.get('io');
     if (io) {
+      try {
+        const NotificationService = require('../services/NotificationService');
+        await NotificationService.send(io, {
+          type: 'EXAM',
+          title: '🔒 Phòng thi đã bị khóa',
+          content: reason ? `Phòng thi của bạn đã bị khóa. Lý do: ${reason}` : 'Phòng thi của bạn đã bị khóa. Vui lòng liên hệ trung tâm.',
+          receivers: student._id.toString(),
+          payload: { studentId: student._id.toString(), action: 'exam_locked', reason },
+          link: '/student/exam'
+        });
+      } catch (notifErr) {
+        logger?.error?.('[LOCK_EXAM] Notification error:', notifErr);
+      }
       io.emit('exam:locked', {
         studentId: student._id.toString(),
         reason,
@@ -625,15 +720,13 @@ router.put('/:id/lock-exam', authMiddleware, isAdmin, async (req, res) => {
 });
 
 // ─── PUT /api/students/:id/assign-teacher ─────────────────────────────────────
-// Admin gán giảng viên cho học viên
+// Admin/Staff gán (hoặc bỏ gán) giảng viên cho học viên
 router.put('/:id/assign-teacher', authMiddleware, isAdmin, async (req, res) => {
   try {
     const { teacherId } = req.body;
-    if (!teacherId) {
-      return res.status(400).json({ success: false, message: 'Thiếu teacherId' });
-    }
+    const isUnassign = teacherId === null || teacherId === '' || teacherId === undefined;
 
-    const updateData = { teacherId };
+    const updateData = { teacherId: isUnassign ? null : teacherId };
     const currentStudent = await Student.findById(req.params.id);
     if (currentStudent && currentStudent.status === 'Chờ xếp lớp') {
       updateData.status = 'Đang học';
@@ -650,17 +743,25 @@ router.put('/:id/assign-teacher', authMiddleware, isAdmin, async (req, res) => {
     }
 
     // ⭐ ĐỒNG BỘ: Cập nhật Giảng viên lên các Lịch học 'scheduled' (chưa điểm danh)
-    // Để Lịch học bên Giảng viên mới (Schedule Tab) đồng bộ hiển thị đúng
-    await require('../models/Schedule').updateMany(
-      { studentId: student._id, status: 'scheduled' },
-      { $set: { teacherId: typeof student.teacherId === 'object' ? student.teacherId._id : student.teacherId, teacherName: student.teacherId?.name || 'Giảng viên' } }
-    );
+    // Để Lịch học bên Giảng viên (Schedule Tab) hiển thị đúng
+    const ScheduleModel = require('../models/Schedule');
+    if (isUnassign) {
+      await ScheduleModel.updateMany(
+        { studentId: student._id, status: 'scheduled' },
+        { $set: { teacherId: null, teacherName: '' } }
+      );
+    } else {
+      await ScheduleModel.updateMany(
+        { studentId: student._id, status: 'scheduled' },
+        { $set: { teacherId: typeof student.teacherId === 'object' ? student.teacherId._id : student.teacherId, teacherName: student.teacherId?.name || 'Giảng viên' } }
+      );
+    }
 
     const Notification = require('../models/Notification');
     const io = req.app.get('io');
 
     try {
-      if (io) {
+      if (io && !isUnassign) {
         const NotificationService = require('../services/NotificationService');
         await NotificationService.send(io, {
           type: 'COURSE',
@@ -682,7 +783,11 @@ router.put('/:id/assign-teacher', authMiddleware, isAdmin, async (req, res) => {
       logger.error('[ASSIGN_TEACHER] Notification error:', notifErr);
     }
 
-    res.json({ success: true, message: 'Đã gán giảng viên thành công', data: student });
+    res.json({
+      success: true,
+      message: isUnassign ? 'Đã bỏ phân công giảng viên' : 'Đã gán giảng viên thành công',
+      data: student
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -816,16 +921,41 @@ router.put('/:id/pay-teacher', authMiddleware, isAdmin, async (req, res) => {
     const student = await Student.findById(studentId);
     if (!student) return res.status(404).json({ success: false, message: 'Không tìm thấy học viên' });
 
+    const io = req.app.get('io');
+    const teacherId = student.teacherId ? String(student.teacherId) : '';
+    const notifyTeacher = async (content, payload = {}) => {
+      if (!io || !teacherId) return;
+      const NotificationService = require('../services/NotificationService');
+      await NotificationService.send(io, {
+        type: 'FINANCE',
+        title: '💵 Đã thanh toán lương (theo học viên)',
+        content,
+        receivers: teacherId,
+        payload: { studentId: String(student._id), ...payload },
+        link: '/teacher/finance',
+      });
+    };
+
     if (action === 'PAID_IN_ADVANCE') {
       // 1. Chuyển trạng thái của học viên thành TRẢ TRƯỚC Toàn bộ
       student.teacher_payment_status = 'PAID_IN_ADVANCE';
       await student.save();
 
       // 2. Chuyển tất cả buổi "đã học/chưa học" đang pending thành PAID
-      await Schedule.updateMany(
+      const updated = await Schedule.updateMany(
         { studentId, status: 'completed', is_paid_to_teacher: false },
         { $set: { is_paid_to_teacher: true, paymentStatus: 'paid' } }
       );
+
+      await notifyTeacher(
+        `Admin đã thiết lập TRẢ TRƯỚC cho học viên ${student.name}. Đã xác nhận thanh toán ${updated.modifiedCount || 0} buổi đã hoàn thành (các buổi sau sẽ tự động tick đã thanh toán).`,
+        { action: 'PAID_IN_ADVANCE', paidSessions: updated.modifiedCount || 0 }
+      );
+
+      if (io) {
+        io.emit('student:updated', student._id.toString());
+        io.emit('data:refresh', { type: 'student', id: student._id.toString(), action: 'pay_teacher' });
+      }
 
       return res.json({ success: true, message: 'Đã thiết lập thanh toán TRỌN GÓI. Mọi buổi điểm danh tiếp theo sẽ tự động tick Đã thanh toán.' });
     } else {
@@ -838,6 +968,16 @@ router.put('/:id/pay-teacher', authMiddleware, isAdmin, async (req, res) => {
       if (student.teacher_payment_status === 'UNPAID') {
         student.teacher_payment_status = 'PARTIAL';
         await student.save();
+      }
+
+      await notifyTeacher(
+        `Admin đã thanh toán ${updated.modifiedCount || 0} buổi dạy của học viên ${student.name}.`,
+        { action: 'PARTIAL', paidSessions: updated.modifiedCount || 0 }
+      );
+
+      if (io) {
+        io.emit('student:updated', student._id.toString());
+        io.emit('data:refresh', { type: 'student', id: student._id.toString(), action: 'pay_teacher' });
       }
 
       return res.json({ success: true, message: `Thanh toán thành công ${updated.modifiedCount} buổi dạy của HV ${student.name}.` });
