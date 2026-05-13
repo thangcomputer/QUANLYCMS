@@ -1,29 +1,40 @@
 /**
  * General API rate limit — skips /api/auth/* (already limited there).
+ *
+ * KEY STRATEGY: Decode JWT token (without verify — just for rate limiting identity)
+ * so each authenticated user has their own quota, even if multiple users share the same IP.
+ * Falls back to IP for unauthenticated requests.
  */
 const rateLimit = require('express-rate-limit');
+const jwt = require('jsonwebtoken');
 
 const jsonMessage = (message) => ({ success: false, code: 'RATE_LIMITED', message });
 
 /**
- * Dùng userId từ JWT (nếu đã xác thực) làm key thay vì IP,
- * tránh nhiều người dùng cùng IP chia sẻ quota và bị chặn nhầm.
+ * Lấy userId từ Bearer token (decode nhanh, không verify)
+ * để mỗi người dùng có quota riêng — tránh share theo IP.
  */
 function resolveKey(req) {
-  // req.user được gắn bởi authMiddleware trước khi vào rate limiter
-  if (req.user && req.user._id) return String(req.user._id);
-  // Fallback: IP (cho request chưa auth)
+  try {
+    const auth = req.headers.authorization || '';
+    const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+    if (token) {
+      const decoded = jwt.decode(token); // Không verify, chỉ lấy payload
+      const uid = decoded && (decoded._id || decoded.id || decoded.sub);
+      if (uid) return String(uid);
+    }
+  } catch (_) { /* ignore */ }
+  // Fallback: IP (request chưa đăng nhập)
   return req.ip;
 }
 
 const generalApiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_API_MAX || '2000', 10) || 2000,
+  max: parseInt(process.env.RATE_LIMIT_API_MAX || '10000', 10) || 10000,
   keyGenerator: resolveKey,
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => {
-    // Bỏ qua GET requests cho các endpoint tĩnh/public
     if (req.method === 'GET' && req.originalUrl.startsWith('/api/settings/web')) return true;
     if (req.method === 'GET' && req.originalUrl === '/api/branches') return true;
     return false;
@@ -42,3 +53,4 @@ function apiRateLimitUnlessAuth(req, res, next) {
 }
 
 module.exports = { generalApiLimiter, apiRateLimitUnlessAuth };
+
