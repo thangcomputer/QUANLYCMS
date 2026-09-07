@@ -29,23 +29,51 @@ const STATUS_FILTERS = [
   { value: 'da_thi', label: 'Đã thi' },
   { value: 'rot', label: 'Rớt' },
 ];
+function lockUntilMs(target) {
+  if (target == null || target === '') return 0;
+  if (typeof target === 'number' && Number.isFinite(target)) return target;
+  const n = new Date(target).getTime();
+  return Number.isFinite(n) ? n : 0;
+}
+
+function formatLockCountdown(targetMs, now = Date.now()) {
+  if (!targetMs) return '';
+  const diff = targetMs - now;
+  if (diff <= 0) return '00:00:00';
+  const d = Math.floor(diff / 86400000);
+  const h = Math.floor((diff % 86400000) / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+  return `${d} ngày ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
 function useCountdown(target) {
-  const [remaining, setRemaining] = React.useState('');
+  const targetMs = lockUntilMs(target);
+  const [remaining, setRemaining] = React.useState(() => formatLockCountdown(targetMs));
+
   React.useEffect(() => {
-    if (!target) return;
-    const tick = () => {
-      const diff = target - Date.now();
-      if (diff <= 0) { setRemaining('00:00:00'); return; }
-      const d = Math.floor(diff / 86400000);
-      const h = Math.floor((diff % 86400000) / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      const s = Math.floor((diff % 60000) / 1000);
-      setRemaining(`${d} ngày ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`);
-    };
+    if (!targetMs) {
+      setRemaining('');
+      return undefined;
+    }
+    const tick = () => setRemaining(formatLockCountdown(targetMs));
     tick();
     const t = setInterval(tick, 1000);
-    return () => clearInterval(t);
-  }, [target]);
+    const onResume = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      tick();
+    };
+    document.addEventListener('visibilitychange', onResume);
+    window.addEventListener('focus', onResume);
+    window.addEventListener('pageshow', onResume);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', onResume);
+      window.removeEventListener('focus', onResume);
+      window.removeEventListener('pageshow', onResume);
+    };
+  }, [targetMs]);
+
   return remaining;
 }
 
@@ -55,7 +83,7 @@ const SubjectCard = ({ subject, onStart, isGlobalApproved, examSubjectsCatalog, 
   const countdown = useCountdown(subject.lockUntil);
 
   const isApproved = isGlobalApproved || subject.meetsMilestone;
-  const isLockedCountDown = subject.lockUntil && subject.lockUntil > Date.now();
+  const isLockedCountDown = lockUntilMs(subject.lockUntil) > Date.now();
 
   const tnScore = subject.tracNghiem?.score ?? null;
   const tnTotal = subject.tracNghiem?.total ?? 30;
@@ -116,13 +144,15 @@ const SubjectCard = ({ subject, onStart, isGlobalApproved, examSubjectsCatalog, 
     subject.thucHanh === 'da_nop' &&
     (subject.essayScore === null || subject.essayScore === undefined);
   const canStart  = allowStartExam && isApproved && canEnterCertificationExam(subject) && (subject.status === 'chua_thi' || !subject.status);
-  // Chỉ "Tiếp tục thi" khi còn dang dở — không khi đã nộp thực hành đang chờ chấm / đã rớt-khóa
+  // Chỉ "Tiếp tục thi" khi đã có điểm trắc nghiệm và còn phần thực hành.
+  // Trắc nghiệm chưa nộp mà thoát/tải lại trang => lượt thi bị hủy, không cho vào lại.
   const isOngoing =
     allowStartExam &&
     isApproved &&
     canEnterCertificationExam(subject) &&
     subject.status === 'dang_thi' &&
-    !awaitingGrade;
+    !awaitingGrade &&
+    subject.attemptStatus !== 'active';
   // Không tự "Thi lại" khi khong_dat — phải admin mở khóa (reset status)
   const canRetry = false;
   const isPassed  = subject.status === 'dat';
@@ -243,6 +273,15 @@ const SubjectCard = ({ subject, onStart, isGlobalApproved, examSubjectsCatalog, 
                 className="w-full py-2.5 bg-gray-50 border border-gray-100 text-gray-400 font-bold rounded-xl text-sm flex items-center justify-center gap-2 cursor-not-allowed opacity-70"
               >
                 <CheckCircle size={15} /> Đã hoàn thành
+              </button>
+            )}
+            {!canStart && !canRetry && !isOngoing && !isPassed && subject.attemptStatus === 'active' && (
+              <button
+                type="button"
+                disabled
+                className="w-full py-2.5 bg-red-50 border border-red-200 text-red-600 font-bold rounded-xl text-[13px] flex items-center justify-center gap-2 cursor-not-allowed"
+              >
+                <Lock size={15} /> Lượt thi đã kết thúc — chờ admin mở khóa
               </button>
             )}
           </>
@@ -441,6 +480,50 @@ const StudentExamRoom = ({
   const student = students.find(
     (s) => String(s.id) === String(session.id) || String(s._id) === String(session.id)
   );
+  const myStudentId = session.id || session._id || student?._id || student?.id;
+
+  React.useEffect(() => {
+    if (!myStudentId || typeof updateStudent !== 'function') return undefined;
+    let cancelled = false;
+    const pull = async () => {
+      try {
+        const res = await api.students.getById(myStudentId);
+        const data = res?.data || res;
+        if (cancelled || !data || !Array.isArray(data.examProgress)) return;
+        // Lượt thi bỏ dở (tải lại trang / đóng tab) phải chốt RỚT ngay khi về phòng thi
+        const stale = data.examProgress.filter((e) => (
+          String(e?.status) === 'dang_thi' && String(e?.attemptStatus) === 'active'
+        ));
+        if (stale.length) {
+          await Promise.all(stale.map((e) => api.students
+            .abandonExamAttempt(myStudentId, { subjectId: e.id, reason: 'Rời phòng thi khi đang làm bài' })
+            .catch(() => null)));
+          if (cancelled) return;
+          const after = await api.students.getById(myStudentId).catch(() => null);
+          const fresh = after?.data || after;
+          if (!cancelled && Array.isArray(fresh?.examProgress)) {
+            updateStudent(myStudentId, { examProgress: fresh.examProgress }, { localOnly: true });
+            return;
+          }
+        }
+        updateStudent(myStudentId, { examProgress: data.examProgress }, { localOnly: true });
+      } catch { /* ignore */ }
+    };
+    pull();
+    const onResume = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      pull();
+    };
+    document.addEventListener('visibilitychange', onResume);
+    window.addEventListener('focus', onResume);
+    window.addEventListener('pageshow', onResume);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onResume);
+      window.removeEventListener('focus', onResume);
+      window.removeEventListener('pageshow', onResume);
+    };
+  }, [myStudentId, updateStudent]);
 
   const enrollments = useMemo(() => getClientEnrollments(student), [student]);
 

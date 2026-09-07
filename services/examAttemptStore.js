@@ -45,6 +45,29 @@ function claimStudentAttempt(StudentModel, {
   );
 }
 
+/**
+ * Hủy lượt thi còn mở (chưa chốt điểm) không cần attemptToken —
+ * dùng khi học viên tải lại trang / đóng tab / mở lượt mới.
+ */
+function claimStudentOpenAttempt(StudentModel, {
+  studentId,
+  subjectId,
+  attemptId = '',
+  setFields,
+}) {
+  const elemMatch = {
+    id: subjectId,
+    status: { $nin: ['dat', 'khong_dat'] },
+    attemptStatus: { $in: ['active', 'submitted'] },
+  };
+  if (attemptId) elemMatch.attemptId = attemptId;
+  return StudentModel.findOneAndUpdate(
+    { _id: studentId, examProgress: { $elemMatch: elemMatch } },
+    { $set: rewriteNullSafeTracNghiemFields(setFields) },
+    { returnDocument: 'after', runValidators: true },
+  );
+}
+
 function claimTeacherAttempt(TeacherModel, {
   teacherId,
   attemptId,
@@ -64,5 +87,6 @@ function claimTeacherAttempt(TeacherModel, {
 module.exports = {
   rewriteNullSafeTracNghiemFields,
   claimStudentAttempt,
+  claimStudentOpenAttempt,
   claimTeacherAttempt,
 };

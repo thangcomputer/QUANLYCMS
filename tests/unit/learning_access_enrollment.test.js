@@ -226,9 +226,14 @@ describe('static: student learning routes gated vs ungated', () => {
     assert.match(sidebarSrc, /hasLearningAccessEnrollment/);
   });
 
-  it('gate fail-closes for student role after load', () => {
+  it('gate kick-out: hết khóa usable → logout + redirect đăng ký lại', () => {
     assert.match(gateSrc, /isStudentsLoading/);
-    assert.match(gateSrc, /StudentNoActiveCoursePage/);
-    assert.match(gateSrc, /!student \|\| !hasAccess/);
+    assert.match(gateSrc, /mustKick/);
+    assert.match(gateSrc, /hasLearningAccessEnrollment/);
+    assert.match(gateSrc, /dangkykhoahoc/);
+    assert.match(gateSrc, /window\.location\.replace/);
+    assert.match(gateSrc, /clearTokens\('student'\)/);
+    // Chỉ kick khi đã có hồ sơ và không còn enrollment usable
+    assert.match(gateSrc, /student && !hasLearningAccessEnrollment\(student\)/);
   });
 });

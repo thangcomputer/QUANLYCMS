@@ -9,6 +9,7 @@ const {
   stripExamSecrets,
   resolveExamBankAccess,
   verifyAttemptToken,
+  decideStudentAttemptStart,
 } = require('../../services/examAttemptService');
 
 const ORIGINAL_JWT_SECRET = process.env.JWT_SECRET;
@@ -174,7 +175,43 @@ test('server rejects outside, duplicate, missing and cross-user answers', () => 
       validShape[0],
       { questionId: 'outside-question', selectedOption: 0 },
     ],
-  }), (err) => err.code === 'QUESTION_OUTSIDE_ATTEMPT');
+  }), (err) => err.code === 'ANSWER_COUNT_MISMATCH');
+});
+
+test('grading ignores extra essay rows appended after MC answers', () => {
+  const bank = [
+    ...studentBank,
+    {
+      id: 'word-essay',
+      section: 'word',
+      type: 'essay',
+      q: 'Thực hành',
+      sampleAnswer: 'secret',
+    },
+  ];
+  const attempt = createExamAttempt({
+    kind: 'student',
+    userId: 'student-a',
+    subjectIds: ['word'],
+    bank,
+    attemptId: 'attempt-ignore-essay',
+    ttlSeconds: 600,
+  });
+  assert.equal(attempt.questionCount, 2);
+  const mcAnswers = attempt.questions
+    .filter((q) => q.type === 'multiple')
+    .map((question) => ({ questionId: question.id, selectedOption: null }));
+  const graded = gradeExamAttempt({
+    token: attempt.attemptToken,
+    expected: { kind: 'student', userId: 'student-a' },
+    bank,
+    answers: [
+      ...mcAnswers,
+      { questionId: 'word-essay', selectedOption: null },
+    ],
+  });
+  assert.equal(graded.result.total, 2);
+  assert.equal(graded.result.correct, 0);
 });
 
 test('teacher grading enforces overall and per-section thresholds on server', () => {
@@ -237,4 +274,52 @@ test('expired signed token is accepted only for idempotent forfeit verification'
   } finally {
     Date.now = realNow;
   }
+});
+
+test('reload / new tab cannot resume a live attempt', () => {
+  const active = {
+    id: 'word',
+    status: 'dang_thi',
+    attemptId: 'attempt-live',
+    attemptStatus: 'active',
+  };
+  // Cùng tab: còn giữ attemptId trong bộ nhớ → thi tiếp
+  assert.deepEqual(
+    decideStudentAttemptStart(active, 'attempt-live'),
+    { action: 'resume', attemptId: 'attempt-live' },
+  );
+  // Tải lại trang / tab khác: mất attemptId → hủy bài
+  assert.deepEqual(
+    decideStudentAttemptStart(active, ''),
+    { action: 'abandon', attemptId: 'attempt-live' },
+  );
+  // Đã nộp trắc nghiệm nhưng chưa thực hành cũng không được vào lại sau reload
+  assert.equal(
+    decideStudentAttemptStart({ ...active, attemptStatus: 'submitted' }, '').action,
+    'abandon',
+  );
+});
+
+test('decideStudentAttemptStart: chốt điểm / chờ chấm / lượt mới', () => {
+  assert.equal(decideStudentAttemptStart({ id: 'word', status: 'khong_dat' }, '').action, 'closed');
+  assert.equal(decideStudentAttemptStart({ id: 'word', status: 'dat' }, '').action, 'closed');
+  assert.equal(
+    decideStudentAttemptStart({ id: 'word', status: 'dang_thi', thucHanh: 'da_nop' }, '').action,
+    'awaiting',
+  );
+  assert.equal(decideStudentAttemptStart({ id: 'word', status: 'chua_thi' }, '').action, 'create');
+  assert.equal(decideStudentAttemptStart(undefined, '').action, 'create');
+});
+
+test('Word NC / Excel NC reuse the office question bank', () => {
+  const attempt = createExamAttempt({
+    kind: 'student',
+    userId: 'student-nc',
+    subjectIds: ['word-nc'],
+    bank: studentBank,
+    attemptId: 'attempt-word-nc',
+    ttlSeconds: 600,
+  });
+  assert.equal(attempt.questionCount, 2);
+  assert.ok(attempt.questions.every((q) => q.section === 'word'));
 });

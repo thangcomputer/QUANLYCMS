@@ -104,11 +104,23 @@ function verifyAttemptToken(token, expected = {}, options = {}) {
   return payload;
 }
 
+function expandSubjectMatchIds(subjectId) {
+  const wanted = String(subjectId || '').trim().toLowerCase();
+  if (!wanted) return [];
+  const ids = new Set([wanted, ...(SUBJECT_ALIASES[wanted] || [])]);
+  // Môn custom "Word NC" / "Excel NC" dùng chung ngân hàng word/excel/powerpoint
+  if (wanted.endsWith('-nc') && wanted.length > 3) {
+    const base = wanted.slice(0, -3);
+    ids.add(base);
+    (SUBJECT_ALIASES[base] || []).forEach((alias) => ids.add(alias));
+  }
+  return [...ids];
+}
+
 function questionMatchesSubject(section, subjectId) {
   const actual = String(section || '').trim().toLowerCase();
-  const wanted = String(subjectId || '').trim().toLowerCase();
-  if (!actual || !wanted) return false;
-  return actual === wanted || Boolean(SUBJECT_ALIASES[wanted]?.includes(actual));
+  if (!actual) return false;
+  return expandSubjectMatchIds(subjectId).includes(actual);
 }
 
 function resolveExamBankAccess(kind, role, canManage) {
@@ -360,12 +372,19 @@ function gradeExamAttempt({ token, expected, bank, answers }) {
   ) {
     fail('Bộ câu hỏi không khớp attempt', 409, 'ATTEMPT_QUESTION_SET_CHANGED');
   }
-  if (!Array.isArray(answers) || answers.length !== payload.questionIds.length) {
+  if (!Array.isArray(answers)) {
+    fail('Phải gửi đúng một câu trả lời cho mỗi câu hỏi', 400, 'ANSWER_COUNT_MISMATCH');
+  }
+
+  const allowedIds = new Set(payload.questionIds.map(String));
+  // Bỏ câu tự luận (publicQuestions ghép sau MC) — token chỉ chấm trắc nghiệm
+  const mcAnswers = answers.filter((answer) => allowedIds.has(String(answer?.questionId || '').trim()));
+  if (mcAnswers.length !== payload.questionIds.length) {
     fail('Phải gửi đúng một câu trả lời cho mỗi câu hỏi', 400, 'ANSWER_COUNT_MISMATCH');
   }
 
   const supplied = new Map();
-  for (const answer of answers) {
+  for (const answer of mcAnswers) {
     const questionId = String(answer?.questionId || '').trim();
     if (!questionId || supplied.has(questionId)) {
       fail('Question ID bị thiếu hoặc trùng', 400, 'DUPLICATE_QUESTION_ID');
@@ -420,6 +439,23 @@ function gradeExamAttempt({ token, expected, bank, answers }) {
   };
 }
 
+/**
+ * Reload / mở tab mới không được thi tiếp: chỉ resume khi client còn giữ
+ * attemptId trong bộ nhớ phiên làm bài (mất khi tải lại trang).
+ */
+function decideStudentAttemptStart(entry, liveAttemptId) {
+  const status = String(entry?.status || '');
+  if (['dat', 'khong_dat'].includes(status)) return { action: 'closed', attemptId: '' };
+  if (String(entry?.thucHanh || '') === 'da_nop') return { action: 'awaiting', attemptId: '' };
+
+  const attemptId = String(entry?.attemptId || '');
+  const attemptStatus = String(entry?.attemptStatus || '');
+  const open = status === 'dang_thi' && ['active', 'submitted'].includes(attemptStatus);
+  if (!open || !attemptId) return { action: 'create', attemptId: '' };
+  if (String(liveAttemptId || '') === attemptId) return { action: 'resume', attemptId };
+  return { action: 'abandon', attemptId };
+}
+
 module.exports = {
   STUDENT_PASS_PERCENT,
   TEACHER_PASS_PERCENT,
@@ -432,4 +468,5 @@ module.exports = {
   gradeExamAttempt,
   questionMatchesSubject,
   resolveExamBankAccess,
+  decideStudentAttemptStart,
 };

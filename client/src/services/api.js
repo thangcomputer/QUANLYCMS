@@ -100,9 +100,9 @@ async function parseApiJson(res, fallbackMessage = 'Máy chủ không phản h�
       } catch {
         // CustomEvent is unavailable in non-browser consumers.
       }
-      if ([502, 503, 504].includes(res.status)) {
-      msg = `${fallbackMessage}. Máy chủ đang khởi động lại — vui lòng đợi vài giây rồi tải lại.`;
-    }
+      if ([502, 503, 504].includes(res.status) && !data?.message) {
+        msg = `${fallbackMessage}. Máy chủ đang khởi động lại — vui lòng đợi vài giây rồi tải lại.`;
+      }
     const err = new Error(msg);
     err.status = res.status;
     err.data = data;
@@ -617,13 +617,23 @@ export const apiFetch = async (endpoint, options = {}) => {
 
   // Server tạm thời (502/503/504) — thường gặp lúc PM2 restart / deploy
   // Retry dài hơn để tránh toast lỗi khi app đang warm-up (~3–8s)
+  // Không retry 503 nghiệp vụ (ngân hàng đề, khóa ký thi…) — retry chỉ làm kẹt UI.
   if ([502, 503, 504].includes(res.status) && (options._serverRetryCount || 0) < 4) {
-    const n = options._serverRetryCount || 0;
-    await sleep(Math.min(1200 * (n + 1), 5000));
-    return apiFetch(endpoint, {
-      ...options,
-      _serverRetryCount: n + 1,
-    });
+    let peek = null;
+    try { peek = await res.clone().json(); } catch { /* ignore */ }
+    const appCode = String(peek?.code || '');
+    const appMsg = String(peek?.message || '');
+    const isExamAppError = appCode.startsWith('EXAM_')
+      || appCode === 'DUPLICATE_BANK_QUESTION_ID'
+      || /Không tải được bộ câu hỏi|ID câu hỏi bị trùng|khóa ký kỳ thi/i.test(appMsg);
+    if (!isExamAppError) {
+      const n = options._serverRetryCount || 0;
+      await sleep(Math.min(1200 * (n + 1), 5000));
+      return apiFetch(endpoint, {
+        ...options,
+        _serverRetryCount: n + 1,
+      });
+    }
   }
 
   if (res.status !== 401 || options.skipAuth || options._retried) {
@@ -854,12 +864,35 @@ export const studentsAPI = {
     });
     return res.json();
   },
-  startExamAttempt: async (id, subjectId) => {
+  startExamAttempt: async (id, subjectId, liveAttemptId = '') => {
     const res = await apiFetch(`/students/${id}/exam-attempt`, {
       method: 'POST',
-      body: JSON.stringify({ subjectId }),
+      body: JSON.stringify({ subjectId, liveAttemptId }),
     });
     return parseApiJson(res, 'Không thể tạo lượt thi');
+  },
+  abandonExamAttempt: async (id, payload) => {
+    const res = await apiFetch(`/students/${id}/exam-attempt/abandon`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    return parseApiJson(res, 'Không thể hủy bài');
+  },
+  /** Hủy bài khi tải lại / đóng tab (keepalive, không chờ phản hồi) */
+  abandonExamAttemptBeacon: (id, subjectId, reason = 'Tải lại hoặc đóng trang khi đang thi') => {
+    try {
+      const token = getAccessToken('student') || getAccessToken();
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      if (_csrfToken) headers['X-CSRF-Token'] = _csrfToken;
+      fetch(`${API_BASE}/students/${id}/exam-attempt/abandon`, {
+        method: 'POST',
+        credentials: 'include',
+        keepalive: true,
+        headers,
+        body: JSON.stringify({ subjectId, reason }),
+      }).catch(() => {});
+    } catch { /* ignore */ }
   },
   submitExamAttempt: async (id, payload) => {
     const res = await apiFetch(`/students/${id}/exam-attempt/submit`, {

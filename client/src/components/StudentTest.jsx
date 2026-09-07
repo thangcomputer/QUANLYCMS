@@ -21,6 +21,12 @@ import {
   bankFingerprint,
 } from '../utils/studentCertificationExam';
 import { EXAM_CAMERA_PERMISSION_LABEL } from '../utils/examUi';
+import {
+  getLiveExamAttemptId,
+  rememberLiveExamAttempt,
+  clearLiveExamAttempt,
+  shareExamAttemptStart,
+} from '../utils/examLiveSession';
 import api, { buildMediaDownloadUrl, resolveMediaUrl } from '../services/api';
 
 const SUBJECT_META = {
@@ -94,6 +100,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
   const [fetchedExamBank, setFetchedExamBank] = useState(null);
   const [examAttemptToken, setExamAttemptToken] = useState('');
   const [examAttemptId, setExamAttemptId] = useState('');
+  const [examLoadError, setExamLoadError] = useState('');
   const [serverResult, setServerResult] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
@@ -134,15 +141,22 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
   /** Exact answer-free question set issued and shuffled by the server. */
   const rawQuestions = useMemo(() => {
     const raw = Array.isArray(fetchedExamBank) ? fetchedExamBank : [];
-    return raw.map((q, i) => {
-      const options = (q.options || []).filter((o) => o && String(o).trim());
-      return {
-        id: q.id ?? `sq-${subjectId}-${i}`,
-        text: q.q || '',
-        options,
-        imageUrl: q.imageUrl || '',
-      };
-    });
+    return raw
+      .filter((q) => {
+        const type = String(q?.type || '').toLowerCase();
+        if (['essay', 'tu_luan', 'tuluan'].includes(type)) return false;
+        const options = (q.options || []).filter((o) => o && String(o).trim());
+        return options.length >= 2;
+      })
+      .map((q, i) => {
+        const options = (q.options || []).filter((o) => o && String(o).trim());
+        return {
+          id: q.id ?? `sq-${subjectId}-${i}`,
+          text: q.q || q.text || q.questionText || '',
+          options,
+          imageUrl: q.imageUrl || '',
+        };
+      });
   }, [fetchedExamBank, subjectId]);
 
   const bankTotal = rawQuestions.length;
@@ -155,7 +169,9 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
   const TOTAL = (phase === 'hardware_check') ? bankTotal : questions.length;
 
   const { socket } = useSocket() || {};
-  const student = students?.find((s) => String(s.id) === String(STUDENT_ID));
+  const student = students?.find((s) => (
+    String(s.id) === String(STUDENT_ID) || String(s._id) === String(STUDENT_ID)
+  ));
   const { showModal } = useModal();
   const teacherId = student?.teacherId;
   const enrollments = useMemo(() => getClientEnrollments(student), [student]);
@@ -231,6 +247,20 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
     startingExamRef.current = false;
     onBack?.();
   }, [attemptKey, onBack]);
+
+  /** Quay lại khi còn ở bước bật camera: trả lượt thi về "chưa thi", không tính rớt. */
+  const leaveBeforeStart = useCallback(() => {
+    if (STUDENT_ID) {
+      clearLiveExamAttempt(STUDENT_ID, subjectId);
+      void api.students.abandonExamAttempt(STUDENT_ID, {
+        subjectId,
+        soft: true,
+        reason: 'Thoát ở bước kiểm tra camera',
+      }).catch(() => {});
+    }
+    clearCertificationAttempt(attemptKey);
+    onBack?.();
+  }, [STUDENT_ID, subjectId, attemptKey, onBack]);
 
   const examStartAllowed = useMemo(() => {
     if (!student) return null;
@@ -389,32 +419,100 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
     }
   }, [student, updateStudent, subjectId]);
 
+  /** Đồng bộ ngay trạng thái RỚT + khóa vào danh sách môn thi (không chờ socket). */
+  const patchLocalProgress = useCallback((extra = {}) => {
+    if (!STUDENT_ID || typeof updateStudent !== 'function') return;
+    const fallbackLockUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
+    const progress = Array.isArray(student?.examProgress)
+      ? student.examProgress.map((e) => ({ ...e }))
+      : [];
+    const idx = progress.findIndex((s) => String(s.id) === String(subjectId));
+    const total = Number(extra.total);
+    const score = Number(extra.score);
+    const nextEntry = {
+      ...(idx >= 0 ? progress[idx] : { id: subjectId }),
+      id: subjectId,
+      status: extra.status || 'khong_dat',
+      lockUntil: extra.lockUntil != null ? Number(extra.lockUntil) : fallbackLockUntil,
+      tracNghiem: Number.isFinite(total)
+        ? { score: Number.isFinite(score) ? score : 0, total }
+        : (idx >= 0 ? progress[idx].tracNghiem : null),
+      thucHanh: 'chua_nop',
+      attemptStatus: 'forfeited',
+    };
+    if (idx >= 0) progress[idx] = nextEntry;
+    else progress.push(nextEntry);
+    updateStudent(STUDENT_ID, { examProgress: progress }, { localOnly: true });
+  }, [STUDENT_ID, updateStudent, student, subjectId]);
+
+  // Ref để các effect (mở đề, socket) không phải phụ thuộc dữ liệu học viên
+  const patchLocalProgressRef = useRef(patchLocalProgress);
+  useEffect(() => { patchLocalProgressRef.current = patchLocalProgress; }, [patchLocalProgress]);
+
   const applyFailAndLock = useCallback(async () => {
-    if (!STUDENT_ID || !examAttemptToken) return false;
+    if (!STUDENT_ID) return false;
     clearCertificationAttempt(attemptKey);
+    clearLiveExamAttempt(STUDENT_ID, subjectId);
+    if (!examAttemptToken) {
+      // Chưa có token (mất phiên) — vẫn phải chốt rớt lượt đang mở.
+      try {
+        const res = await api.students.abandonExamAttempt(STUDENT_ID, {
+          subjectId,
+          reason: 'Thoát phòng thi',
+        });
+        patchLocalProgressRef.current(res?.data || {});
+        return res?.success !== false;
+      } catch {
+        patchLocalProgressRef.current();
+        return false;
+      }
+    }
     try {
-      await api.students.forfeitExamAttempt(STUDENT_ID, { attemptToken: examAttemptToken });
-      return true;
+      const res = await api.students.forfeitExamAttempt(STUDENT_ID, { attemptToken: examAttemptToken });
+      let data = res?.data || {};
+      if (String(data.status || '') !== 'khong_dat') {
+        // Lượt đã nộp trắc nghiệm (đang làm thực hành) — vẫn phải chốt RỚT
+        const fallback = await api.students
+          .abandonExamAttempt(STUDENT_ID, { subjectId, reason: 'Vi phạm quy chế thi' })
+          .catch(() => null);
+        if (fallback?.data) data = fallback.data;
+      }
+      patchLocalProgressRef.current({
+        status: data.status || 'khong_dat',
+        lockUntil: data.lockUntil,
+        score: data.score,
+        total: data.total,
+      });
+      return res?.success !== false;
     } catch {
+      patchLocalProgressRef.current();
       return false;
     }
-  }, [STUDENT_ID, examAttemptToken, attemptKey]);
+  }, [STUDENT_ID, examAttemptToken, attemptKey, subjectId]);
 
   // ── Tải config công khai an toàn + bộ đề chính xác do server cấp ──
   useEffect(() => {
     if (!STUDENT_ID) return undefined;
     let cancelled = false;
     setQuestionsLoading(true);
+    setExamLoadError('');
     (async () => {
       try {
         const [configRes, attemptRes] = await Promise.all([
           api.settings.getStudentExamConfig(),
-          api.students.startExamAttempt(STUDENT_ID, subjectId),
+          shareExamAttemptStart(STUDENT_ID, subjectId, () => api.students.startExamAttempt(
+            STUDENT_ID,
+            subjectId,
+            getLiveExamAttemptId(STUDENT_ID, subjectId),
+          )),
         ]);
         if (!cancelled && configRes?.success && configRes.data) {
           if (typeof applyStudentExamConfigFromServer === 'function') {
             applyStudentExamConfigFromServer(configRes.data);
           }
+        }
+        if (attemptRes?.success && attemptRes.data?.attemptId) {
+          rememberLiveExamAttempt(STUDENT_ID, subjectId, attemptRes.data.attemptId);
         }
         if (!cancelled && attemptRes?.success && attemptRes.data) {
           setFetchedExamBank(Array.isArray(attemptRes.data.questions) ? attemptRes.data.questions : []);
@@ -425,20 +523,31 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
           }
         }
       } catch (err) {
+        const abandoned = err?.data?.code === 'EXAM_ATTEMPT_ABANDONED';
+        if (abandoned) {
+          clearCertificationAttempt(attemptKey);
+          clearLiveExamAttempt(STUDENT_ID, subjectId);
+          patchLocalProgressRef.current();
+        }
         if (!cancelled) {
           setFetchedExamBank([]);
-          showModal({
-            title: 'Không thể mở đề thi',
-            content: err?.message || 'Vui lòng kiểm tra điều kiện dự thi và thử lại.',
-            type: 'error',
-            confirmText: 'Đóng',
-          });
+          const msg = err?.data?.message || err?.message || 'Vui lòng kiểm tra điều kiện dự thi và thử lại.';
+          setExamLoadError(msg);
+          // Bài đã bị hủy: đã có màn hình/dòng cảnh báo riêng, không chồng thêm modal
+          if (!abandoned) {
+            showModal({
+              title: 'Không thể mở đề thi',
+              content: msg,
+              type: 'error',
+              confirmText: 'Đóng',
+            });
+          }
         }
       }
       if (!cancelled) setQuestionsLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [STUDENT_ID, subjectId, applyStudentExamConfigFromServer, showModal]);
+  }, [STUDENT_ID, subjectId, attemptKey, applyStudentExamConfigFromServer, showModal]);
 
   // Cập nhật đề khi admin lưu ngân hàng (socket data:refresh)
   useEffect(() => {
@@ -554,9 +663,16 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
       e.returnValue = 'Rời khỏi lúc này sẽ mất toàn bộ bài làm. Bạn có chắc không?';
     };
 
-    // Bắt sự kiện khi thực sự rời khỏi trang (Reload hoặc Đóng tab)
+    // Rời trang thật sự (F5 / đóng tab): chốt RỚT ngay trên server, không cho thi tiếp
     const handleActualUnload = () => {
-      if (STUDENT_ID) localStorage.setItem(punishKey, 'true');
+      if (!STUDENT_ID) return;
+      localStorage.setItem(punishKey, 'true');
+      clearLiveExamAttempt(STUDENT_ID, subjectId);
+      api.students.abandonExamAttemptBeacon(
+        STUDENT_ID,
+        subjectId,
+        'Tải lại hoặc đóng trang khi đang thi',
+      );
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -572,7 +688,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
       window.removeEventListener('pagehide', handleActualUnload);
       window.removeEventListener('unload', handleActualUnload);
     };
-  }, [phase, STUDENT_ID, punishKey]); // ĐÃ XÓA onBack, updateExamProgress VÀ showModal ĐỂ TRÁNH LẶP VÒNG LẶP PUSH HISTORY
+  }, [phase, STUDENT_ID, punishKey, subjectId]); // ĐÃ XÓA onBack, updateExamProgress VÀ showModal ĐỂ TRÁNH LẶP VÒNG LẶP PUSH HISTORY
 
   const handleViolation = useCallback((reason) => {
     clearInterval(timerRef.current);
@@ -640,10 +756,13 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
     try {
       const response = await api.students.submitExamAttempt(STUDENT_ID, {
         attemptToken: examAttemptToken,
-        answers: questions.map((question, index) => ({
-          questionId: question.id,
-          selectedOption: answers[index] ?? null,
-        })),
+        answers: questions.flatMap((question, index) => {
+          if (!Array.isArray(question.options) || question.options.length < 2) return [];
+          return [{
+            questionId: question.id,
+            selectedOption: answers[index] ?? null,
+          }];
+        }),
       });
       const result = response?.data;
       if (!result) throw new Error('Server không trả kết quả chấm thi');
@@ -818,7 +937,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
         {onBack && (
           <button
             type="button"
-            onClick={onBack}
+            onClick={leaveBeforeStart}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 text-slate-200 hover:text-white hover:bg-slate-700 text-xs font-bold border border-slate-600"
           >
             <NavArrow size={14} direction="back" />
@@ -838,7 +957,12 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
              Đang tải đề thi từ hệ thống...
            </div>
          )}
-         {!questionsLoading && TOTAL === 0 && (
+         {!questionsLoading && examLoadError && (
+           <div className="mb-3 px-2 py-2 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs font-bold leading-relaxed">
+             {examLoadError}
+           </div>
+         )}
+         {!questionsLoading && !examLoadError && TOTAL === 0 && (
            <div className="mb-3 px-2 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold leading-relaxed">
              Chưa có câu hỏi trắc nghiệm cho môn <span className="text-amber-950">{meta.short}</span> trong ngân hàng. Vui lòng liên hệ Admin.
            </div>
@@ -927,7 +1051,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
          {!cameraReady && !cameraError && (
            <p className="text-[10px] text-slate-400 font-bold mt-2">Bấm &quot;Cho phép mỗi khi truy cập&quot; để bật camera.</p>
          )}
-         <button type="button" onClick={() => onBack?.()} className="w-full mt-3 py-2 font-bold rounded-[14px] text-xs border border-slate-200 text-slate-600 hover:bg-slate-50 inline-flex items-center justify-center gap-1">
+         <button type="button" onClick={leaveBeforeStart} className="w-full mt-3 py-2 font-bold rounded-[14px] text-xs border border-slate-200 text-slate-600 hover:bg-slate-50 inline-flex items-center justify-center gap-1">
            <NavArrow size={14} direction="back" className="text-slate-600" />
            Quay lại
          </button>
@@ -982,25 +1106,12 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
           <div className="text-5xl mb-3">{passed ? '🏆' : '😔'}</div>
           <h2 className={`text-2xl font-black ${passed ? 'text-green-700' : 'text-red-700'}`}>{passed ? 'ĐÃ ĐẠT!' : 'CHƯA ĐẠT'}</h2>
           <p className="text-4xl font-black mt-1 text-gray-800">{pct}%</p>
-          <p className="text-gray-400 text-sm">Đúng {score}/{TOTAL} câu trắc nghiệm</p>
-        </div>
-
-        {/* Review */}
-        <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-1">
-          {questions.map((q, i) => {
-            const chosen = answers[i]; const correct = q.answer; const ok = chosen === correct;
-            return (
-              <div key={q.id} className={`bg-white rounded-xl p-3.5 border text-sm ${ok ? 'border-green-100' : 'border-red-100'}`}>
-                <p className="font-semibold text-gray-700 mb-1">Câu {i + 1}: {q.text}</p>
-                <div className="flex flex-wrap gap-2">
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ok ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                    Bạn chọn: {chosen !== null ? q.options[chosen] : 'Bỏ qua'}
-                  </span>
-                  {!ok && <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">Đúng: {q.options[correct]}</span>}
-                </div>
-              </div>
-            );
-          })}
+          <p className="text-gray-500 text-sm mt-2">
+            Đúng <span className="font-bold text-green-700">{score}</span> câu
+            <span className="mx-2 text-gray-300">·</span>
+            Sai <span className="font-bold text-red-600">{Math.max(0, TOTAL - score)}</span> câu
+          </p>
+          <p className="text-gray-400 text-xs mt-2">Học viên không xem được đáp án chi tiết.</p>
         </div>
 
         {/* Nếu đậu trắc nghiệm và còn bắt TL thì hiện upload (fallback UI) */}
@@ -1075,8 +1186,8 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
     <ExamClickOutsideGuard
       enabled={phase === 'test' && tab !== 'tu_luan'}
       soundUrl={examWarningSoundUrl}
-      maxStrikes={2}
-      onMaxStrikes={() => handleViolation('Bấm ra ngoài vùng làm bài quá 2 lần. Bài thi bị hủy!')}
+      maxStrikes={1}
+      onMaxStrikes={() => handleViolation('Bấm ra ngoài vùng làm bài khi đang thi. Bài thi bị hủy!')}
       className="relative flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-slate-100 font-sans text-slate-900"
     >
       <div
@@ -1490,7 +1601,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
       </div>
 
       {/* ExamMonitor (logic only) */}
-      <ExamMonitor ref={monitorRef} isActive={phase === 'test'} onViolate={handleViolation} onResetExam={handleResetExam} requireWebcam={requireWebcam} enableTabGuard={tab !== 'tu_luan'} warningSoundUrl={examWarningSoundUrl} />
+      <ExamMonitor ref={monitorRef} isActive={phase === 'test'} onViolate={handleViolation} onResetExam={handleResetExam} requireWebcam={requireWebcam} enableTabGuard={tab !== 'tu_luan'} maxTabWarnings={1} warningSoundUrl={examWarningSoundUrl} />
 
       {/* ══════════ MODALS ══════════ */}
       {showSubmitConfirm && (

@@ -74,8 +74,9 @@ const {
   createExamAttempt,
   gradeExamAttempt,
   verifyAttemptToken,
+  decideStudentAttemptStart,
 } = require('../services/examAttemptService');
-const { claimStudentAttempt } = require('../services/examAttemptStore');
+const { claimStudentAttempt, claimStudentOpenAttempt } = require('../services/examAttemptStore');
 const {
   purgeStudentSideEffects,
   purgeCancelledOnlyStudents,
@@ -1687,10 +1688,69 @@ function studentAttemptResponse(entry, extra = {}) {
       String(entry?.status) === 'dang_thi' && total > 0 && score / total >= 0.5
     ),
     status: entry?.status || 'chua_thi',
+    lockUntil: entry?.lockUntil == null ? null : Number(entry.lockUntil),
     essayRequired: String(entry?.status) === 'dang_thi',
     idempotent: false,
     ...extra,
   };
+}
+
+/** Chốt RỚT + khóa cho lượt thi còn mở (reload, đóng tab, thoát phòng thi). */
+async function forfeitOpenStudentAttempt(req, { studentId, subjectId, attemptId = '', reason = '' }) {
+  const student = await claimStudentOpenAttempt(Student, {
+    studentId,
+    subjectId,
+    attemptId,
+    setFields: {
+      'examProgress.$.status': 'khong_dat',
+      'examProgress.$.lockUntil': Date.now() + STUDENT_EXAM_LOCK_MS,
+      'examProgress.$.attemptStatus': 'forfeited',
+      'examProgress.$.attemptSubmittedAt': new Date(),
+      'examProgress.$.thucHanh': 'chua_nop',
+    },
+  });
+  if (!student) return null;
+  logger.warn('[STUDENTS] exam attempt forfeited %s/%s: %s', studentId, subjectId, reason || 'exit');
+  const io = req.app.get('io');
+  if (io) {
+    studentRealtime(io, student, 'student:updated', student._id);
+    studentDataRefresh(io, student, { type: 'student', id: student._id });
+  }
+  return student;
+}
+
+/** Cửa sổ cho phép hủy lượt vừa mở mà chưa vào phòng thi (bước bật camera). */
+const STUDENT_EXAM_SOFT_RELEASE_MS = 90 * 1000;
+
+async function releaseUnstartedStudentAttempt(req, { studentId, subjectId }) {
+  const current = await Student.findById(studentId).select('examProgress').lean();
+  const entry = (current?.examProgress || []).find((item) => String(item.id) === subjectId);
+  const startedAt = entry?.attemptStartedAt ? new Date(entry.attemptStartedAt).getTime() : 0;
+  const releasable = entry?.attemptStatus === 'active'
+    && entry.attemptId
+    && startedAt
+    && Date.now() - startedAt <= STUDENT_EXAM_SOFT_RELEASE_MS;
+  if (!releasable) return null;
+
+  const student = await claimStudentAttempt(Student, {
+    studentId,
+    subjectId,
+    attemptId: String(entry.attemptId),
+    setFields: {
+      'examProgress.$.status': 'chua_thi',
+      'examProgress.$.attemptStatus': null,
+      'examProgress.$.attemptId': null,
+      'examProgress.$.attemptStartedAt': null,
+      'examProgress.$.attemptSubmittedAt': null,
+    },
+  });
+  if (!student) return null;
+  const io = req.app.get('io');
+  if (io) {
+    studentRealtime(io, student, 'student:updated', student._id);
+    studentDataRefresh(io, student, { type: 'student', id: student._id });
+  }
+  return student;
 }
 
 function studentExamDurationSeconds(settings, subjectId) {
@@ -1724,8 +1784,26 @@ router.post('/:id/exam-attempt', studentExamGuard, async (req, res) => {
     }
 
     let entry = (student.examProgress || []).find((item) => String(item.id) === subjectId);
-    if (['dat', 'khong_dat'].includes(String(entry?.status || ''))) {
+    const decision = decideStudentAttemptStart(entry, req.body?.liveAttemptId);
+    if (decision.action === 'closed') {
       return res.status(409).json({ success: false, message: 'Môn thi đã được chốt, liên hệ Admin để mở lại' });
+    }
+    if (decision.action === 'awaiting') {
+      return res.status(409).json({ success: false, message: 'Bài thực hành đã nộp và đang chờ chấm điểm' });
+    }
+    if (decision.action === 'abandon') {
+      // Tải lại trang / mở tab khác khi đang thi → hủy bài, tính RỚT.
+      await forfeitOpenStudentAttempt(req, {
+        studentId: req.params.id,
+        subjectId,
+        attemptId: decision.attemptId,
+        reason: 'reload_or_new_tab',
+      });
+      return res.status(409).json({
+        success: false,
+        code: 'EXAM_ATTEMPT_ABANDONED',
+        message: 'Bài thi đã bị hủy do tải lại trang hoặc rời phòng thi. Môn này bị tính RỚT — liên hệ Admin để mở lại.',
+      });
     }
 
     const ttlSeconds = studentExamDurationSeconds(settings, subjectId);
@@ -1733,9 +1811,7 @@ router.post('/:id/exam-attempt', studentExamGuard, async (req, res) => {
       && String(entry?.status) === 'dang_thi'
       && Number(entry?.tracNghiem?.total) > 0
       && Number(entry?.tracNghiem?.score) / Number(entry?.tracNghiem?.total) >= 0.5;
-    let attemptId = (entry?.attemptStatus === 'active' || mcAlreadySubmitted)
-      ? String(entry.attemptId || '')
-      : '';
+    let attemptId = decision.action === 'resume' ? decision.attemptId : '';
     let startedAt = entry?.attemptStartedAt ? new Date(entry.attemptStartedAt).getTime() : 0;
     if (!mcAlreadySubmitted && attemptId && startedAt && Date.now() >= startedAt + ttlSeconds * 1000) {
       await claimStudentAttempt(Student, {
@@ -1949,8 +2025,48 @@ router.post('/:id/exam-attempt/forfeit', studentExamGuard, async (req, res) => {
       return res.status(409).json({ success: false, message: 'Lượt thi không còn hoạt động' });
     }
     const entry = (student.examProgress || []).find((item) => String(item.id) === subjectId);
+    const io = req.app.get('io');
+    if (io) {
+      studentRealtime(io, student, 'student:updated', student._id);
+      studentDataRefresh(io, student, { type: 'student', id: student._id });
+    }
     return res.json({ success: true, data: studentAttemptResponse(entry) });
   } catch (error) {
+    return res.status(error.status || 400).json({ success: false, message: error.message || 'Không thể hủy bài' });
+  }
+});
+
+// ─── POST /api/students/:id/exam-attempt/abandon ───────────────────────────────
+// Tải lại trang / đóng tab / thoát phòng thi: chốt RỚT ngay, không cần token.
+router.post('/:id/exam-attempt/abandon', studentExamGuard, async (req, res) => {
+  try {
+    if (req.user?.role !== 'student' || String(req.user.id) !== String(req.params.id)) {
+      return res.status(403).json({ success: false, message: 'Không thể hủy lượt thi của học viên khác' });
+    }
+    const subjectId = String(req.body?.subjectId || '').trim().toLowerCase();
+    if (!subjectId) {
+      return res.status(400).json({ success: false, message: 'Thiếu subjectId' });
+    }
+
+    // Thoát ở bước kiểm tra camera (chưa vào phòng thi) → trả lượt về "chưa thi"
+    if (req.body?.soft === true) {
+      const released = await releaseUnstartedStudentAttempt(req, { studentId: req.params.id, subjectId });
+      if (released) return res.json({ success: true, released: true, data: null });
+    }
+
+    const student = await forfeitOpenStudentAttempt(req, {
+      studentId: req.params.id,
+      subjectId,
+      attemptId: String(req.body?.attemptId || '').trim(),
+      reason: String(req.body?.reason || 'exit_exam_room').slice(0, 120),
+    });
+    if (!student) {
+      return res.json({ success: true, data: null });
+    }
+    const entry = (student.examProgress || []).find((item) => String(item.id) === subjectId);
+    return res.json({ success: true, data: studentAttemptResponse(entry) });
+  } catch (error) {
+    logger.warn('[STUDENTS] abandon exam attempt: %s', error.message);
     return res.status(error.status || 400).json({ success: false, message: error.message || 'Không thể hủy bài' });
   }
 });

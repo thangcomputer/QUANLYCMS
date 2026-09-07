@@ -35,8 +35,9 @@ describe('HIGH_ADMIN teacher manage actions', () => {
   });
 
   it('FE: Add/Edit teacher modal branch picker for Super||High', () => {
-    const dash = read('client/src/components/AdminDashboard.jsx');
-    assert.match(dash, /isSuperAdmin=\{isSuperAdmin \|\| isHighAdmin\}/);
+    // Modal đã tách khỏi AdminDashboard → AdminModalManager
+    const modals = read('client/src/components/admin/shared/AdminModalManager.jsx');
+    assert.match(modals, /isSuperAdmin=\{isSuperAdmin \|\| isHighAdmin\}/);
   });
 
   it('BE gate: Super hoặc HIGH_ADMIN ALLOW; message updated', () => {

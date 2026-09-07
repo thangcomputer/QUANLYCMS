@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Clock, ArrowLeft, Send, CheckCircle, XCircle, AlertTriangle,
+  Clock, ArrowLeft, Send, AlertTriangle,
   ChevronLeft, ChevronRight, LayoutGrid, Award, RefreshCw
 } from 'lucide-react';
 import api from '../../services/api';
@@ -371,75 +371,30 @@ export default function StudentQuizExamRoom({ quizId, onBack }) {
               </p>
             )}
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-w-md mx-auto text-left text-xs font-semibold">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-lg mx-auto text-left text-xs font-semibold">
               <div className="bg-white/5 p-3 rounded-xl border border-white/5">
                 <span className="text-slate-400 block text-[10px]">Số câu đúng</span>
-                <span className="text-emerald-400 font-bold text-sm">{resultData.correctCount}/{resultData.totalQuestions}</span>
+                <span className="text-emerald-400 font-bold text-sm">{resultData.correctCount ?? 0}/{resultData.totalQuestions ?? 0}</span>
+              </div>
+              <div className="bg-white/5 p-3 rounded-xl border border-white/5">
+                <span className="text-slate-400 block text-[10px]">Số câu sai</span>
+                <span className="text-red-400 font-bold text-sm">
+                  {Math.max(0, (resultData.totalQuestions || 0) - (resultData.correctCount || 0))}
+                </span>
               </div>
               <div className="bg-white/5 p-3 rounded-xl border border-white/5">
                 <span className="text-slate-400 block text-[10px]">Thời gian làm</span>
                 <span className="text-white font-bold text-sm">{quizData?.timeLimitMinutes != null ? `${quizData.timeLimitMinutes} phút` : '—'}</span>
               </div>
-              <div className="bg-white/5 p-3 rounded-xl border border-white/5 col-span-2 sm:col-span-1">
+              <div className="bg-white/5 p-3 rounded-xl border border-white/5">
                 <span className="text-slate-400 block text-[10px]">Trạng thái</span>
                 <span className={`font-bold text-sm ${isPassed ? 'text-emerald-400' : 'text-red-400'}`}>
                   {isForfeit ? 'Rớt do thoát' : (isPassed ? 'Đã hoàn thành' : 'Cần học lại')}
                 </span>
               </div>
             </div>
+            <p className="text-[11px] text-slate-500 mt-4">Học viên không xem được đáp án chi tiết.</p>
           </div>
-
-          {/* Chi tiết đáp án từng câu */}
-          {resultData.detailedReview && resultData.detailedReview.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="text-base font-bold text-slate-200">Chi tiết đáp án bài thi</h3>
-              {resultData.detailedReview.map((q, idx) => (
-                <div key={q._id || idx} className="bg-white/5 border border-white/10 rounded-2xl p-4 sm:p-5 space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="font-bold text-sm text-slate-100">
-                      <span className="text-emerald-400 mr-2">Câu {idx + 1}:</span> {q.questionText}
-                    </p>
-                    {q.isCorrect ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md shrink-0">
-                        <CheckCircle size={12} /> Đúng
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-[11px] font-black text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-0.5 rounded-md shrink-0">
-                        <XCircle size={12} /> Sai
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-semibold">
-                    {q.options.map((opt, optIdx) => {
-                      const isUserChoice = q.userAnswer === optIdx;
-                      const isCorrectChoice = q.correctAnswer === optIdx;
-                      let optionStyle = 'bg-white/5 text-slate-400 border-white/5';
-                      if (isCorrectChoice) {
-                        optionStyle = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 font-bold';
-                      } else if (isUserChoice && !q.isCorrect) {
-                        optionStyle = 'bg-red-500/20 text-red-300 border-red-500/40 font-bold';
-                      }
-                      return (
-                        <div key={optIdx} className={`p-3 rounded-xl border flex items-center gap-2 ${optionStyle}`}>
-                          <span className="w-5 h-5 rounded-full border border-current flex items-center justify-center text-[10px] shrink-0">
-                            {String.fromCharCode(65 + optIdx)}
-                          </span>
-                          <span className="flex-1 min-w-0 leading-tight">{opt}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {q.explanation && (
-                    <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-xs text-indigo-200">
-                      <strong>Giải thích từ GV:</strong> {q.explanation}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
         </div>
         </div>
       </ExamOverlay>
@@ -453,8 +408,8 @@ export default function StudentQuizExamRoom({ quizId, onBack }) {
       enabled={!resultData && !loading && !!quizData}
       soundUrl={examWarningSoundUrl}
       watchVisibility
-      maxStrikes={2}
-      onMaxStrikes={() => { void submitForfeit('Bấm ra ngoài vùng làm bài quá 2 lần'); }}
+      maxStrikes={1}
+      onMaxStrikes={() => { void submitForfeit('Bấm ra ngoài vùng làm bài khi đang thi'); }}
       className="flex-1 min-h-0 flex flex-col select-none overflow-x-hidden"
     >
       {/* ── TOPBAR PHÒNG THI ── */}

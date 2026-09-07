@@ -59,6 +59,8 @@ const ExamMonitor = forwardRef(({
   onViolate,
   requireWebcam = true,
   enableTabGuard = true,
+  /** Số lần rời màn hình thi trước khi hủy bài (1 = rớt ngay lần đầu). */
+  maxTabWarnings = CONFIG.MAX_TAB_WARNINGS,
   warningSoundUrl = '',
   persistKey = null,
   initialFaceViolations = 0,
@@ -234,6 +236,7 @@ const ExamMonitor = forwardRef(({
       riskScore,
       fpsEstimate,
       uiStatus,
+      maxTabWarnings,
       events: eventLogRef.current?.getEvents?.() || [],
     }),
     getStream: () => streamRef.current,
@@ -243,7 +246,7 @@ const ExamMonitor = forwardRef(({
   }), [
     lastFaceDetected, lastFacePresent, lastMotionDetected, lastLookingStraight,
     lastMultiFace, lastInOval, lastLowLight, lastLensBlocked, cameraStatus,
-    riskScore, fpsEstimate, uiStatus,
+    riskScore, fpsEstimate, uiStatus, maxTabWarnings,
   ]);
 
   useEffect(() => {
@@ -592,15 +595,22 @@ const ExamMonitor = forwardRef(({
       riskRef.current.add('tab_blur');
       setRiskScore(riskRef.current.getScore());
       logEvent('tab_blur', 'warn', { count: w });
-      if (w >= CONFIG.MAX_TAB_WARNINGS) {
-        terminateExam(`Chuyển tab hoặc rời khỏi màn hình thi quá ${CONFIG.MAX_TAB_WARNINGS} lần. Bài thi bị hủy tự động!`);
+      const cap = Number.isFinite(maxTabWarnings) && maxTabWarnings > 0
+        ? maxTabWarnings
+        : CONFIG.MAX_TAB_WARNINGS;
+      if (w >= cap) {
+        terminateExam(
+          cap <= 1
+            ? 'Chuyển tab hoặc rời khỏi màn hình thi. Bài thi bị hủy tự động!'
+            : `Chuyển tab hoặc rời khỏi màn hình thi quá ${cap} lần. Bài thi bị hủy tự động!`,
+        );
       } else {
         setWarningOverlay({
           type: 'tab',
           message: 'CẢNH BÁO CHUYỂN TAB!',
           sub: 'Hệ thống phát hiện bạn vừa rời khỏi màn hình thi. Nếu tiếp tục vi phạm nốt lần nữa, bài thi sẽ tự động HỦY.',
           count: w,
-          max: CONFIG.MAX_TAB_WARNINGS,
+          max: cap,
         });
       }
     };
@@ -627,7 +637,7 @@ const ExamMonitor = forwardRef(({
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
     };
-  }, [isActive, isTerminated, enableTabGuard, terminateExam, playWarningBeep, logEvent, softWarn]);
+  }, [isActive, isTerminated, enableTabGuard, maxTabWarnings, terminateExam, playWarningBeep, logEvent, softWarn]);
 
   if (!isActive && !warningOverlay) return null;
 
@@ -849,7 +859,9 @@ export const CameraHeaderPanel = ({ monitorRef, variant = 'default' }) => {
             </span>
             <span className="font-bold text-white text-xs">
               Tab:{' '}
-              <span className={stats.tabWarnings > 0 ? 'text-orange-400' : 'text-emerald-400'}>{stats.tabWarnings}/{CONFIG.MAX_TAB_WARNINGS}</span>
+              <span className={stats.tabWarnings > 0 ? 'text-orange-400' : 'text-emerald-400'}>
+                {stats.tabWarnings}/{stats.maxTabWarnings || CONFIG.MAX_TAB_WARNINGS}
+              </span>
             </span>
           </div>
         </div>

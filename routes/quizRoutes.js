@@ -212,21 +212,6 @@ router.get('/:id', [authMiddleware, ...quizzesGuard('get')], async (req, res) =>
       }
     }
 
-    // Chỉ khi đã nộp (không phải thoát giữa giờ) mới gửi chi tiết xem lại
-    let detailedReview = [];
-    if (mySub && !mySub.forfeit) {
-      const answers = Array.isArray(mySub.answers) ? mySub.answers : [];
-      detailedReview = (quiz.questions || []).map((q, idx) => ({
-        _id: q._id,
-        questionText: q.questionText,
-        options: q.options,
-        correctAnswer: q.correctAnswer,
-        userAnswer: answers[idx] ?? null,
-        isCorrect: answers[idx] === q.correctAnswer,
-        explanation: q.explanation || '',
-      }));
-    }
-
     return res.json({
       success: true,
       data: {
@@ -237,7 +222,7 @@ router.get('/:id', [authMiddleware, ...quizzesGuard('get')], async (req, res) =>
         timeLimitMinutes: quiz.timeLimitMinutes,
         questions: safeQuestions,
         mySubmission: mySub || null,
-        detailedReview,
+        detailedReview: [],
       },
     });
   } catch (err) {
@@ -435,18 +420,6 @@ router.post('/:id/submit', [authMiddleware, ...quizzesGuard('submit')], async (r
       logger.warn('[QUIZ] Send student notification error:', stuErr.message);
     }
 
-    const detailedReview = isForfeit
-      ? []
-      : quiz.questions.map((q, idx) => ({
-        _id: q._id,
-        questionText: q.questionText,
-        options: q.options,
-        correctAnswer: q.correctAnswer,
-        userAnswer: userAnswers[idx] ?? null,
-        isCorrect: userAnswers[idx] === q.correctAnswer,
-        explanation: q.explanation || '',
-      }));
-
     return res.json({
       success: true,
       message: isForfeit ? 'Đã ghi nhận RỚT do thoát giữa giờ' : 'Nộp bài thành công',
@@ -458,7 +431,7 @@ router.post('/:id/submit', [authMiddleware, ...quizzesGuard('submit')], async (r
         forfeit: isForfeit,
         exitReason: reason,
         submittedAt: submissionData.submittedAt,
-        detailedReview,
+        detailedReview: [],
       },
     });
   } catch (err) {

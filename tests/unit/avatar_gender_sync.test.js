@@ -173,7 +173,9 @@ describe('avatar gender sync — static UI/API wiring', () => {
   it('EditableAvatar + AppSidebar pass gender', () => {
     assert.ok(editable.includes('gender'));
     assert.ok(editable.includes('gender,'));
-    assert.ok(sidebar.includes('gender={session?.gender}'));
+    // Sidebar bổ sung gender từ self profile khi session thiếu → effectiveGender
+    assert.ok(sidebar.includes('gender={effectiveGender}') || sidebar.includes('gender={session?.gender}'));
+    assert.ok(sidebar.includes('effectiveGender'));
   });
 
   it('Avatar onError uses resolveAvatarUrl gender-aware fallback', () => {
