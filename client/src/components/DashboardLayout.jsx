@@ -67,8 +67,7 @@ function isTeacherAttendanceRejectedNotif(n) {
   if (kind === 'attendance_rejected' || kind === 'admin_makeup_rejected') return true;
   const title = String(n?.title || '');
   return title.includes('Buổi học không được tính')
-    || title.includes('Buổi điểm danh bù không được tính')
-    || title.includes('không được tính');
+    || title.includes('Buổi điểm danh bù không được tính');
 }
 
 function attendancePayloadMissingTeacherOrCa(payload) {
@@ -466,6 +465,46 @@ const DashboardLayout = ({ role, session, onLogout }) => {
     return false;
   }, [starBonusSeenKey]);
 
+  const teacherRejectSeenKey = React.useCallback((teacherId, scheduleId) => (
+    `teacher_att_reject_seen_${teacherId}_${scheduleId}`
+  ), []);
+
+  const hasSeenTeacherReject = React.useCallback((teacherId, scheduleId) => {
+    if (!teacherId || !scheduleId) return false;
+    const key = teacherRejectSeenKey(teacherId, scheduleId);
+    if (teacherRejectPopupShownRef.current.has(key)) return true;
+    try {
+      if (localStorage.getItem(key) === '1') {
+        teacherRejectPopupShownRef.current.add(key);
+        return true;
+      }
+    } catch { /* ignore */ }
+    return false;
+  }, [teacherRejectSeenKey]);
+
+  const markTeacherRejectSeen = React.useCallback((teacherId, scheduleId, notifId) => {
+    if (teacherId && scheduleId) {
+      const key = teacherRejectSeenKey(teacherId, scheduleId);
+      teacherRejectPopupShownRef.current.add(key);
+      try { localStorage.setItem(key, '1'); } catch { /* ignore */ }
+    }
+    if (notifId && typeof markNotificationRead === 'function') {
+      markNotificationRead(notifId);
+    }
+  }, [teacherRejectSeenKey, markNotificationRead]);
+
+  const dismissTeacherAttendanceConfirm = React.useCallback(() => {
+    const p = teacherAttendanceConfirm;
+    if (p?.rejected) {
+      markTeacherRejectSeen(
+        myId,
+        String(p.scheduleId || ''),
+        p.notifId || p.notificationId || '',
+      );
+    }
+    setTeacherAttendanceConfirm(null);
+  }, [teacherAttendanceConfirm, markTeacherRejectSeen, myId]);
+
   const queueStarBonusCelebration = React.useCallback((raw) => {
     if (!raw?.month) return;
     const teacherId = String(raw.teacherId || myId || '');
@@ -616,23 +655,30 @@ const DashboardLayout = ({ role, session, onLogout }) => {
     };
   }, [socket, role, myId]);
 
-  // GV: Admin không tính buổi → popup tự động (socket realtime)
+  // GV: Admin không tính buổi → popup tự động (socket realtime, 1 lần / buổi)
   useEffect(() => {
     if (!socket || role !== 'teacher' || !myId) return undefined;
     const onRejected = (payload) => {
       if (!payload) return;
       const tid = payload.teacherId != null ? String(payload.teacherId) : '';
       if (tid && tid !== String(myId)) return;
+      const scheduleId = String(payload.scheduleId || '');
+      if (scheduleId && hasSeenTeacherReject(myId, scheduleId)) return;
+      const matchNotif = (allNotifications || []).find((n) => (
+        isTeacherAttendanceRejectedNotif(n)
+        && String(n?.payload?.scheduleId || '') === scheduleId
+      ));
       setTeacherAttendanceConfirm({
         ...payload,
         rejected: true,
         kind: payload.kind || 'attendance_rejected',
         studentName: payload.studentName || '',
+        notifId: matchNotif ? String(matchNotif.id || matchNotif._id || '') : '',
       });
     };
     socket.on('attendance:rejected', onRejected);
     return () => { socket.off('attendance:rejected', onRejected); };
-  }, [socket, role, myId]);
+  }, [socket, role, myId, hasSeenTeacherReject, allNotifications]);
 
   // Admin: tranh chấp → chỉ toast + badge chuông (không auto-mở modal, tránh chen thao tác)
   useEffect(() => {
@@ -780,11 +826,13 @@ const DashboardLayout = ({ role, session, onLogout }) => {
       || isTeacherAttendanceRejectedNotif(n);
     const base = { ...(n?.payload || {}) };
     const confirmedAt = base.studentConfirmedAt || n?.time || n?.createdAt || n?.timestamp || null;
+    const notifId = String(n?.id || n?._id || base.notifId || '');
     let payload = {
       ...base,
       studentName: base.studentName || '',
       confirmedAt,
       rejected,
+      notifId,
       kind: rejected
         ? (base.kind || 'attendance_rejected')
         : (base.kind || 'attendance_confirmed'),
@@ -1088,20 +1136,22 @@ const DashboardLayout = ({ role, session, onLogout }) => {
     queueStarBonusCelebration,
   ]);
 
-  // GV offline lúc Admin không tính buổi → mở popup khi vào lại (notif chưa đọc)
+  // GV offline lúc Admin không tính buổi → mở popup 1 lần khi vào lại (notif chưa đọc + chưa xem)
   useEffect(() => {
     if (role !== 'teacher' || !myId) return;
     if (showWelcomeCelebration || starBonusCelebration || teacherAttendanceConfirm) return;
     const hit = myNotifications.find((n) => {
       if (n?.read) return false;
       if (!isTeacherAttendanceRejectedNotif(n)) return false;
-      const key = String(n.id || n._id || n.payload?.scheduleId || '');
-      if (!key || teacherRejectPopupShownRef.current.has(key)) return false;
+      const scheduleId = String(n?.payload?.scheduleId || '');
+      if (scheduleId && hasSeenTeacherReject(myId, scheduleId)) return false;
+      const key = String(n.id || n._id || scheduleId || '');
+      if (!key || teacherRejectPopupShownRef.current.has(`session:${key}`)) return false;
       return true;
     });
     if (!hit) return;
     const key = String(hit.id || hit._id || hit.payload?.scheduleId || '');
-    if (key) teacherRejectPopupShownRef.current.add(key);
+    if (key) teacherRejectPopupShownRef.current.add(`session:${key}`);
     openTeacherAttendanceConfirmed(hit, { rejected: true });
   }, [
     role,
@@ -1111,6 +1161,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
     starBonusCelebration,
     teacherAttendanceConfirm,
     openTeacherAttendanceConfirmed,
+    hasSeenTeacherReject,
   ]);
 
   useEffect(() => {
@@ -1350,7 +1401,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
       <TeacherAttendanceConfirmedModal
         open={role === 'teacher' && !!teacherAttendanceConfirm}
         payload={teacherAttendanceConfirm}
-        onClose={() => setTeacherAttendanceConfirm(null)}
+        onClose={dismissTeacherAttendanceConfirm}
       />
       <TeacherStudentNoteModal
         open={role === 'teacher' && !!studentNotePopup}
