@@ -147,7 +147,7 @@ const InvoiceTemplate = ({ data = {} }) => {
               crossOrigin="anonymous"
             />
             <div className="text-[8.5pt] space-y-0.5 font-semibold text-gray-700">
-               <p>Hotline liên hệ: 093-5758-462 | 0348-051-379</p>
+               <p>Hotline liên hệ: 0984.623.486 | 0349.045.079</p>
                <p>Website: thangtinhoc.edu.vn</p>
                <p>Địa chỉ : 13Q Phan Cát Tựu, P. An Lạc, TP.Hồ Chí Minh</p>
             </div>
@@ -155,7 +155,7 @@ const InvoiceTemplate = ({ data = {} }) => {
 
           <div className="w-[50%] text-center">
             <h1 className="font-bold leading-tight text-[#d32f2f]" style={{ fontSize: '18pt', marginTop: '2mm', letterSpacing: 'normal' }}>
-              TRUNG TÂM ĐÀO TẠO TIN HỌC<br />THẮNG TIN HỌC
+              TRUNG TÂM ĐÀO TẠO THẮNG TIN HỌC
             </h1>
           </div>
         </div>
