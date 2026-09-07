@@ -387,7 +387,7 @@ router.get('/', [authMiddleware, branchFilter, policyShadowStudentRead('list'), 
 
     const studentsWithRealSessions = students.map(st => {
       const doc = st.toObject();
-      doc.requireWebcam = doc.requireWebcam !== false;
+      doc.requireWebcam = doc.requireWebcam === true;
       const sid = String(st._id);
       const sess = sessionMap[sid];
       const realCompleted = sess?.completed || 0;
@@ -588,7 +588,7 @@ router.get('/:id', [authMiddleware, branchFilter, policyShadowStudentRead('get_o
     }
 
     const doc = student.toObject();
-    doc.requireWebcam = doc.requireWebcam !== false;
+    doc.requireWebcam = doc.requireWebcam === true;
     await applyEnrollmentStats(doc, req.params.id, Schedule);
 
     res.json({
@@ -666,7 +666,7 @@ router.get('/:id/full-detail', [authMiddleware, branchFilter, policyShadowStuden
     }).sort({ createdAt: -1 });
 
     const studentDoc = student.toObject();
-    studentDoc.requireWebcam = studentDoc.requireWebcam !== false;
+    studentDoc.requireWebcam = studentDoc.requireWebcam === true;
     await applyEnrollmentStats(studentDoc, req.params.id, Schedule);
 
     // Heal: nếu số lịch completed > số buổi lưu (điểm danh bù cũ bị kẹt) → ghi DB cho khớp mọi màn hình
@@ -1031,7 +1031,7 @@ router.post('/', [authMiddleware, branchFilter, policyShadowStudentMutation('cre
         learningAccess: !!isPaidOnCreate,
         isPrimary: true,
         registeredAt: new Date(),
-        requireWebcam: true,
+        requireWebcam: false,
         examUnlocked: false,
         teacherAlert: sanitizeTeacherAlert(req.body.teacherAlert),
       }];
@@ -2746,7 +2746,7 @@ router.post('/:id/enrollments', [authMiddleware, branchFilter, policyShadowStude
       learningAccess: !!isPaid,
       isPrimary: false,
       registeredAt: new Date(),
-      requireWebcam: true,
+      requireWebcam: false,
       examUnlocked: false,
       teacherAlert: sanitizeTeacherAlert(teacherAlert),
     });
@@ -2925,7 +2925,7 @@ router.put('/:id/enrollments/:enrollmentId/settings', [
     student.studentExamUnlocked = (student.enrollments || []).some((e) => e.examUnlocked === true);
     const primary = student.enrollments.find((e) => e.isPrimary) || student.enrollments[0];
     if (primary) {
-      student.requireWebcam = primary.requireWebcam !== false;
+      student.requireWebcam = primary.requireWebcam === true;
     }
 
     student.markModified('enrollments');

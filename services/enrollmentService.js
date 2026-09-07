@@ -36,7 +36,7 @@ function legacyEnrollmentFromStudent(student) {
     isPrimary: true,
     registeredAt: doc.createdAt,
     examSubjects: [],
-    requireWebcam: doc.requireWebcam !== false,
+    requireWebcam: doc.requireWebcam === true,
     examUnlocked: !!doc.studentExamUnlocked,
   };
 }
@@ -153,7 +153,7 @@ function toClientCourse(enrollment, index) {
     status: enrollment.status || (completed >= (enrollment.totalSessions || 12) ? 'completed' : 'active'),
     registeredAt: enrollment.registeredAt,
     isPrimary: enrollment.isPrimary,
-    requireWebcam: enrollment.requireWebcam !== false,
+    requireWebcam: enrollment.requireWebcam === true,
     examUnlocked: enrollment.examUnlocked === true,
     teacherAlert: sanitizeTeacherAlert(enrollment.teacherAlert),
     cancelledAt: enrollment.cancelledAt || null,
@@ -366,7 +366,7 @@ async function applyEnrollmentStats(doc, studentId, Schedule) {
       ? e.grades
       : ((e.isPrimary || enrollments.length === 1) ? (doc.grades || []) : (e.grades || []));
     const inheritUnlock = e.examUnlocked == null && !!(e.isPrimary || enrollments.length === 1) && !!doc.studentExamUnlocked;
-    const inheritWebcamOff = e.requireWebcam == null && !!(e.isPrimary || enrollments.length === 1) && doc.requireWebcam === false;
+    const inheritWebcamOn = e.requireWebcam == null && !!(e.isPrimary || enrollments.length === 1) && doc.requireWebcam === true;
     return {
       ...e,
       _id: e._id,
@@ -380,7 +380,7 @@ async function applyEnrollmentStats(doc, studentId, Schedule) {
         ? e.status
         : (completed >= total ? 'completed' : (e.status || 'active')),
       grades: enrGrades,
-      requireWebcam: inheritWebcamOff ? false : (e.requireWebcam !== false),
+      requireWebcam: e.requireWebcam === true || inheritWebcamOn,
       examUnlocked: e.examUnlocked === true || inheritUnlock,
     };
   });
@@ -572,7 +572,7 @@ async function applyReEnrollmentAfterPayment(studentDoc, {
     learningAccess: true,
     isPrimary: true,
     examUnlocked: false,
-    requireWebcam: true,
+    requireWebcam: false,
   };
   list.push(newEnrollment);
   studentDoc.enrollments = list;

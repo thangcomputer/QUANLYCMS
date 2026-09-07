@@ -83,7 +83,7 @@ const StudentSchema = new mongoose.Schema(
       /** Quyền học theo enrollment — thu hồi khi hoàn 100% (undefined/true = được học) */
       learningAccess: { type: Boolean, default: true },
       // Quyền theo từng khóa (môn cần camera / mở khóa thi riêng)
-      requireWebcam: { type: Boolean, default: true },
+      requireWebcam: { type: Boolean, default: false },
       examUnlocked: { type: Boolean, default: false },
       /** Lưu ý Admin gửi GV khi đăng ký khóa — hiện banner trên hồ sơ HV */
       teacherAlert: { type: String, default: '', maxlength: 500 },
@@ -245,8 +245,8 @@ const StudentSchema = new mongoose.Schema(
     },
     requireWebcam: {
       type: Boolean,
-      default: true,
-      // true: Bắt buộc bật webcam khi thi, false: Bỏ qua kiểm tra webcam/tab
+      default: false,
+      // true: Bắt buộc bật webcam khi thi; false (mặc định): không bắt buộc — admin bật từng HV/khóa
     },
 
     // ── Tiến độ thi tốt nghiệp (per-subject) ────────────────────

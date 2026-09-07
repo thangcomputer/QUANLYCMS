@@ -334,13 +334,13 @@ export function isExamUnlockedForSubject(enrollments, subjectId, catalog, fallba
 }
 
 /**
- * Yêu cầu webcam theo khóa: true nếu còn ít nhất một enrollment của môn đó bắt buộc webcam.
- * Không khớp enrollment → fallback root student.requireWebcam.
+ * Yêu cầu webcam theo khóa: chỉ khi enrollment/root được admin bật tường minh (=== true).
+ * Mặc định tắt — không bắt camera khi chưa cấu hình.
  */
-export function requireWebcamForSubject(enrollments, subjectId, catalog, fallbackRequire = true) {
+export function requireWebcamForSubject(enrollments, subjectId, catalog, fallbackRequire = false) {
   const list = findEnrollmentsForSubject(enrollments, subjectId, catalog);
-  if (list.length) return list.some((e) => e.requireWebcam !== false);
-  return fallbackRequire !== false;
+  if (list.length) return list.some((e) => e.requireWebcam === true);
+  return fallbackRequire === true;
 }
 
 export function getSubjectIdsForStudent(enrollments, fallbackCourse, catalog) {

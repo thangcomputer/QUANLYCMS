@@ -180,7 +180,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
       enrollments,
       subjectId,
       examSubjectsCatalog,
-      student?.requireWebcam !== false,
+      student?.requireWebcam === true,
     ),
     [enrollments, subjectId, examSubjectsCatalog, student?.requireWebcam],
   );

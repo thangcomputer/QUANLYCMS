@@ -138,7 +138,7 @@ router.get('/:id/full-detail', [authMiddleware, branchFilter],studentController.
     }).sort({ createdAt: -1 });
 
     const studentDoc = student.toObject();
-    studentDoc.requireWebcam = studentDoc.requireWebcam !== false;
+    studentDoc.requireWebcam = studentDoc.requireWebcam === true;
     await applyEnrollmentStats(studentDoc, req.params.id, Schedule);
 
     res.json({

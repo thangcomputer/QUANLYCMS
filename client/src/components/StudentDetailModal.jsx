@@ -719,7 +719,7 @@ export default function StudentDetailModal({ studentId, onClose, initialTab, hig
       toast.error('Không xác định được khóa học. Thử tải lại trang.');
       return;
     }
-    const curWebcam = enr.requireWebcam !== false;
+    const curWebcam = enr.requireWebcam === true;
     const curUnlock = enr.examUnlocked === true;
     const payload = field === 'requireWebcam'
       ? { requireWebcam: !curWebcam }
@@ -1798,7 +1798,7 @@ export default function StudentDetailModal({ studentId, onClose, initialTab, hig
                                         )}
                                         {!isCancelled && <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
                                           {(() => {
-                                            const webcamOn = enr.requireWebcam !== false;
+                                            const webcamOn = enr.requireWebcam === true;
                                             const unlocked = enr.examUnlocked === true;
                                             return (
                                               <>

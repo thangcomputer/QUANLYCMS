@@ -32,7 +32,7 @@ function legacyEnrollmentFromStudent(student) {
     isPrimary: true,
     registeredAt: doc.createdAt,
     examSubjects: [],
-    requireWebcam: doc.requireWebcam !== false,
+    requireWebcam: doc.requireWebcam === true,
     examUnlocked: !!doc.studentExamUnlocked,
   };
 }
@@ -98,7 +98,7 @@ function toClientCourse(enrollment, index) {
     status: enrollment.status || (completed >= (enrollment.totalSessions || 12) ? 'completed' : 'active'),
     registeredAt: enrollment.registeredAt,
     isPrimary: enrollment.isPrimary,
-    requireWebcam: enrollment.requireWebcam !== false,
+    requireWebcam: enrollment.requireWebcam === true,
     examUnlocked: enrollment.examUnlocked === true,
     teacherAlert: String(enrollment.teacherAlert || '').trim().slice(0, 500),
     cancelledAt: enrollment.cancelledAt || null,
@@ -307,7 +307,7 @@ async function applyEnrollmentStats(doc, studentId, Schedule) {
       ? e.grades
       : ((e.isPrimary || enrollments.length === 1) ? (doc.grades || []) : (e.grades || []));
     const inheritUnlock = e.examUnlocked == null && !!(e.isPrimary || enrollments.length === 1) && !!doc.studentExamUnlocked;
-    const inheritWebcamOff = e.requireWebcam == null && !!(e.isPrimary || enrollments.length === 1) && doc.requireWebcam === false;
+    const inheritWebcamOn = e.requireWebcam == null && !!(e.isPrimary || enrollments.length === 1) && doc.requireWebcam === true;
     const prevStatus = String(e.status || '').toLowerCase();
     const nextStatus = (prevStatus === 'cancelled' || prevStatus === 'refunded')
       ? e.status
@@ -323,7 +323,7 @@ async function applyEnrollmentStats(doc, studentId, Schedule) {
       remainingSessions: Math.max(0, total - completed),
       status: nextStatus,
       grades: enrGrades,
-      requireWebcam: inheritWebcamOff ? false : (e.requireWebcam !== false),
+      requireWebcam: e.requireWebcam === true || inheritWebcamOn,
       examUnlocked: e.examUnlocked === true || inheritUnlock,
     };
   });

@@ -57,7 +57,7 @@ const STATUS_DOT = {
 const ExamMonitor = forwardRef(({
   isActive,
   onViolate,
-  requireWebcam = true,
+  requireWebcam = false,
   enableTabGuard = true,
   /** Số lần rời màn hình thi trước khi hủy bài (1 = rớt ngay lần đầu). */
   maxTabWarnings = CONFIG.MAX_TAB_WARNINGS,
@@ -77,7 +77,7 @@ const ExamMonitor = forwardRef(({
   const [lastMotionDetected, setLastMotionDetected] = useState(false);
   const [lastLookingStraight, setLastLookingStraight] = useState(false);
   const [lastMultiFace, setLastMultiFace] = useState(false);
-  const [lastInOval, setLastInOval] = useState(true);
+  const [lastInOval, setLastInOval] = useState(false);
   const [lastLowLight, setLastLowLight] = useState(false);
   const [lastLensBlocked, setLastLensBlocked] = useState(false);
   const [uiStatus, setUiStatus] = useState(() => resolveProctorUiStatus({ cameraStatus: 'loading', checking: true }));
@@ -101,6 +101,7 @@ const ExamMonitor = forwardRef(({
   const lastWarnAtRef = useRef({});
   const lastMotionAtRef = useRef(Date.now());
   const monitorStartedAtRef = useRef(Date.now());
+  const lastFaceSeenAtRef = useRef(0);
   const prevLumaGridRef = useRef(null);
   const prevFaceCenterRef = useRef(null);
   const lastVideoTimeRef = useRef(-1);
@@ -270,6 +271,7 @@ const ExamMonitor = forwardRef(({
     let isMounted = true;
     monitorStartedAtRef.current = Date.now();
     lastMotionAtRef.current = Date.now();
+    lastFaceSeenAtRef.current = 0;
     prevLumaGridRef.current = null;
     prevFaceCenterRef.current = null;
     lastVideoTimeRef.current = -1;
@@ -284,7 +286,8 @@ const ExamMonitor = forwardRef(({
     let faceDetector = null;
     if ('FaceDetector' in window) {
       try {
-        faceDetector = new window.FaceDetector({ maxDetectedFaces: 4, fastMode: true });
+        // fastMode: false — ưu tiên chính xác (landmarks mắt/mũi/miệng)
+        faceDetector = new window.FaceDetector({ maxDetectedFaces: 4, fastMode: false });
       } catch {
         try { faceDetector = new window.FaceDetector({ maxDetectedFaces: 4 }); } catch { faceDetector = null; }
       }
@@ -399,13 +402,20 @@ const ExamMonitor = forwardRef(({
             const lowLight = brightness > 0 && brightness < CONFIG.LOW_LIGHT_AVG_L;
 
             let faces = null;
+            const detectorAvailable = Boolean(faceDetector);
             if (faceDetector) {
-              try { faces = await faceDetector.detect(canvas); } catch { faces = null; }
+              try {
+                faces = await faceDetector.detect(canvas);
+                if (!Array.isArray(faces)) faces = [];
+              } catch {
+                // Detector lỗi frame này → coi như không thấy mặt (không fallback heuristic)
+                faces = [];
+              }
             }
 
-            const frameFaces = getValidatedFrameFaces(faces, frame, w, h);
+            const frameFaces = getValidatedFrameFaces(faces || [], frame, w, h);
             const multiFace = frameFaces.length >= 2;
-            const presence = evaluateFacePresence(frame, faces, w, h);
+            const presence = evaluateFacePresence(frame, faces, w, h, { detectorAvailable });
             let facePresent = presence.present;
             const ovalFaces = presence.ovalFaces;
             let eyesVisible = false;
@@ -413,19 +423,26 @@ const ExamMonitor = forwardRef(({
             let inOval = ovalFaces.length > 0;
             let faceMoved = false;
 
-            if (ovalFaces.length > 0) {
-              eyesVisible = ovalFaces.some((f) => eyesVisibleFromFace(f, w, h));
-              lookingStraight = ovalFaces.some((f) => faceLookingStraightAtScreen(f, w, h));
-              const box = ovalFaces[0]?.boundingBox;
+            const facesForPose = ovalFaces.length > 0 ? ovalFaces : frameFaces;
+
+            if (facesForPose.length > 0) {
+              eyesVisible = facesForPose.some((f) => eyesVisibleFromFace(f, w, h));
+              lookingStraight = facesForPose.some((f) => faceLookingStraightAtScreen(f, w, h));
+              // Windows không landmark: nếu texture đã xác nhận mặt thì coi mắt/nhìn thẳng OK khi trong oval
+              if (!eyesVisible && facesForPose.some((f) => faceBoxInProctorOval(f.boundingBox, w, h))) {
+                eyesVisible = true;
+                if (!lookingStraight) lookingStraight = true;
+              }
+              const box = facesForPose[0]?.boundingBox;
               if (box) {
                 const cx = (box.left + box.width / 2) / w;
                 const cy = (box.top + box.height / 2) / h;
                 const prev = prevFaceCenterRef.current;
-                if (prev && (Math.abs(cx - prev.cx) > 0.01 || Math.abs(cy - prev.cy) > 0.01)) faceMoved = true;
+                if (prev && (Math.abs(cx - prev.cx) > 0.012 || Math.abs(cy - prev.cy) > 0.012)) faceMoved = true;
                 prevFaceCenterRef.current = { cx, cy };
               }
             } else if (facePresent) {
-              inOval = false;
+              inOval = true;
               eyesVisible = heuristicEyesInFrame(frame, w, h);
               lookingStraight = heuristicLookingStraight(frame, w, h);
               prevFaceCenterRef.current = null;
@@ -433,9 +450,11 @@ const ExamMonitor = forwardRef(({
               prevFaceCenterRef.current = null;
             }
 
-            if (!inOval && frameFaces.length === 1 && frameFaces[0]?.boundingBox) {
+            if (!inOval && frameFaces.length >= 1 && frameFaces[0]?.boundingBox) {
               inOval = faceBoxInProctorOval(frameFaces[0].boundingBox, w, h);
             }
+
+            if (facePresent) lastFaceSeenAtRef.current = now;
 
             if (lensBlocked) {
               facePresent = false;
@@ -487,7 +506,14 @@ const ExamMonitor = forwardRef(({
               }, () => multi.reset());
             }
 
-            const absentC = absence.tick(!facePresent && !lensBlocked, now);
+            const sinceStart = now - monitorStartedAtRef.current;
+            const graceMs = Number(CONFIG.FACE_ABSENT_START_GRACE_MS) || 0;
+            const hysteresisMs = Number(CONFIG.FACE_LOST_HYSTERESIS_MS) || 0;
+            const recentlyHadFace = lastFaceSeenAtRef.current > 0
+              && (now - lastFaceSeenAtRef.current) < hysteresisMs;
+            const absenceArmed = sinceStart >= graceMs && !recentlyHadFace;
+
+            const absentC = absence.tick(!facePresent && !lensBlocked && absenceArmed, now);
             if (absentC.confirmed) {
               logEvent('face_absent', 'warn', { durationMs: absentC.durationMs });
               confirmHard('face_absent', {
@@ -512,21 +538,14 @@ const ExamMonitor = forwardRef(({
                 eye.reset();
               }
 
+              // gaze_off chỉ cảnh báo mềm — không cộng lỗi cứng (tránh khóa oan khi đang nhìn cam)
               const gazeC = gaze.tick(eyesVisible && !lookingStraight, now);
               if (gazeC.confirmed) {
                 logEvent('gaze_off', 'soft', { durationMs: gazeC.durationMs });
-                const r = riskRef.current.add('gaze_off', now);
-                setRiskScore(r.score);
-                if (r.hard) {
-                  confirmHard('gaze_off', {
-                    type: 'camera',
-                    message: '⚠ MẶT KHÔNG NHÌN THẲNG MÀN HÌNH!',
-                    sub: `Quay mặt vào giữa màn hình. Lỗi cộng dồn — đủ ${CONFIG.MAX_FACE_VIOLATIONS} lần sẽ hủy bài.`,
-                  }, () => gaze.reset());
-                } else {
-                  softWarn('gaze_off', '🟠 Khuôn mặt chưa nhìn thẳng', 'Hãy nhìn vào màn hình / vòng oval.');
-                  gaze.reset();
-                }
+                riskRef.current.add('gaze_off', now);
+                setRiskScore(riskRef.current.getScore(now));
+                softWarn('gaze_off', '🟠 Khuôn mặt chưa nhìn thẳng', 'Hãy nhìn vào màn hình / vòng oval.');
+                gaze.reset();
               } else if (lookingStraight) {
                 gaze.reset();
               }
@@ -539,7 +558,6 @@ const ExamMonitor = forwardRef(({
               softWarn('low_light', '🟠 Ánh sáng yếu', 'Ngồi gần nguồn sáng hơn để nhận diện ổn định.');
             }
 
-            const sinceStart = now - monitorStartedAtRef.current;
             const sinceMotion = now - lastMotionAtRef.current;
             if (facePresent && sinceStart > CONFIG.MOTION_GRACE_MS && sinceMotion >= CONFIG.MOTION_STALE_MS) {
               logEvent('motion_stale', 'warn', { sinceMotion });
@@ -728,11 +746,11 @@ export const CameraHeaderPanel = ({ monitorRef, variant = 'default' }) => {
   const [stats, setStats] = useState({
     cameraWarnings: 0,
     tabWarnings: 0,
-    lastFaceDetected: true,
-    lastFacePresent: true,
-    lastMotionDetected: true,
+    lastFaceDetected: false,
+    lastFacePresent: false,
+    lastMotionDetected: false,
     lastMultiFace: false,
-    lastInOval: true,
+    lastInOval: false,
     lastLowLight: false,
     lastLensBlocked: false,
     cameraStatus: 'loading',

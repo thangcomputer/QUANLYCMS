@@ -87,7 +87,7 @@ class EnrollmentApplicationService {
       learningAccess: !!isPaid,
       isPrimary: false,
       registeredAt: new Date(),
-      requireWebcam: true,
+      requireWebcam: false,
       examUnlocked: false,
       teacherAlert: String(teacherAlert || '').trim().slice(0, 500),
     });
@@ -192,7 +192,7 @@ class EnrollmentApplicationService {
     student.studentExamUnlocked = (student.enrollments || []).some((e) => e.examUnlocked === true);
     const primary = student.enrollments.find((e) => e.isPrimary) || student.enrollments[0];
     if (primary) {
-      student.requireWebcam = primary.requireWebcam !== false;
+      student.requireWebcam = primary.requireWebcam === true;
     }
 
     student.markModified('enrollments');

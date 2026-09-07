@@ -232,7 +232,7 @@ function StudentRowActions({
             type="button"
             role="menuitem"
             onClick={async () => {
-              const webcamEnforced = s.requireWebcam !== false;
+              const webcamEnforced = s.requireWebcam === true;
               try {
                 await ctxUpdateStudent(s.id || s._id, { requireWebcam: !webcamEnforced });
                 toast.success(webcamEnforced ? 'Đã tắt giám sát webcam khi thi' : 'Đã bật giám sát webcam khi thi');
@@ -245,7 +245,7 @@ function StudentRowActions({
           >
             <Camera size={15} className="shrink-0 text-slate-500" />
             <span className="min-w-0">
-              {s.requireWebcam !== false ? 'Tắt webcam khi thi' : 'Bật webcam khi thi'}
+              {s.requireWebcam === true ? 'Tắt webcam khi thi' : 'Bật webcam khi thi'}
             </span>
           </button>
         )}

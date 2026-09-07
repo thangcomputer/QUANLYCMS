@@ -87,7 +87,7 @@ export function getClientEnrollments(student) {
       refundedAmount: Number(e.refundedAmount) || 0,
       learningAccess: e.learningAccess !== false,
       registeredAt: e.registeredAt, isPrimary: e.isPrimary,
-      requireWebcam: e.requireWebcam !== false,
+      requireWebcam: e.requireWebcam === true,
       examUnlocked: e.examUnlocked === true,
     }));
   }
@@ -104,7 +104,7 @@ export function getClientEnrollments(student) {
       paid: student.paid, price: student.price,
       status: student.status === 'Ho\u00E0n th\u00E0nh' ? 'completed' : 'active',
       registeredAt: student.createdAt, isPrimary: true,
-      requireWebcam: student.requireWebcam !== false,
+      requireWebcam: student.requireWebcam === true,
       examUnlocked: !!student.studentExamUnlocked,
     }];
   }
