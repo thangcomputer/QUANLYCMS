@@ -1,5 +1,28 @@
 'use strict';
 
+/**
+ * MongoDB cannot $set dotted paths on a null parent:
+ *   { tracNghiem: null } + $set 'tracNghiem.score' → Plan executor error.
+ * Rewrite nested score/total into a whole object so submit/forfeit work
+ * for older examProgress rows that stored tracNghiem as null.
+ */
+function rewriteNullSafeTracNghiemFields(setFields = {}) {
+  const out = { ...setFields };
+  const scoreKey = 'examProgress.$.tracNghiem.score';
+  const totalKey = 'examProgress.$.tracNghiem.total';
+  if (!(scoreKey in out) && !(totalKey in out)) return out;
+
+  const score = Number(out[scoreKey]);
+  const total = Number(out[totalKey]);
+  delete out[scoreKey];
+  delete out[totalKey];
+  out['examProgress.$.tracNghiem'] = {
+    score: Number.isFinite(score) ? score : 0,
+    total: Number.isFinite(total) ? total : 0,
+  };
+  return out;
+}
+
 function claimStudentAttempt(StudentModel, {
   studentId,
   subjectId,
@@ -17,7 +40,7 @@ function claimStudentAttempt(StudentModel, {
         },
       },
     },
-    { $set: setFields },
+    { $set: rewriteNullSafeTracNghiemFields(setFields) },
     { returnDocument: 'after', runValidators: true },
   );
 }
@@ -39,6 +62,7 @@ function claimTeacherAttempt(TeacherModel, {
 }
 
 module.exports = {
+  rewriteNullSafeTracNghiemFields,
   claimStudentAttempt,
   claimTeacherAttempt,
 };
