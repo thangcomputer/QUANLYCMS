@@ -40,6 +40,7 @@ import {
   PREV_LESSON_REQUIRED_CODE,
 } from '../utils/antiSeekPolicy';
 import { parseLmsHashQuery } from '../utils/lmsDeepLink';
+import { setLmsPlayerOpen } from '../utils/lmsPlayerOverlay';
 import {
   readYouTubeDuration,
   resolveYouTubeDisplayDuration,
@@ -1223,6 +1224,17 @@ const TeacherTrainingLMS = ({ onBack, isAdmin = false }) => {
   const overallProgress = lessons.length > 0
     ? Math.round((lessons.filter(l => l.isCompleted).length / lessons.length) * 100)
     : 0;
+
+  // Player full-screen (z-100) — nhấc chat nổi lên trên lớp học
+  const isLmsFullscreenPlayer = Boolean(selectedCourse);
+  useEffect(() => {
+    if (!isLmsFullscreenPlayer) {
+      setLmsPlayerOpen(false);
+      return undefined;
+    }
+    setLmsPlayerOpen(true);
+    return () => setLmsPlayerOpen(false);
+  }, [isLmsFullscreenPlayer]);
 
   // Group lessons theo chapter
   const groupedLessons = lessons.reduce((acc, l) => {

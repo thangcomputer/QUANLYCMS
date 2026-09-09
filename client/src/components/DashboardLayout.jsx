@@ -82,6 +82,8 @@ function formatScheduleForConfirmModal(sch) {
   const ok = d && !Number.isNaN(d.getTime());
   const start = sch?.startTime || '';
   const end = sch?.endTime || '';
+  const sessionNumber = Number(sch?.sessionOrdinalPreview);
+  const totalSessions = Number(sch?.sessionTotalPreview);
   return {
     scheduleId: String(sch?._id || sch?.id || ''),
     teacherName: sch?.teacherName || sch?.teacherId?.name || '',
@@ -90,8 +92,8 @@ function formatScheduleForConfirmModal(sch) {
     startTime: start,
     endTime: end,
     timeRange: end ? `${start} - ${end}` : start,
-    sessionNumber: sch?.sessionOrdinalPreview || null,
-    totalSessions: sch?.sessionTotalPreview || null,
+    sessionNumber: Number.isFinite(sessionNumber) && sessionNumber > 0 ? sessionNumber : null,
+    totalSessions: Number.isFinite(totalSessions) && totalSessions > 0 ? totalSessions : null,
     course: sch?.course || '',
   };
 }
@@ -399,12 +401,71 @@ const DashboardLayout = ({ role, session, onLogout }) => {
 
   // Admin/staff + HV lần đầu: mở đổi MK ngay. GV: đổi thủ công ở Hồ sơ/menu.
   // Giữ gate pending để QC/tin nhắn không đè trong lúc chờ mở modal.
-  const [firstLoginPwDone, setFirstLoginPwDone] = useState(false);
+  // Lưu ý: /student/exam/:id nằm ngoài layout → quay lại remount; phải tin localStorage/sessionStorage
+  // nếu đã đổi MK/chào mừng, vì App session có thể còn stale.
+  const firstLoginDoneKey = React.useMemo(() => {
+    const uid = session?.id || session?._id || '';
+    return uid ? `cms_first_login_pw_done_${uid}` : '';
+  }, [session?.id, session?._id]);
+  const readStoredSessionFlags = React.useCallback(() => {
+    try {
+      const key = `${role === 'staff' ? 'staff' : role}_user`;
+      return JSON.parse(localStorage.getItem(key) || '{}');
+    } catch {
+      return {};
+    }
+  }, [role]);
+  const [firstLoginPwDone, setFirstLoginPwDone] = useState(() => {
+    try {
+      const uid = session?.id || session?._id || '';
+      if (uid && sessionStorage.getItem(`cms_first_login_pw_done_${uid}`) === '1') return true;
+      const stored = JSON.parse(localStorage.getItem(`${role === 'staff' ? 'staff' : role}_user`) || '{}');
+      if (stored?.isFirstLogin === false) return true;
+    } catch { /* ignore */ }
+    return session?.isFirstLogin !== true;
+  });
   useEffect(() => {
-    const onDone = () => setFirstLoginPwDone(true);
+    const stored = readStoredSessionFlags();
+    const uid = session?.id || session?._id;
+    // Đồng bộ App session nếu localStorage đã ghi nhận xong first-login / welcome
+    if (uid && (
+      (session?.isFirstLogin === true && stored.isFirstLogin === false)
+      || (session?.showWelcomeCelebration === true && stored.showWelcomeCelebration === false)
+    )) {
+      window.dispatchEvent(new CustomEvent('cms:session-patched', {
+        detail: {
+          id: uid,
+          _id: uid,
+          ...(stored.isFirstLogin === false ? { isFirstLogin: false } : {}),
+          ...(stored.showWelcomeCelebration === false ? { showWelcomeCelebration: false } : {}),
+        },
+      }));
+    }
+    let done = session?.isFirstLogin !== true || stored.isFirstLogin === false;
+    if (!done && firstLoginDoneKey) {
+      try {
+        if (sessionStorage.getItem(firstLoginDoneKey) === '1') done = true;
+      } catch { /* ignore */ }
+    }
+    setFirstLoginPwDone(done);
+  }, [
+    session?.isFirstLogin,
+    session?.showWelcomeCelebration,
+    session?.id,
+    session?._id,
+    firstLoginDoneKey,
+    readStoredSessionFlags,
+  ]);
+  useEffect(() => {
+    const onDone = () => {
+      setFirstLoginPwDone(true);
+      if (firstLoginDoneKey) {
+        try { sessionStorage.setItem(firstLoginDoneKey, '1'); } catch { /* ignore */ }
+      }
+    };
     window.addEventListener('cms:first-login-password-done', onDone);
     return () => window.removeEventListener('cms:first-login-password-done', onDone);
-  }, []);
+  }, [firstLoginDoneKey]);
   useEffect(() => {
     const needFirstPw = session?.isFirstLogin === true && role !== 'teacher' && !firstLoginPwDone;
     setLoginOverlay('change-password-pending', needFirstPw);
@@ -551,7 +612,18 @@ const DashboardLayout = ({ role, session, onLogout }) => {
 
   useEffect(() => {
     if (role !== 'student' && role !== 'teacher') return;
-    if (session?.showWelcomeCelebration !== true) return;
+    if (session?.showWelcomeCelebration !== true) {
+      setShowWelcomeCelebration(false);
+      return;
+    }
+    try {
+      const key = `${role === 'staff' ? 'staff' : role}_user`;
+      const stored = JSON.parse(localStorage.getItem(key) || '{}');
+      if (stored.showWelcomeCelebration === false) {
+        setShowWelcomeCelebration(false);
+        return;
+      }
+    } catch { /* ignore */ }
     setShowWelcomeCelebration(true);
   }, [role, session?.showWelcomeCelebration, session?.id, session?._id]);
 
@@ -658,7 +730,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
   // GV: Admin không tính buổi → popup tự động (socket realtime, 1 lần / buổi)
   useEffect(() => {
     if (!socket || role !== 'teacher' || !myId) return undefined;
-    const onRejected = (payload) => {
+    const onRejected = async (payload) => {
       if (!payload) return;
       const tid = payload.teacherId != null ? String(payload.teacherId) : '';
       if (tid && tid !== String(myId)) return;
@@ -668,13 +740,41 @@ const DashboardLayout = ({ role, session, onLogout }) => {
         isTeacherAttendanceRejectedNotif(n)
         && String(n?.payload?.scheduleId || '') === scheduleId
       ));
-      setTeacherAttendanceConfirm({
+      let merged = {
         ...payload,
         rejected: true,
         kind: payload.kind || 'attendance_rejected',
         studentName: payload.studentName || '',
         notifId: matchNotif ? String(matchNotif.id || matchNotif._id || '') : '',
-      });
+      };
+      const missingSession = !(Number(merged.sessionNumber) > 0)
+        && !(Number(merged.sessionOrdinalPreview) > 0);
+      if ((missingSession || !merged.timeRange) && scheduleId) {
+        try {
+          const res = await api.schedules.getByTeacher(myId);
+          const list = Array.isArray(res?.data) ? res.data : [];
+          const sch = list.find((s) => String(s._id || s.id) === scheduleId);
+          if (sch) {
+            const extra = formatScheduleForConfirmModal(sch);
+            merged = {
+              ...extra,
+              ...merged,
+              sessionNumber: Number(merged.sessionNumber) > 0
+                ? Number(merged.sessionNumber)
+                : extra.sessionNumber,
+              totalSessions: Number(merged.totalSessions) > 0
+                ? Number(merged.totalSessions)
+                : extra.totalSessions,
+              timeRange: merged.timeRange || extra.timeRange,
+              weekday: merged.weekday || extra.weekday,
+              dateLabel: merged.dateLabel || extra.dateLabel,
+              course: merged.course || extra.course,
+              studentName: merged.studentName || sch.studentName || sch.studentId?.name || '',
+            };
+          }
+        } catch { /* dùng payload socket */ }
+      }
+      setTeacherAttendanceConfirm(merged);
     };
     socket.on('attendance:rejected', onRejected);
     return () => { socket.off('attendance:rejected', onRejected); };
@@ -935,11 +1035,19 @@ const DashboardLayout = ({ role, session, onLogout }) => {
       await api.auth.markWelcomeCelebrationSeen();
       const key = role === 'staff' ? 'staff' : role;
       const stored = JSON.parse(localStorage.getItem(`${key}_user`) || '{}');
-      localStorage.setItem(`${key}_user`, JSON.stringify({ ...stored, showWelcomeCelebration: false }));
+      const next = { ...stored, showWelcomeCelebration: false };
+      localStorage.setItem(`${key}_user`, JSON.stringify(next));
+      window.dispatchEvent(new CustomEvent('cms:session-patched', {
+        detail: {
+          id: stored.id || stored._id || session?.id || session?._id,
+          _id: stored._id || stored.id || session?._id || session?.id,
+          showWelcomeCelebration: false,
+        },
+      }));
     } catch {
       welcomeMarkedRef.current = false;
     }
-  }, [role]);
+  }, [role, session?.id, session?._id]);
 
   const dismissCourseCelebration = React.useCallback(async () => {
     const current = courseCelebration;
@@ -1983,9 +2091,16 @@ const ChangePasswordModal = ({ session, role }) => {
            const key = `${role}_user`;
            try {
              const stored = JSON.parse(localStorage.getItem(key) || '{}');
-             localStorage.setItem(key, JSON.stringify({ ...stored, isFirstLogin: false }));
-             window.dispatchEvent(new Event('storage'));
-           } catch {}
+             const next = { ...stored, isFirstLogin: false };
+             localStorage.setItem(key, JSON.stringify(next));
+             window.dispatchEvent(new CustomEvent('cms:session-patched', {
+               detail: {
+                 id: stored.id || stored._id || session.id || session._id,
+                 _id: stored._id || stored.id || session._id || session.id,
+                 isFirstLogin: false,
+               },
+             }));
+           } catch { /* ignore */ }
            setLoginOverlay('change-password-pending', false);
            window.dispatchEvent(new CustomEvent('cms:first-login-password-done'));
         }

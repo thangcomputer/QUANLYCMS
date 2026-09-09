@@ -687,6 +687,10 @@
     pointer-events: none;
     max-width: calc(100vw - 1rem);
   }
+  /* LMS player z-100 che chat (85) — chỉ nhấc khi đang học, vẫn dưới popup tin/lịch (170) */
+  body.cms-lms-player-open .cms-fm-root {
+    z-index: 115;
+  }
   .cms-fm-root > * { pointer-events: auto; }
 
   .cms-fm-dock {

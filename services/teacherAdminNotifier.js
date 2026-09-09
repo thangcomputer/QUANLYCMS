@@ -153,17 +153,40 @@ async function notifyTeacherMakeupRejected(io, schedule, actor = {}) {
     const hvLabel = studentId
       ? `⟦student_detail:${studentId}:profile|${studentName}⟧`
       : studentName;
+    const sessionNumber = Number(schedule.sessionOrdinalPreview) > 0
+      ? Number(schedule.sessionOrdinalPreview)
+      : null;
+    const totalSessions = Number(schedule.sessionTotalPreview) > 0
+      ? Number(schedule.sessionTotalPreview)
+      : null;
+    const start = schedule.startTime || '';
+    const end = schedule.endTime || '';
+    const weekday = d && !Number.isNaN(d.getTime())
+      ? d.toLocaleDateString('vi-VN', { weekday: 'long', timeZone: 'Asia/Ho_Chi_Minh' })
+      : '';
 
     await NotificationService.send(io, {
       type: 'SCHEDULE',
       title: '❌ Buổi điểm danh bù không được tính',
-      content: `Admin${actorName} không tính buổi điểm danh bù của ${hvLabel} — ${course}, ngày ${dateLabel}. Buổi này không tính tiến độ/lương. Bạn được xếp thêm 1 ca cho học viên.`,
+      content: `Admin${actorName} không tính buổi điểm danh bù của ${hvLabel} — ${course}, ngày ${dateLabel}${sessionNumber ? ` (buổi ${sessionNumber})` : ''}. Buổi này không tính tiến độ/lương. Bạn được xếp thêm 1 ca cho học viên.`,
       receivers: teacherId,
       payload: {
         kind: 'admin_makeup_rejected',
+        rejected: true,
         scheduleId: String(schedule._id || schedule.id || ''),
         studentId: studentId ? String(studentId) : null,
+        teacherId,
+        studentName,
         course,
+        dateLabel,
+        weekday,
+        startTime: start,
+        endTime: end,
+        timeRange: end ? `${start} - ${end}` : start,
+        sessionNumber,
+        sessionOrdinalPreview: sessionNumber,
+        totalSessions,
+        sessionTotalPreview: totalSessions,
       },
       link: '/teacher#schedule',
     });

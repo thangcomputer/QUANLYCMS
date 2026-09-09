@@ -549,6 +549,14 @@ router.get('/teacher/:teacherId', [authMiddleware, ...schedulesGuard('get_teache
   }
 });
 
+function pickSessionNumber(...candidates) {
+  for (const c of candidates) {
+    const n = Number(c);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}
+
 function buildAttendanceConfirmPayload(sch) {
   const d = sch.date ? new Date(sch.date) : null;
   const weekday = d && !Number.isNaN(d.getTime())
@@ -559,6 +567,12 @@ function buildAttendanceConfirmPayload(sch) {
     : '';
   const start = sch.startTime || '';
   const end = sch.endTime || '';
+  const sessionNumber = pickSessionNumber(
+    sch.sessionOrdinalPreview,
+    sch.sessionNumber,
+    sch.completedSessions,
+  );
+  const totalSessions = pickSessionNumber(sch.sessionTotalPreview, sch.totalSessions) || null;
   return {
     scheduleId: String(sch._id || sch.id),
     studentId: String(sch.studentId?._id || sch.studentId || ''),
@@ -572,17 +586,51 @@ function buildAttendanceConfirmPayload(sch) {
     startTime: start,
     endTime: end,
     timeRange: end ? `${start} - ${end}` : start,
-    sessionNumber: sch.sessionOrdinalPreview || null,
-    completedSessions: sch.sessionOrdinalPreview || null,
-    totalSessions: sch.sessionTotalPreview || null,
+    sessionNumber,
+    sessionOrdinalPreview: sessionNumber,
+    completedSessions: sessionNumber,
+    totalSessions,
+    sessionTotalPreview: totalSessions,
     studentConfirmStatus: sch.studentConfirmStatus || 'none',
     studentConfirmedAt: sch.studentConfirmedAt || null,
     note: sch.attendancePendingNote || sch.note || '',
   };
 }
 
+/** Đảm bảo có số buổi trước khi gửi thông báo (kể cả buổi Admin từ chối / đã hủy). */
+async function ensureAttendanceSessionPreview(sch) {
+  if (!sch) return sch;
+  if (pickSessionNumber(sch.sessionOrdinalPreview)) return sch;
+  const { refreshScheduleSessionPreview, resolveSessionOrdinalForSchedule } = require('../services/attendanceService');
+  await refreshScheduleSessionPreview(sch);
+  if (pickSessionNumber(sch.sessionOrdinalPreview)) return sch;
+  const sid = sch.studentId?._id || sch.studentId;
+  if (!sid) return sch;
+  try {
+    const Student = require('../models/Student');
+    const student = await Student.findById(sid)
+      .select('enrollments course status totalSessions completedSessions')
+      .lean();
+    if (!student) return sch;
+    const progress = await resolveSessionOrdinalForSchedule(student, sch);
+    const next = pickSessionNumber(progress?.sessionOrdinal) || 1;
+    const total = pickSessionNumber(progress?.sessionTotal, sch.sessionTotalPreview) || 12;
+    sch.sessionOrdinalPreview = next;
+    sch.sessionTotalPreview = total;
+    const id = sch._id || sch.id;
+    if (id) {
+      await require('../models/Schedule').updateOne(
+        { _id: id },
+        { $set: { sessionOrdinalPreview: next, sessionTotalPreview: total } },
+      ).catch(() => {});
+    }
+  } catch { /* giữ sch */ }
+  return sch;
+}
+
 async function emitAttendanceConfirmEvents(io, sch, eventName, extra = {}) {
   if (!io || !sch) return;
+  await ensureAttendanceSessionPreview(sch);
   const payload = { ...buildAttendanceConfirmPayload(sch), ...extra };
   const sid = payload.studentId;
   const tid = payload.teacherId;
@@ -1662,20 +1710,22 @@ router.post('/:scheduleId/resolve-dispute', [authMiddleware], async (req, res) =
     const sch = result.schedule;
     const { refreshScheduleSessionPreview } = require('../services/attendanceService');
     await refreshScheduleSessionPreview(sch);
+    await ensureAttendanceSessionPreview(sch);
     const payload = buildAttendanceConfirmPayload(sch);
     const tid = payload.teacherId;
     const sid = payload.studentId;
 
     if (result.meta?.rejected) {
       if (io) {
-        const msg = `Buổi ${payload.sessionNumber || '?'} (${payload.course}) ngày ${payload.dateLabel} không được chấp thuận — không tính vào tiến độ và lương buổi.`;
+        const sessionLabel = payload.sessionNumber != null ? String(payload.sessionNumber) : '?';
+        const msg = `Buổi ${sessionLabel} (${payload.course}) ngày ${payload.dateLabel} không được chấp thuận — không tính vào tiến độ và lương buổi.`;
         if (tid) {
           await NotificationService.send(io, {
             type: 'SCHEDULE',
             title: '❌ Buổi học không được tính',
             content: msg,
             receivers: tid,
-            payload: { kind: 'attendance_rejected', ...payload },
+            payload: { kind: 'attendance_rejected', rejected: true, ...payload },
             link: '/teacher#students',
           }).catch(() => {});
         }
@@ -1685,11 +1735,11 @@ router.post('/:scheduleId/resolve-dispute', [authMiddleware], async (req, res) =
             title: '❌ Buổi học không được tính',
             content: msg,
             receivers: sid,
-            payload: { kind: 'attendance_rejected', ...payload },
+            payload: { kind: 'attendance_rejected', rejected: true, ...payload },
             link: '/student#schedule',
           }).catch(() => {});
         }
-        await emitAttendanceConfirmEvents(io, sch, 'attendance:rejected');
+        await emitAttendanceConfirmEvents(io, sch, 'attendance:rejected', { rejected: true });
         emitScheduleEvent(io, {
           branchId: sch.branchId,
           teacherId: sch.teacherId,

@@ -633,7 +633,7 @@ function App() {
     restoreSession();
   }, []);
 
-  // Sidebar có thể patch gender/avatar từ hồ sơ self vào localStorage
+  // Sidebar / modal có thể patch session (gender, isFirstLogin, welcome…) vào localStorage
   useEffect(() => {
     const onPatched = (e) => {
       const patched = e?.detail;
@@ -641,10 +641,15 @@ function App() {
       setSession((prev) => {
         if (!prev) return prev;
         if (String(prev.id || prev._id) !== String(patched.id || patched._id)) return prev;
-        const nextGender = patched.gender || prev.gender || '';
-        const nextAvatar = patched.avatar || prev.avatar || '';
-        if ((prev.gender || '') === nextGender && (prev.avatar || '') === nextAvatar) return prev;
-        return { ...prev, gender: nextGender, avatar: nextAvatar };
+        const next = { ...prev, ...patched };
+        // Giữ id/_id ổn định
+        next.id = prev.id || prev._id;
+        next._id = prev._id || prev.id;
+        try {
+          const key = `${prev.role || 'student'}_user`;
+          localStorage.setItem(key, JSON.stringify({ ...JSON.parse(localStorage.getItem(key) || '{}'), ...next }));
+        } catch { /* ignore */ }
+        return next;
       });
     };
     window.addEventListener('cms:session-patched', onPatched);

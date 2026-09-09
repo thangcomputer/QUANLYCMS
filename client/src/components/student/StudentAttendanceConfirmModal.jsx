@@ -53,8 +53,12 @@ export default function StudentAttendanceConfirmModal({
     || String(payload.kind || '') === 'attendance_rejected'
     || payload.resolveOutcome === 'rejected';
 
-  const sessionNo = payload.sessionNumber || payload.sessionOrdinalPreview || '?';
-  const total = payload.totalSessions || payload.sessionTotalPreview;
+  const sessionNo = [payload.sessionNumber, payload.sessionOrdinalPreview, payload.completedSessions]
+    .map((v) => Number(v))
+    .find((n) => Number.isFinite(n) && n > 0);
+  const displaySession = sessionNo != null ? sessionNo : '?';
+  const totalRaw = Number(payload.totalSessions || payload.sessionTotalPreview);
+  const total = Number.isFinite(totalRaw) && totalRaw > 0 ? totalRaw : null;
   const teacherName = payload.teacherName || 'Giảng viên';
   const weekday = payload.weekday || '';
   const timeRange = payload.timeRange
@@ -136,7 +140,7 @@ export default function StudentAttendanceConfirmModal({
             Buổi học
           </p>
           <p className="mt-1 text-5xl sm:text-6xl font-black tabular-nums tracking-tight drop-shadow">
-            {sessionNo}
+            {displaySession}
             {total ? (
               <span className={`text-2xl sm:text-3xl font-bold ${fractionTone}`}>
                 /{total}

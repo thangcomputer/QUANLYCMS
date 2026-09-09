@@ -49,6 +49,7 @@ import {
   PREV_LESSON_REQUIRED_CODE,
 } from '../utils/antiSeekPolicy';
 import { parseLmsHashQuery, clearResumePayFromHash, courseKey, courseIdAliases, readOwnedVideoCourseCache, writeOwnedVideoCourseCache } from '../utils/lmsDeepLink';
+import { setLmsPlayerOpen } from '../utils/lmsPlayerOverlay';
 import {
   readYouTubeDuration,
   resolveYouTubeDisplayDuration,
@@ -1517,6 +1518,16 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack, initialMainTab = null, h
   const selectedCoursePending = !selectedCourseOwned && Boolean(pendingByCourseId[selectedCourseId]);
   const selectedCourseHasProgress = selectedCourse ? courseProgressOf(selectedCourse) > 0 : false;
   const canContinueLearning = selectedCourseOwned || selectedCourseHasProgress;
+  // Player full-screen (z-100) — nhấc chat/popup tin·lịch lên trên lớp học
+  const isLmsFullscreenPlayer = Boolean(selectedCourse) && selectedCourseOwned;
+  useEffect(() => {
+    if (!isLmsFullscreenPlayer) {
+      setLmsPlayerOpen(false);
+      return undefined;
+    }
+    setLmsPlayerOpen(true);
+    return () => setLmsPlayerOpen(false);
+  }, [isLmsFullscreenPlayer]);
 
   const enterCourseLearning = useCallback(() => {
     if (!selectedCourse) return;

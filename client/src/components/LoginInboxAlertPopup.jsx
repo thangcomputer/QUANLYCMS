@@ -11,6 +11,8 @@ import {
 } from '../utils/scheduleTime';
 import { LOGIN_OVERLAY_EVENT, getActiveLoginOverlayIds } from '../utils/loginOverlayGate';
 import { isAiSupportConversationId, AI_SUPPORT_PEER } from '../utils/aiSupport';
+import { LMS_PLAYER_OPEN_EVENT, isLmsPlayerOpen } from '../utils/lmsPlayerOverlay';
+import { useSocket } from '../context/SocketContext';
 
 export const LOGIN_ALERT_STORAGE_PREFIX = 'cms_login_alert';
 
@@ -128,8 +130,8 @@ function formatClassLine(s) {
 }
 
 /**
- * Popup lúc vào trang: chỉ khi có tin người thật chưa đọc.
- * Lịch sắp tới chỉ hiện kèm theo (không mở popup nếu chưa có tin).
+ * Popup lúc vào trang: tin người thật chưa đọc; lịch kèm theo.
+ * Khi đang học LMS (player full-screen): cho hiện lại nếu có tin mới hoặc lịch mới chưa ack.
  */
 export default function LoginInboxAlertPopup({ role, userId, blocked = false }) {
   const navigate = useNavigate();
@@ -137,16 +139,64 @@ export default function LoginInboxAlertPopup({ role, userId, blocked = false }) 
   const { getConversations, getSchedulesByStudent, syncMessages } = useData();
   const [payload, setPayload] = useState(null);
   const [extraBlock, setExtraBlock] = useState(false);
+  const [lmsOpen, setLmsOpen] = useState(() => isLmsPlayerOpen());
+  const [lmsNudge, setLmsNudge] = useState(0);
   const decidedRef = useRef(false);
   const extrasRef = useRef({});
   const convRef = useRef(getConversations);
   const schedFnRef = useRef(getSchedulesByStudent);
   const syncRef = useRef(syncMessages);
   const busy = blocked || extraBlock;
+  const { onMessageReceive, socket } = useSocket() || {};
 
   useEffect(() => { convRef.current = getConversations; }, [getConversations]);
   useEffect(() => { schedFnRef.current = getSchedulesByStudent; }, [getSchedulesByStudent]);
   useEffect(() => { syncRef.current = syncMessages; }, [syncMessages]);
+
+  useEffect(() => {
+    const onLms = (e) => {
+      const open = Boolean(e?.detail?.open);
+      setLmsOpen(open);
+      // Vào lại player: cho phép kiểm tra tin/lịch mới (ack vẫn chặn popup trùng).
+      if (open) decidedRef.current = false;
+    };
+    setLmsOpen(isLmsPlayerOpen());
+    window.addEventListener(LMS_PLAYER_OPEN_EVENT, onLms);
+    return () => window.removeEventListener(LMS_PLAYER_OPEN_EVENT, onLms);
+  }, []);
+
+  // Đang học LMS: tin/lịch mới → nudge kiểm tra lại popup (không đụng flow ngoài LMS).
+  useEffect(() => {
+    if (!lmsOpen || !userId) return undefined;
+    let lastBump = 0;
+    const bump = () => {
+      const now = Date.now();
+      if (now - lastBump < 2500) return;
+      lastBump = now;
+      decidedRef.current = false;
+      setLmsNudge((n) => n + 1);
+    };
+    const unsubMsg = typeof onMessageReceive === 'function'
+      ? onMessageReceive((data) => {
+        if (!data) return;
+        if (String(data.senderId) === String(userId)) return;
+        if (isAiSupportConversationId(data.conversationId) || String(data.senderId) === AI_SUPPORT_PEER.id) return;
+        bump();
+      })
+      : null;
+    const onSched = () => bump();
+    if (socket?.on) {
+      socket.on('schedule:updated', onSched);
+      socket.on('schedule:new', onSched);
+    }
+    return () => {
+      if (typeof unsubMsg === 'function') unsubMsg();
+      if (socket?.off) {
+        socket.off('schedule:updated', onSched);
+        socket.off('schedule:new', onSched);
+      }
+    };
+  }, [lmsOpen, userId, onMessageReceive, socket]);
 
   useEffect(() => {
     const syncFromGate = () => {
@@ -171,6 +221,7 @@ export default function LoginInboxAlertPopup({ role, userId, blocked = false }) 
   useEffect(() => {
     if (busy || !userId || decidedRef.current) return undefined;
     if (isQuietPath(location.pathname)) return undefined;
+    if (payload) return undefined;
 
     let cancelled = false;
 
@@ -227,9 +278,10 @@ export default function LoginInboxAlertPopup({ role, userId, blocked = false }) 
         writeAck(userId, 0, ack.scheduleIds);
       }
 
-      // Chỉ hiện khi có tin người thật chưa đọc — không hiện vì lịch / lời chào AI.
+      // Ngoài LMS: chỉ hiện khi có tin mới. Trong LMS: tin mới hoặc lịch mới chưa ack.
       const showMsg = unread > 0 && (ackedUnread == null || unread > ackedUnread);
-      if (!showMsg) {
+      const showSchedOnly = lmsOpen && role === 'student' && newIds.length > 0;
+      if (!showMsg && !showSchedOnly) {
         writeAck(userId, unread, [...ackedIds, ...currentIds]);
         return;
       }
@@ -238,18 +290,18 @@ export default function LoginInboxAlertPopup({ role, userId, blocked = false }) 
       writeAck(userId, Math.max(unread, Number(ackedUnread) || 0), mergedIds);
 
       setPayload({
-        unread,
-        upcoming: newIds.length > 0 ? upcoming.slice(0, 3) : [],
+        unread: showMsg ? unread : 0,
+        upcoming: newIds.length > 0 ? upcoming.slice(0, 3) : (showMsg ? [] : upcoming.slice(0, 3)),
       });
     };
 
-    const delayMs = role === 'student' ? 2400 : 1000;
+    const delayMs = lmsOpen ? 600 : (role === 'student' ? 2400 : 1000);
     const timer = setTimeout(run, delayMs);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [busy, userId, role, location.pathname]);
+  }, [busy, userId, role, location.pathname, lmsOpen, payload, lmsNudge]);
 
   const confirmView = (path) => {
     setPayload(null);
