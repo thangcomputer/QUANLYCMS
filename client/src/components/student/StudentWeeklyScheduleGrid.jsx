@@ -189,7 +189,7 @@ export default function StudentWeeklyScheduleGrid({
                         ) : null}
                         <span className={clickable ? 'group-hover:invisible' : ''}>{slotLabel(sch)}</span>
                         {clickable ? (
-                          <span className="absolute inset-0 hidden group-hover:flex items-center justify-center rounded-lg px-0.5 leading-tight text-[9px] font-black">
+                          <span className="absolute inset-0 hidden group-hover:flex items-center justify-center rounded-lg px-0.5 leading-tight text-[10px] font-black">
                             {hoverHint}
                           </span>
                         ) : null}

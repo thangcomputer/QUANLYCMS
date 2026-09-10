@@ -105,6 +105,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
   const previewRef = useRef(null);
+  const previewStreamRef = useRef(null);
 
   const meta = useMemo(() => {
     const sub = getExamSubjectMeta(subjectId, examSubjectsCatalog);
@@ -579,7 +580,11 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
           return;
         }
         stream = s;
-        if (previewRef.current) previewRef.current.srcObject = s;
+        previewStreamRef.current = s;
+        if (previewRef.current) {
+          previewRef.current.srcObject = s;
+          previewRef.current.play().catch(() => {});
+        }
         setCameraReady(true);
         setCameraError('');
       })
@@ -591,9 +596,18 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
 
     return () => {
       cancelled = true;
+      previewStreamRef.current = null;
       if (stream) stream.getTracks().forEach(t => t.stop());
     };
   }, [phase, requireWebcam]);
+
+  useEffect(() => {
+    const video = previewRef.current;
+    const stream = previewStreamRef.current;
+    if (!video || !stream || !cameraReady) return;
+    video.srcObject = stream;
+    video.play().catch(() => {});
+  }, [cameraReady, phase]);
 
   // ── Timer ──
   const handleSubmitFinalRef = useRef(() => {});
@@ -1186,7 +1200,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
     <ExamClickOutsideGuard
       enabled={phase === 'test' && tab !== 'tu_luan'}
       soundUrl={examWarningSoundUrl}
-      maxStrikes={1}
+      maxStrikes={2}
       onMaxStrikes={() => handleViolation('Bấm ra ngoài vùng làm bài khi đang thi. Bài thi bị hủy!')}
       className="relative flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-slate-100 font-sans text-slate-900"
     >
@@ -1601,7 +1615,7 @@ const StudentTest = ({ subjectId = 'word', studentSbd = '11111', studentName = '
       </div>
 
       {/* ExamMonitor (logic only) */}
-      <ExamMonitor ref={monitorRef} isActive={phase === 'test'} onViolate={handleViolation} onResetExam={handleResetExam} requireWebcam={requireWebcam} enableTabGuard={tab !== 'tu_luan'} maxTabWarnings={1} warningSoundUrl={examWarningSoundUrl} />
+      <ExamMonitor ref={monitorRef} isActive={phase === 'test'} onViolate={handleViolation} onResetExam={handleResetExam} requireWebcam={requireWebcam} enableTabGuard={tab !== 'tu_luan'} maxTabWarnings={2} warningSoundUrl={examWarningSoundUrl} />
 
       {/* ══════════ MODALS ══════════ */}
       {showSubmitConfirm && (

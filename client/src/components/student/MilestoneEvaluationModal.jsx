@@ -182,7 +182,7 @@ export function MilestoneEvaluationModal({
           </p>
           {isCourseEnd ? (
             <p className={`font-bold text-white/80 uppercase tracking-wider ${
-              isCompactHeader ? 'text-[9px] mt-1' : 'text-[10px] mt-2'
+              isCompactHeader ? 'text-[10px] mt-1' : 'text-[11px] mt-2'
             }`}>
               Bước {step === 'center' ? '1/2 · Trung tâm' : '2/2 · Giảng viên'}
             </p>
@@ -294,7 +294,7 @@ export function MilestoneEvaluationModal({
                           key={opt.key}
                           type="button"
                           onClick={() => setRatingCriteria((prev) => ({ ...prev, [catKey]: opt.key }))}
-                          className={`min-h-[30px] px-1 py-1.5 rounded-lg text-[9px] font-black leading-tight transition-all ${
+                          className={`min-h-[30px] px-1 py-1.5 rounded-lg text-[10px] font-black leading-tight transition-all ${
                             ratingCriteria[catKey] === opt.key
                               ? 'bg-red-500 text-white shadow-sm'
                               : 'bg-white text-gray-500 border border-gray-200 hover:border-red-200 hover:text-red-600'

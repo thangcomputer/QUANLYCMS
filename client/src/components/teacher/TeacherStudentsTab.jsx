@@ -199,7 +199,7 @@ export default function TeacherStudentsTab({
             </div>
 
             {/* CỘT 2: CHI TIẾT HỌC VIÊN (Main Content) */}
-            <div className="flex-1 min-w-0 min-h-0 lg:overflow-y-auto pr-0 pb-4 sm:pr-1 sm:pb-6">
+            <div className="flex-1 min-w-0 min-h-0 lg:overflow-y-auto lg:[scrollbar-width:none] lg:[&::-webkit-scrollbar]:hidden pr-0 pb-4 sm:pr-1 sm:pb-6">
               {selectedEnrollmentKey ? (
                 (() => {
                   const student = students.find(s => String(s._enrollmentKey || s._id || s.id) === String(selectedEnrollmentKey));

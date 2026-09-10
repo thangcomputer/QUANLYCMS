@@ -288,6 +288,7 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const previewRef = useRef(null);
+  const previewStreamRef = useRef(null);
   const [currentQ, setCurrentQ] = useState(0);
   const [webLogoUrl, setWebLogoUrl] = useState('');
 
@@ -828,7 +829,11 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
           return;
         }
         stream = s;
-        if (previewRef.current) previewRef.current.srcObject = s;
+        previewStreamRef.current = s;
+        if (previewRef.current) {
+          previewRef.current.srcObject = s;
+          previewRef.current.play().catch(() => {});
+        }
         setCameraReady(true);
         setCameraError('');
       })
@@ -840,9 +845,18 @@ const TeacherTest = ({ teacherName = 'Giảng Viên', onBack }) => {
 
     return () => {
       cancelled = true;
+      previewStreamRef.current = null;
       if (stream) stream.getTracks().forEach(t => t.stop());
     };
   }, [phase]);
+
+  useEffect(() => {
+    const video = previewRef.current;
+    const stream = previewStreamRef.current;
+    if (!video || !stream || !cameraReady) return;
+    video.srcObject = stream;
+    video.play().catch(() => {});
+  }, [cameraReady, phase]);
 
   // Timer trắc nghiệm — hết giờ tự nộp
   useEffect(() => {

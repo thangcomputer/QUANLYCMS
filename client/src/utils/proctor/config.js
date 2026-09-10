@@ -17,8 +17,9 @@ export const PROCTOR_CONFIG = {
   /** Sau khi đã thấy mặt: chờ thêm trước khi bắt đầu đếm mất mặt */
   FACE_LOST_HYSTERESIS_MS: 1500,
 
-  EYE_MISS_CONFIRM_MS: 5000,
-  EYE_MISS_MIN_FRAMES: 12,
+  /** Mắt có thể bị mất vài frame do chớp mắt/ánh sáng; chỉ cảnh báo khi liên tục. */
+  EYE_MISS_CONFIRM_MS: 7000,
+  EYE_MISS_MIN_FRAMES: 18,
   GAZE_MISS_CONFIRM_MS: 4500,
   GAZE_MISS_MIN_FRAMES: 11,
   MULTI_FACE_CONFIRM_MS: 2800,

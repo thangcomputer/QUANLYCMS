@@ -318,7 +318,7 @@ export const MonthlyCalendar = ({ schedules = [], onEditSchedule, onAddSchedule,
                           <h4 className="font-bold text-xs sm:text-sm text-white line-clamp-1">
                             👤 {s.studentName || 'Học viên'}
                           </h4>
-                          <span className={`text-[9px] font-black px-1.5 py-0.2 rounded uppercase shrink-0 border ${cfg.badge}`}>
+                          <span className={`text-[10px] font-black px-1.5 py-0.2 rounded uppercase shrink-0 border ${cfg.badge}`}>
                             {cfg.label}
                           </span>
                         </div>
@@ -440,7 +440,7 @@ export const MonthlyCalendar = ({ schedules = [], onEditSchedule, onAddSchedule,
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0">
-                      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border uppercase ${cfg.badge}`}>
+                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded border uppercase ${cfg.badge}`}>
                         {displayStatus === 'ongoing' ? 'Đang dạy' : s.startTime}
                       </span>
                       {new Date(s.date) >= today && displayStatus !== 'ongoing' && (

@@ -297,7 +297,7 @@ export default function TeacherOverviewTab({
       <div className="bg-white rounded-2xl border border-slate-100 p-3 sm:p-4 shadow-sm">
         <div className="flex items-center gap-2 mb-2.5 sm:mb-3">
           <Zap size={16} className="text-amber-500 shrink-0" aria-hidden="true" />
-          <h3 className="font-bold text-sm text-slate-800">Công việc cần xử lý ngay</h3>
+          <h3 className="font-bold text-sm lg:text-base text-slate-800">Công việc cần xử lý ngay</h3>
         </div>
         <div className="grid grid-cols-1 min-[400px]:grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5">
           {[
@@ -355,13 +355,16 @@ export default function TeacherOverviewTab({
               key={label}
               type="button"
               onClick={action}
-              className={`${tint} border rounded-xl p-3 text-left transition-all active:scale-[0.98] min-h-[4rem] cursor-pointer min-w-0`}
+              className={`group ${tint} border rounded-xl p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-md active:scale-[0.98] min-h-[4rem] cursor-pointer min-w-0`}
             >
               <div className="flex items-center gap-2 mb-1 min-w-0">
-                <Icon size={16} className={`${iconClass} shrink-0`} aria-hidden="true" />
-                <p className="font-bold text-xs sm:text-sm truncate">{label}</p>
+                <span className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/80 shadow-sm ring-1 ring-black/5 transition-transform duration-200 group-hover:scale-110 ${iconClass}`}>
+                  <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-white/80 blur-[3px]" aria-hidden="true" />
+                  <Icon size={17} strokeWidth={2.4} className="relative drop-shadow-sm" aria-hidden="true" />
+                </span>
+                <p className="font-bold text-xs sm:text-sm lg:text-base truncate">{label}</p>
               </div>
-              <p className="text-[10px] sm:text-xs text-slate-500 leading-snug break-words">{sub}</p>
+              <p className="text-[11px] sm:text-xs lg:text-sm text-slate-500 leading-snug break-words">{sub}</p>
             </button>
           ))}
         </div>
@@ -430,13 +433,14 @@ export default function TeacherOverviewTab({
             className={`bg-white rounded-2xl p-3.5 sm:p-5 shadow-sm border border-slate-100 hover:shadow-md transition-all group overflow-hidden relative min-w-0 ${onClick ? 'cursor-pointer' : ''}`}
           >
             <div className={`absolute -right-3 -bottom-3 w-14 h-14 sm:w-20 sm:h-20 ${bg} rounded-full opacity-40 group-hover:scale-125 transition-transform duration-500 pointer-events-none`} aria-hidden="true" />
-            <div className={`w-8 h-8 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center mb-2.5 sm:mb-3.5 shadow-sm relative z-10`}>
-              <Icon size={16} className="text-white sm:hidden" aria-hidden="true" />
-              <Icon size={20} className="text-white hidden sm:block" aria-hidden="true" />
+            <div className={`relative w-9 h-9 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br ${color} flex items-center justify-center mb-2.5 sm:mb-3.5 shadow-lg ring-2 ring-white/80 group-hover:scale-105 transition-transform z-10`}>
+              <span className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-white/60 blur-[4px]" aria-hidden="true" />
+              <Icon size={17} strokeWidth={2.4} className="text-white sm:hidden relative drop-shadow-md" aria-hidden="true" />
+              <Icon size={22} strokeWidth={2.4} className="text-white hidden sm:block relative drop-shadow-md" aria-hidden="true" />
             </div>
-            <p className="text-xs sm:text-sm font-bold text-slate-600 uppercase tracking-wide mb-0.5 relative z-10 truncate">{label}</p>
+            <p className="text-xs sm:text-sm lg:text-base font-bold text-slate-600 uppercase tracking-wide mb-0.5 relative z-10 truncate">{label}</p>
             <p className="text-lg sm:text-2xl md:text-3xl font-black text-slate-800 relative z-10 truncate tabular-nums">{value}</p>
-            <p className={`text-xs font-medium mt-1 relative z-10 ${subClass || 'text-slate-500'}`}>{sub}</p>
+            <p className={`text-xs lg:text-sm font-medium mt-1 relative z-10 ${subClass || 'text-slate-500'}`}>{sub}</p>
           </div>
         ))}
       </div>
@@ -447,8 +451,10 @@ export default function TeacherOverviewTab({
         {/* Cột 1: Học viên được phân công — hiện ~5, scroll thêm */}
         <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-100 p-4 sm:p-5 shadow-sm space-y-3 flex flex-col min-w-0 w-full">
           <div className="flex items-center justify-between gap-2 min-w-0 pb-2 border-b border-slate-100 shrink-0">
-            <h3 className="text-sm sm:text-base font-bold text-slate-800 flex items-center gap-2 min-w-0">
-              <GraduationCap size={18} className="text-indigo-600 shrink-0" aria-hidden="true" />
+            <h3 className="text-sm sm:text-base lg:text-lg font-bold text-slate-800 flex items-center gap-2 min-w-0">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-md shadow-indigo-200 shrink-0">
+                <GraduationCap size={17} strokeWidth={2.4} aria-hidden="true" />
+              </span>
               <span className="truncate">Học viên được phân công ({students.length})</span>
             </h3>
             <button
@@ -488,8 +494,8 @@ export default function TeacherOverviewTab({
                     <img src={resolveAvatarUrl({ avatar: s.avatar, role: 'student', gender: s.gender })} alt="" className="w-full h-full object-cover" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs sm:text-sm font-bold text-slate-800 truncate group-hover:text-indigo-600 transition-colors">{s.name}</p>
-                    <p className="text-[10px] sm:text-xs text-slate-400 truncate">{s.course}</p>
+                    <p className="text-xs sm:text-sm lg:text-base font-bold text-slate-800 truncate group-hover:text-indigo-600 transition-colors">{s.name}</p>
+                    <p className="text-[11px] sm:text-xs lg:text-sm text-slate-400 truncate">{s.course}</p>
                     <div className="h-1.5 bg-slate-200/60 rounded-full mt-1.5 overflow-hidden">
                       <div
                         className={`h-full rounded-full transition-all duration-500 ${pct >= 70 ? 'bg-emerald-500' : pct >= 40 ? 'bg-amber-500' : 'bg-indigo-500'}`}
@@ -498,8 +504,8 @@ export default function TeacherOverviewTab({
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="text-xs sm:text-sm font-black text-slate-800 tabular-nums">{pct}%</p>
-                    <p className="text-[10px] text-slate-400 tabular-nums">{done}/{total} buổi</p>
+                    <p className="text-xs sm:text-sm lg:text-base font-black text-slate-800 tabular-nums">{pct}%</p>
+                    <p className="text-[11px] lg:text-sm text-slate-400 tabular-nums">{done}/{total} buổi</p>
                   </div>
                   <ChevronRight size={15} className="text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition shrink-0" />
                 </button>
@@ -515,8 +521,10 @@ export default function TeacherOverviewTab({
         {/* Cột 2: Ca tiếp theo — giờ, thứ/ngày, link hướng dẫn, nhấp nháy khi đến ca */}
         <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-100 p-4 sm:p-5 shadow-sm space-y-3 flex flex-col min-w-0 w-full">
           <div className="flex items-center justify-between gap-2 min-w-0 pb-2 border-b border-slate-100 shrink-0">
-            <h3 className="text-sm sm:text-base font-bold text-slate-800 flex items-center gap-2 min-w-0">
-              <Clock size={18} className="text-red-600 shrink-0" aria-hidden="true" />
+            <h3 className="text-sm sm:text-base lg:text-lg font-bold text-slate-800 flex items-center gap-2 min-w-0">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-red-500 to-rose-600 text-white shadow-md shadow-red-200 shrink-0">
+                <Clock size={17} strokeWidth={2.4} aria-hidden="true" />
+              </span>
               <span className="truncate">Ca tiếp theo ({nextSessions.length})</span>
             </h3>
             <button
@@ -545,7 +553,7 @@ export default function TeacherOverviewTab({
                   <div className="flex items-start gap-2 min-w-0">
                     <div className="min-w-0 flex-1">
                       {live && (
-                        <p className="text-[10px] font-black uppercase tracking-wider text-red-100 flex items-center gap-1.5 mb-1">
+                        <p className="text-[11px] font-black uppercase tracking-wider text-red-100 flex items-center gap-1.5 mb-1">
                           <span className="relative flex h-2 w-2 shrink-0" aria-hidden="true">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
@@ -553,16 +561,16 @@ export default function TeacherOverviewTab({
                           Đang diễn ra
                         </p>
                       )}
-                      <p className={`text-xs sm:text-sm font-bold truncate ${live ? 'text-white' : 'text-slate-800'}`}>
+                      <p className={`text-xs sm:text-sm lg:text-base font-bold truncate ${live ? 'text-white' : 'text-slate-800'}`}>
                         {student.name || sch.studentName || 'Học viên'}
                       </p>
-                      <p className={`text-[10px] sm:text-xs truncate ${live ? 'text-red-100' : 'text-slate-400'}`}>
+                      <p className={`text-[11px] sm:text-xs lg:text-sm truncate ${live ? 'text-red-100' : 'text-slate-400'}`}>
                         {student.course || sch.course || ''}
                       </p>
                       <p className={`text-xs font-black tabular-nums mt-1 ${live ? 'text-yellow-200' : 'text-red-600'}`}>
                         {timeRange}
                       </p>
-                      <p className={`text-[10px] font-semibold capitalize ${live ? 'text-red-100' : 'text-slate-500'}`}>
+                      <p className={`text-[11px] font-semibold capitalize ${live ? 'text-red-100' : 'text-slate-500'}`}>
                         {[weekday, dateLabel].filter(Boolean).join(' · ') || '—'}
                       </p>
                     </div>
@@ -572,7 +580,7 @@ export default function TeacherOverviewTab({
                         target="_blank"
                         rel="noreferrer"
                         onClick={(e) => e.stopPropagation()}
-                        className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide ${
+                        className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wide ${
                           live
                             ? 'bg-white text-red-600 hover:bg-red-50 shadow'
                             : 'bg-red-600 text-white hover:bg-red-700'
@@ -582,7 +590,7 @@ export default function TeacherOverviewTab({
                         Vào lớp
                       </a>
                     ) : (
-                      <span className={`shrink-0 text-[10px] font-semibold ${live ? 'text-red-100' : 'text-slate-400'}`}>
+                      <span className={`shrink-0 text-[11px] font-semibold ${live ? 'text-red-100' : 'text-slate-400'}`}>
                         Chưa có link
                       </span>
                     )}
@@ -603,13 +611,15 @@ export default function TeacherOverviewTab({
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col min-w-0 w-full">
           <div className="px-4 sm:px-5 py-3 border-b border-slate-100 flex items-center justify-between gap-2 shrink-0">
             <h4 className="font-bold text-slate-700 text-xs sm:text-sm flex items-center gap-2 min-w-0">
-              <Calendar size={14} className="text-indigo-500 shrink-0" aria-hidden="true" />
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-sm shadow-indigo-200 shrink-0">
+                <Calendar size={14} strokeWidth={2.4} aria-hidden="true" />
+              </span>
               <span className="truncate">Lịch dạy sắp tới trong tháng</span>
             </h4>
             <button
               type="button"
               onClick={() => navigate('/teacher#schedule')}
-              className="text-[10px] sm:text-xs text-indigo-600 font-bold hover:underline shrink-0 cursor-pointer inline-flex items-center gap-0.5"
+              className="text-[11px] sm:text-xs text-indigo-600 font-bold hover:underline shrink-0 cursor-pointer inline-flex items-center gap-0.5"
             >
               Xem tất cả
               <ChevronRight size={12} aria-hidden="true" />
@@ -630,9 +640,9 @@ export default function TeacherOverviewTab({
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold text-slate-800 truncate">{s.studentName || s.course}</p>
-                  <p className="text-[10px] text-slate-400 truncate">{s.startTime} · {s.course}</p>
+                  <p className="text-[11px] text-slate-400 truncate">{s.startTime} · {s.course}</p>
                 </div>
-                <span className="text-[10px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-lg flex-shrink-0">
+                <span className="text-[11px] text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded-lg flex-shrink-0">
                   {s.startTime}
                 </span>
               </div>

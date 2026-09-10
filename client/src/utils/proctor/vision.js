@@ -399,37 +399,54 @@ export function eyesVisibleFromFace(face, vw, vh) {
     const avgEyeY = structure.eyes.reduce((s, e) => s + e.ny, 0) / structure.eyes.length;
     return avgEyeY >= CONFIG.GAZE_CY_MIN && avgEyeY <= CONFIG.GAZE_CY_MAX + 0.1;
   }
-  // Không có landmarks: không giả định "có mắt" — chỉ true nếu OS không hỗ trợ landmark + da trong oval
-  if (structure.reason === 'no_landmarks' && faceBoxInProctorOval(box, vw, vh)) {
-    const { eyeY, areaRatio } = faceBoxMetrics(box, vw, vh);
-    return areaRatio >= CONFIG.MIN_FACE_AREA_RATIO && eyeY >= CONFIG.GAZE_CY_MIN && eyeY <= CONFIG.GAZE_CY_MAX + 0.1;
-  }
+  // Không có landmarks thì bounding box không đủ để kết luận mắt đang nhìn thấy.
   return false;
 }
 
-export function heuristicEyesInFrame(imageData, w, h) {
+export function heuristicEyesInFace(imageData, w, h, box) {
+  if (!imageData?.data || !box || !w || !h) return false;
   const d = imageData.data;
-  let skinHits = 0;
-  let samples = 0;
+  const x0 = Math.max(0, Math.floor(box.left));
+  const y0 = Math.max(0, Math.floor(box.top));
+  const x1 = Math.min(w, Math.ceil(box.left + box.width));
+  const y1 = Math.min(h, Math.ceil(box.top + box.height));
+  let validZones = 0;
+
+  for (const [xStart, xEnd] of [[0.14, 0.44], [0.56, 0.86]]) {
+    const zx0 = Math.floor(x0 + (x1 - x0) * xStart);
+    const zx1 = Math.ceil(x0 + (x1 - x0) * xEnd);
+    const zy0 = Math.floor(y0 + (y1 - y0) * 0.20);
+    const zy1 = Math.ceil(y0 + (y1 - y0) * 0.52);
+    let luma = 0;
+    let dark = 0;
+    let samples = 0;
+    for (let y = zy0; y < zy1; y += 2) {
+      for (let x = zx0; x < zx1; x += 2) {
+        const i = (y * w + x) * 4;
+        const value = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        luma += value;
+        if (value < 62) dark++;
+        samples++;
+      }
+    }
+    if (!samples) continue;
+    const avgLuma = luma / samples;
+    // Webcam preview thường chỉ còn ít pixel cho mỗi mắt. Không dùng
+    // một điểm tối đơn lẻ (dễ là tóc/nhiễu) để kết luận vùng mắt.
+    if (dark / samples >= 0.08 || avgLuma < 78) validZones++;
+  }
+  return validZones === 2;
+}
+
+export function heuristicEyesInFrame(imageData, w, h) {
   const cx = w * CONFIG.OVAL_CX;
   const cy = h * CONFIG.OVAL_CY;
-  const rx = w * CONFIG.OVAL_RX;
-  const ry = h * CONFIG.OVAL_RY;
-  const yCut = cy + ry * 0.12;
-  for (let y = 0; y < h; y += 2) {
-    for (let x = 0; x < w; x += 2) {
-      const nx = (x - cx) / rx;
-      const ny = (y - cy) / ry;
-      if (nx * nx + ny * ny > 1.15 || y > yCut) continue;
-      const i = (y * w + x) * 4;
-      const L = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-      if (L < 8) continue;
-      samples++;
-      if (isSkinLike(d[i], d[i + 1], d[i + 2])) skinHits++;
-    }
-  }
-  if (samples === 0) return false;
-  return skinHits / samples >= CONFIG.MIN_EYE_SKIN_RATIO;
+  return heuristicEyesInFace(imageData, w, h, {
+    left: (cx - CONFIG.OVAL_RX) * w,
+    top: (cy - CONFIG.OVAL_RY) * h,
+    width: CONFIG.OVAL_RX * 2 * w,
+    height: CONFIG.OVAL_RY * 2 * h,
+  });
 }
 
 export function faceLookingStraightAtScreen(face, vw, vh) {

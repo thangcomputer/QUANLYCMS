@@ -1278,23 +1278,29 @@ const TeacherTrainingLMS = ({ onBack, isAdmin = false }) => {
         )}
 
         {/* TOP TABS FOR TEACHER */}
-        <div className="grid grid-cols-3 gap-2 border-b border-slate-200 pb-2 mb-6 mt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 border-b border-slate-200 pb-3 mb-6 mt-1">
           {[
-            { key: 'courses', icon: Video, label: 'Khóa học', count: courses.length },
-            { key: 'guides', icon: FileText, label: 'Quy trình', count: visibleTraining?.guides?.length || 0 },
-            { key: 'files', icon: Download, label: 'Tài liệu', count: visibleTraining?.files?.length || 0 },
+            { key: 'courses', icon: Video, label: 'Khóa học', count: courses.length, tone: 'from-red-500 via-rose-500 to-red-700' },
+            { key: 'guides', icon: FileText, label: 'Quy trình', count: visibleTraining?.guides?.length || 0, tone: 'from-sky-400 via-blue-500 to-indigo-700' },
+            { key: 'files', icon: Download, label: 'Tài liệu', count: visibleTraining?.files?.length || 0, tone: 'from-amber-400 via-orange-500 to-red-600' },
           ].map(t => (
             <button key={t.key} onClick={() => setMainTab(t.key)}
-              className={`relative flex w-full min-w-0 flex-col items-center justify-center gap-1 px-3 py-2 rounded-xl text-sm font-semibold transition-all ${
+              className={`group relative flex min-h-[5.5rem] w-full min-w-0 items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 ${
                 mainTab === t.key
-                  ? 'bg-red-500 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? 'border-red-500 bg-red-50 text-slate-800 shadow-md shadow-red-100'
+                  : 'border-slate-200 bg-white text-slate-600 shadow-sm hover:border-red-200'
               }`}>
-              <t.icon size={15} className="shrink-0" />
-              <span className="text-[11px] leading-tight text-center line-clamp-2 min-h-[2.1rem]">
-                {t.label}
+              <span className={`relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br ${t.tone} text-white shadow-lg ring-2 ring-white transition-transform duration-300 group-hover:scale-105 group-hover:rotate-2`}>
+                <span className="absolute -right-3 -top-3 h-8 w-8 rounded-full bg-white/45 blur-md" aria-hidden="true" />
+                <t.icon size={24} strokeWidth={2.3} className="relative drop-shadow-md" />
               </span>
-              <span className={`absolute top-1.5 right-1.5 text-[10px] px-1.5 py-0.5 rounded-full leading-none ${mainTab === t.key ? 'bg-white/20 text-white' : 'bg-white text-slate-500 border border-slate-200'}`}>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-black leading-tight">{t.label}</span>
+                <span className={`mt-1 block text-[11px] font-semibold ${mainTab === t.key ? 'text-red-600' : 'text-slate-400'}`}>
+                  {t.count} mục đang có
+                </span>
+              </span>
+              <span className={`absolute right-3 top-3 min-w-[24px] rounded-full px-1.5 py-1 text-center text-[10px] font-black leading-none ${mainTab === t.key ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
                 {t.count}
               </span>
             </button>

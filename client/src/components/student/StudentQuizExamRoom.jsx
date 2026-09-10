@@ -408,7 +408,7 @@ export default function StudentQuizExamRoom({ quizId, onBack }) {
       enabled={!resultData && !loading && !!quizData}
       soundUrl={examWarningSoundUrl}
       watchVisibility
-      maxStrikes={1}
+      maxStrikes={2}
       onMaxStrikes={() => { void submitForfeit('Bấm ra ngoài vùng làm bài khi đang thi'); }}
       className="flex-1 min-h-0 flex flex-col select-none overflow-x-hidden"
     >

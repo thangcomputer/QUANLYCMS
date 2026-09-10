@@ -527,27 +527,30 @@ export default function TeacherQuizManager({
       {/* ── MODAL SOẠN BÀI TRẮC NGHIỆM MỚI ── */}
       {showCreateModal && createPortal(
         <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-hidden">
-          <div className="bg-white rounded-3xl max-w-3xl w-full shadow-2xl border border-slate-100 max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 sm:px-6 pt-5 pb-3 shrink-0">
+          <div className="bg-white rounded-[1.75rem] max-w-4xl w-full shadow-2xl border border-slate-200/80 max-h-[92vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-white to-red-50/40 px-5 sm:px-7 pt-4 pb-4 shrink-0">
               <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Plus className="text-red-600" size={18} /> Tạo bài thi trắc nghiệm theo buổi học
+                <h3 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-red-500 to-rose-700 text-white shadow-md shadow-red-200">
+                    <Plus size={17} strokeWidth={2.5} />
+                  </span>
+                  Tạo bài thi trắc nghiệm theo buổi học
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">Soạn nội dung trắc nghiệm và giao cho học viên.</p>
+                <p className="text-xs text-slate-500 mt-1 ml-10">Soạn nội dung trắc nghiệm và giao cho học viên.</p>
               </div>
               <button
                 type="button"
                 onClick={closeCreateModal}
-                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-xl hover:bg-slate-100"
+                className="p-2 text-slate-400 hover:text-red-600 rounded-xl hover:bg-red-50 transition-colors"
               >
                 <X size={18} />
               </button>
             </div>
 
             <form onSubmit={handleCreateQuiz} className="flex-1 min-h-0 flex flex-col text-xs font-semibold">
-              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-5 sm:px-6 py-4 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain px-5 sm:px-7 py-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-3.5">
                   <label className="block text-slate-600 mb-1">Tên bài kiểm tra / Buổi học *</label>
                   <input
                     ref={titleInputRef}
@@ -573,7 +576,7 @@ export default function TeacherQuizManager({
                     Tên bài cũng là prompt AI. Viết rõ môn + nội dung, ví dụ: Ribbon Word — tab Trang chủ.
                   </p>
                 </div>
-                <div>
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-3.5">
                   <label className="block text-slate-600 mb-1">Giao cho học viên</label>
                   <select
                     value={courseName}
@@ -661,8 +664,8 @@ export default function TeacherQuizManager({
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-end gap-3">
-                <div className="min-w-[220px] flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-2xl border border-slate-100 bg-slate-50/50 p-3.5">
+                <div className="min-w-0">
                   <label className="block text-slate-600 mb-1 text-[11px]">Thời gian (phút)</label>
                   <input
                     type="number"
@@ -673,7 +676,7 @@ export default function TeacherQuizManager({
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-200 outline-none focus:border-red-500 font-bold"
                   />
                 </div>
-                <div className="min-w-[260px] flex-1">
+                <div className="min-w-0">
                   <label className="block text-slate-600 mb-1 text-[11px]">Hạn chót (tuỳ chọn)</label>
                   <input
                     type="datetime-local"
@@ -685,7 +688,7 @@ export default function TeacherQuizManager({
               </div>
 
               {/* Nhập / Mẫu / Xuất + AI */}
-              <div className="pt-2 border-t border-slate-100 space-y-2">
+              <div className="rounded-2xl border border-slate-100 bg-white space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <input
                     ref={questionsExcelInputRef}
@@ -720,7 +723,7 @@ export default function TeacherQuizManager({
                     Xuất
                   </button>
                 </div>
-                <div className="flex flex-wrap items-end gap-2 rounded-xl border border-violet-100 bg-violet-50/60 p-2.5">
+                <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-fuchsia-50/70 p-3.5 shadow-sm">
                   <div>
                     <label className="block text-violet-700 text-[10px] font-black uppercase mb-1">Số câu AI</label>
                     <select
@@ -749,7 +752,7 @@ export default function TeacherQuizManager({
                     type="button"
                     onClick={handleGenerateAi}
                     disabled={aiGenerating}
-                    className="ml-auto px-3 py-1.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white rounded-lg text-[11px] font-bold flex items-center gap-1.5"
+                    className="ml-auto px-4 py-2 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 disabled:opacity-60 text-white rounded-xl text-[11px] font-black flex items-center gap-1.5 shadow-md shadow-violet-200 transition-all"
                   >
                     {aiGenerating ? <RefreshCw size={13} className="animate-spin" /> : <Sparkles size={13} />}
                     {aiGenerating ? 'Đang soạn...' : 'Tạo bằng AI (Gemini)'}
@@ -761,13 +764,13 @@ export default function TeacherQuizManager({
               </div>
 
               {/* SOẠN CÂU HỎI TRẮC NGHIỆM */}
-              <div className="space-y-4 pt-2">
-                <div className="flex items-center justify-between gap-2">
-                  <h4 className="font-bold text-slate-800 text-sm">Danh sách câu hỏi ({questions.length} câu)</h4>
+              <div className="space-y-4 pt-1">
+                <div className="flex items-center justify-between gap-2 rounded-2xl border border-slate-100 bg-slate-50 px-3.5 py-3">
+                  <h4 className="font-black text-slate-800 text-sm">Danh sách câu hỏi ({questions.length} câu)</h4>
                   <button
                     type="button"
                     onClick={addQuestion}
-                    className="px-3 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold flex items-center gap-1"
+                    className="px-3.5 py-2 bg-slate-900 hover:bg-red-600 text-white rounded-xl text-xs font-black flex items-center gap-1 transition-colors"
                   >
                     <Plus size={13} /> Thêm câu hỏi
                   </button>
@@ -854,18 +857,18 @@ export default function TeacherQuizManager({
               </div>
               </div>
 
-              <div className="flex gap-3 px-5 sm:px-6 py-3 border-t border-slate-100 shrink-0 bg-white">
+              <div className="flex gap-3 px-5 sm:px-7 py-3.5 border-t border-slate-100 shrink-0 bg-white shadow-[0_-8px_24px_rgba(15,23,42,0.04)]">
                 <button
                   type="button"
                   onClick={closeCreateModal}
-                  className="flex-1 py-2.5 border border-slate-200 rounded-xl text-slate-600 font-bold"
+                  className="flex-1 py-2.5 border border-slate-200 rounded-xl text-slate-600 font-black hover:bg-slate-50 transition-colors"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition shadow-md"
+                  className="flex-1 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white rounded-xl font-black transition shadow-md shadow-red-200"
                 >
                   {isSubmitting ? 'Đang tạo...' : 'Tạo bài trắc nghiệm'}
                 </button>

@@ -1129,7 +1129,7 @@ export const StudentCard = ({
           </div>
           
           <div className="mt-4 pt-3 border-t border-slate-100">
-            <div className="flex justify-between items-center mb-1.5 text-[10px] sm:text-xs font-bold uppercase tracking-wide text-slate-400">
+            <div className="flex justify-between items-center mb-1.5 text-[10px] sm:text-xs lg:text-sm font-bold uppercase tracking-wide text-slate-400">
               <span>Tiến độ khóa học</span>
               <span className="text-slate-700 tabular-nums">{done}/{sessionTotal} buổi ({progressPct}%)</span>
             </div>
@@ -1140,7 +1140,7 @@ export const StudentCard = ({
               />
             </div>
             {priorCredit > 0 ? (
-              <p className="text-[10px] sm:text-[11px] text-slate-500 mt-1.5 leading-snug">
+              <p className="text-[10px] sm:text-[11px] lg:text-sm text-slate-500 mt-1.5 leading-snug">
                 Trên lịch: <span className="font-semibold text-slate-700">{onCalendarDone}</span>
                 {' · '}
                 Ghi nhận trước: <span className="font-semibold text-slate-700">{priorCredit}</span>
@@ -1195,11 +1195,18 @@ export const StudentCard = ({
               title={key === 'quiz' ? 'Tạo trắc nghiệm' : label}
               aria-label={key === 'quiz' ? 'Tạo trắc nghiệm' : label}
               aria-current={activePanel === key ? 'page' : undefined}
-              className={`relative flex-1 min-w-[76px] sm:min-w-0 flex flex-col items-center justify-center gap-0.5 px-1 sm:px-1 min-h-11 sm:min-h-0 py-2 sm:py-3.5 text-[10px] sm:text-xs font-bold tracking-wide transition-all ${
+              className={`group relative flex-1 min-w-[76px] sm:min-w-0 flex flex-col items-center justify-center gap-1 px-1 sm:px-1 min-h-11 sm:min-h-0 py-2 sm:py-3.5 text-[10px] sm:text-xs lg:text-sm font-bold tracking-wide transition-all ${
                 activePanel === key ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              <Icon size={16} className="shrink-0" aria-hidden="true" />
+              <span className={`relative flex h-8 w-8 items-center justify-center rounded-xl transition-all duration-200 group-hover:-translate-y-0.5 group-hover:scale-105 ${
+                activePanel === key
+                  ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-200 ring-2 ring-blue-100'
+                  : 'bg-slate-100 text-slate-500 shadow-sm group-hover:bg-blue-50 group-hover:text-blue-600'
+              }`}>
+                <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full bg-white/70 blur-[3px]" aria-hidden="true" />
+                <Icon size={16} strokeWidth={2.4} className="relative drop-shadow-sm" aria-hidden="true" />
+              </span>
               <span className="block truncate max-w-full leading-tight px-0.5">{label}</span>
               {activePanel === key && (
                 <div className="absolute bottom-0 left-1 right-1 h-0.5 bg-blue-600 rounded-t-full" />
@@ -1214,18 +1221,27 @@ export const StudentCard = ({
               <div className="space-y-4 sm:space-y-8 animate-in fade-in duration-500">
                  {/* Stat Boxes — 3 cột trên mobile */}
                  <div className="grid grid-cols-1 min-[360px]:grid-cols-3 gap-2 sm:gap-4 md:gap-6 min-w-0">
-                    <div className="bg-blue-50/60 border border-blue-100 rounded-xl sm:rounded-2xl text-center flex flex-col items-center justify-center p-2.5 sm:p-6 min-w-0 overflow-hidden">
-                       <p className="text-[10px] sm:text-xs font-bold text-blue-600 uppercase tracking-wide mb-1 truncate max-w-full">Đã học</p>
+                    <div className="group bg-blue-50/60 border border-blue-100 rounded-xl sm:rounded-2xl text-center flex flex-col items-center justify-center p-2.5 sm:p-6 min-w-0 overflow-hidden">
+                       <p className="text-[10px] sm:text-xs lg:text-sm font-bold text-blue-600 uppercase tracking-wide mb-1 truncate max-w-full">Đã học</p>
+                       <div className="relative mb-1 flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500 text-white shadow-md shadow-blue-200 transition-transform group-hover:scale-105">
+                         <CheckCircle size={18} strokeWidth={2.4} />
+                       </div>
                        <h4 className="text-lg sm:text-4xl font-extrabold text-blue-600 leading-none tabular-nums">{done}</h4>
                        <p className="text-[10px] sm:text-xs font-bold text-blue-400 mt-1 uppercase">buổi</p>
                     </div>
-                    <div className="bg-amber-50/60 border border-amber-100 rounded-xl sm:rounded-2xl text-center flex flex-col items-center justify-center p-2.5 sm:p-6 min-w-0 overflow-hidden">
-                       <p className="text-[10px] sm:text-xs font-bold uppercase tracking-wide mb-1 text-amber-600 truncate max-w-full">Còn lại</p>
+                    <div className="group bg-amber-50/60 border border-amber-100 rounded-xl sm:rounded-2xl text-center flex flex-col items-center justify-center p-2.5 sm:p-6 min-w-0 overflow-hidden">
+                       <p className="text-[10px] sm:text-xs lg:text-sm font-bold uppercase tracking-wide mb-1 text-amber-600 truncate max-w-full">Còn lại</p>
+                       <div className="relative mb-1 flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500 text-white shadow-md shadow-amber-200 transition-transform group-hover:scale-105">
+                         <Clock size={18} strokeWidth={2.4} />
+                       </div>
                        <h4 className="text-lg sm:text-4xl font-extrabold leading-none tabular-nums text-amber-600">{remainingSessions}</h4>
                        <p className="text-[10px] sm:text-xs font-bold mt-1 uppercase text-amber-400">buổi</p>
                     </div>
-                    <div className="bg-purple-50/60 border border-purple-100 rounded-xl sm:rounded-2xl text-center flex flex-col items-center justify-center p-2.5 sm:p-6 min-w-0 overflow-hidden">
-                       <p className="text-[10px] sm:text-xs font-bold text-purple-600 uppercase tracking-wide mb-1 truncate max-w-full">Điểm TB</p>
+                    <div className="group bg-purple-50/60 border border-purple-100 rounded-xl sm:rounded-2xl text-center flex flex-col items-center justify-center p-2.5 sm:p-6 min-w-0 overflow-hidden">
+                       <p className="text-[10px] sm:text-xs lg:text-sm font-bold text-purple-600 uppercase tracking-wide mb-1 truncate max-w-full">Điểm TB</p>
+                       <div className="relative mb-1 flex h-9 w-9 items-center justify-center rounded-xl bg-purple-500 text-white shadow-md shadow-purple-200 transition-transform group-hover:scale-105">
+                         <Star size={18} strokeWidth={2.4} />
+                       </div>
                        <div className="flex items-baseline justify-center gap-0.5 min-w-0">
                           <h4 className="text-lg sm:text-4xl font-extrabold text-purple-600 leading-none tabular-nums">{student.lastGrade || 0}</h4>
                           <span className="text-[10px] sm:text-lg font-bold text-purple-400">/10</span>
@@ -1494,7 +1510,7 @@ export const StudentCard = ({
                                 const isAdmin = role === 'admin' || role === 'staff';
                                 const label = isAdmin ? 'Admin giao' : 'Giáo viên';
                                 return (
-                                  <span className={`shrink-0 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wide border ${
+                                  <span className={`shrink-0 px-1.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wide border ${
                                     isAdmin
                                       ? 'bg-violet-100 text-violet-700 border-violet-200'
                                       : 'bg-sky-100 text-sky-700 border-sky-200'
@@ -1717,7 +1733,7 @@ export const StudentCard = ({
                                 <span className="text-xs font-black text-slate-900 font-mono">
                                   {log.time ? `${log.time} — ${log.date}` : log.date}
                                 </span>
-                                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md border ${meta.badge}`}>
+                                <span className={`text-[11px] font-black uppercase px-2 py-0.5 rounded-md border ${meta.badge}`}>
                                   {meta.label}
                                 </span>
                               </div>

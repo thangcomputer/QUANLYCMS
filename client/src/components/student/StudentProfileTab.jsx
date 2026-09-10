@@ -159,17 +159,17 @@ export default function StudentProfileTab({
             <div className="mt-3 lg:mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 max-w-xl">
               <div className="rounded-xl bg-white/12 backdrop-blur-sm px-3 py-2.5 lg:px-4 lg:py-3">
                 <p className="text-lg sm:text-xl lg:text-2xl font-extrabold tabular-nums leading-none">{progressPct}%</p>
-                <p className="text-[10px] sm:text-xs text-teal-100 mt-1 font-semibold uppercase tracking-wide">Tiến độ</p>
+                <p className="text-[11px] sm:text-xs text-teal-100 mt-1 font-semibold uppercase tracking-wide">Tiến độ</p>
               </div>
               <div className="rounded-xl bg-white/12 backdrop-blur-sm px-3 py-2.5 lg:px-4 lg:py-3">
                 <p className="text-lg sm:text-xl lg:text-2xl font-extrabold tabular-nums leading-none">{studentData.avgGrade ?? 0}</p>
-                <p className="text-[10px] sm:text-xs text-teal-100 mt-1 font-semibold uppercase tracking-wide">Điểm TB</p>
+                <p className="text-[11px] sm:text-xs text-teal-100 mt-1 font-semibold uppercase tracking-wide">Điểm TB</p>
               </div>
               <div className="rounded-xl bg-white/12 backdrop-blur-sm px-3 py-2.5 lg:px-4 lg:py-3 col-span-2 sm:col-span-1">
                 <p className="text-lg sm:text-xl lg:text-2xl font-extrabold tabular-nums leading-none">
                   {studentData.remainingSessions ?? Math.max(0, (studentData.totalSessions || 0) - (studentData.completedSessions || 0))}
                 </p>
-                <p className="text-[10px] sm:text-xs text-teal-100 mt-1 font-semibold uppercase tracking-wide">Buổi còn lại</p>
+                <p className="text-[11px] sm:text-xs text-teal-100 mt-1 font-semibold uppercase tracking-wide">Buổi còn lại</p>
               </div>
             </div>
           </div>
@@ -225,7 +225,7 @@ export default function StudentProfileTab({
                 <li key={item.label} className="flex items-center gap-3 px-4 py-3 lg:px-5 lg:py-3.5 min-w-0 hover:bg-slate-50/60">
                   <item.icon size={16} className="text-slate-400 shrink-0" aria-hidden="true" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-[10px] lg:text-[11px] font-bold uppercase tracking-wide text-slate-400">{item.label}</p>
+                    <p className="text-[11px] lg:text-sm font-bold uppercase tracking-wide text-slate-400">{item.label}</p>
                     <p className="text-sm lg:text-[15px] font-semibold text-slate-800 truncate">{item.value}</p>
                   </div>
                 </li>
@@ -247,21 +247,21 @@ export default function StudentProfileTab({
               <li className="flex items-start gap-3 px-4 py-3 lg:px-5 lg:py-3.5 min-w-0">
                 <GraduationCap size={16} className="text-slate-400 shrink-0 mt-0.5" aria-hidden="true" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] lg:text-[11px] font-bold uppercase tracking-wide text-slate-400">Giáo viên</p>
+                  <p className="text-[11px] lg:text-sm font-bold uppercase tracking-wide text-slate-400">Giáo viên</p>
                   <p className="text-sm lg:text-[15px] font-semibold text-slate-800">{teacherValue}</p>
                 </div>
               </li>
               <li className="flex items-center gap-3 px-4 py-3 lg:px-5 lg:py-3.5 min-w-0">
                 <BadgeDollarSign size={16} className="text-slate-400 shrink-0" aria-hidden="true" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] lg:text-[11px] font-bold uppercase tracking-wide text-slate-400">Trạng thái</p>
+                  <p className="text-[11px] lg:text-sm font-bold uppercase tracking-wide text-slate-400">Trạng thái</p>
                   <p className="text-sm lg:text-[15px] font-semibold text-slate-800 truncate">{studentData.status}</p>
                 </div>
               </li>
               <li className="flex items-start gap-3 px-4 py-3 lg:px-5 lg:py-3.5 min-w-0">
                 <Wallet size={16} className="text-slate-400 shrink-0 mt-0.5" aria-hidden="true" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-[10px] lg:text-[11px] font-bold uppercase tracking-wide text-slate-400">Học phí theo khóa</p>
+                  <p className="text-[11px] lg:text-sm font-bold uppercase tracking-wide text-slate-400">Học phí theo khóa</p>
                   <ul className="mt-1 space-y-1">
                     {tuitionLines.map((line) => (
                       <li key={line} className="text-sm lg:text-[15px] font-semibold text-slate-800 leading-snug">{line}</li>
@@ -277,7 +277,7 @@ export default function StudentProfileTab({
                     aria-hidden="true"
                   />
                   <div>
-                    <p className="text-[10px] lg:text-[11px] font-bold uppercase tracking-wide text-slate-400">Thanh toán</p>
+                    <p className="text-[11px] lg:text-sm font-bold uppercase tracking-wide text-slate-400">Thanh toán</p>
                     <p className={`text-sm lg:text-[15px] font-bold ${studentData.paid ? 'text-emerald-600' : 'text-red-500'}`}>
                       {studentData.paid ? 'Đã đóng học phí' : 'Chưa đóng'}
                     </p>

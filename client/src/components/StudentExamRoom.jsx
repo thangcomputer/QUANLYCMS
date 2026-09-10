@@ -660,41 +660,62 @@ const StudentExamRoom = ({
           <button
             type="button"
             onClick={() => setRoomTab('quiz')}
-            className={`min-h-[7.5rem] p-5 rounded-2xl text-left shadow-sm transition-all border-2 ${
+            className={`group min-h-[7.5rem] p-5 rounded-2xl text-left shadow-md transition-all duration-200 border-2 hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 active:translate-y-0 ${
               roomTab === 'quiz'
-                ? 'bg-white border-red-500 ring-2 ring-red-100'
+                ? 'bg-white border-red-500 ring-2 ring-red-100 shadow-red-100/70'
                 : 'bg-white border-slate-100 hover:border-red-300'
             }`}
           >
-            <Trophy size={22} className="text-red-600 mb-2" />
-            <p className="font-black text-slate-800 text-base">Trắc nghiệm buổi học</p>
-            <p className="text-xs text-slate-500 mt-1 font-medium">Bài do giảng viên giao theo buổi học</p>
+            <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-4">
+              <span className="relative flex h-14 w-14 shrink-0 items-center justify-center justify-self-center overflow-hidden rounded-2xl bg-gradient-to-br from-red-500 via-rose-600 to-red-800 text-white shadow-lg shadow-red-300/50 ring-1 ring-white/80 transition-transform duration-300 group-hover:scale-105 group-hover:rotate-2">
+                <span className="absolute -right-5 -top-5 h-10 w-10 rounded-full bg-white/35 blur-md transition-transform duration-500 group-hover:translate-x-1 group-hover:translate-y-1" />
+                <Trophy size={32} strokeWidth={2.1} className="relative drop-shadow-md" aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="font-black text-slate-800 text-base">Trắc nghiệm buổi học</p>
+                <p className="text-xs text-slate-500 mt-1 font-medium">Bài do giảng viên giao theo buổi học</p>
+              </div>
+            </div>
           </button>
           <button
             type="button"
             onClick={() => setRoomTab('cert')}
-            className={`min-h-[7.5rem] p-5 rounded-2xl text-left shadow-sm transition-all border-2 ${
+            className={`group min-h-[7.5rem] p-5 rounded-2xl text-left shadow-md transition-all duration-200 border-2 hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 active:translate-y-0 ${
               roomTab === 'cert'
-                ? 'bg-white border-red-500 ring-2 ring-red-100'
+                ? 'bg-white border-red-500 ring-2 ring-red-100 shadow-red-100/70'
                 : 'bg-white border-slate-100 hover:border-red-300'
             }`}
           >
-            <Monitor size={22} className="text-red-600 mb-2" />
-            <p className="font-black text-slate-800 text-base">Thi chứng nhận môn học</p>
-            <p className="text-xs text-slate-500 mt-1 font-medium">Thi có camera · theo tiến độ khóa học</p>
+            <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-4">
+              <span className="relative flex h-14 w-14 shrink-0 items-center justify-center justify-self-center overflow-hidden rounded-2xl bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-800 text-white shadow-lg shadow-blue-300/50 ring-1 ring-white/80 transition-transform duration-300 group-hover:scale-105 group-hover:-rotate-2">
+                <span className="absolute -right-5 -top-5 h-10 w-10 rounded-full bg-white/35 blur-md transition-transform duration-500 group-hover:translate-x-1 group-hover:translate-y-1" />
+                <Monitor size={32} strokeWidth={2.1} className="relative drop-shadow-md" aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="font-black text-slate-800 text-base">Thi chứng nhận môn học</p>
+                <p className="text-xs text-slate-500 mt-1 font-medium">Thi có camera · theo tiến độ khóa học</p>
+              </div>
+            </div>
           </button>
           <button
             type="button"
             onClick={() => setRoomTab('scores')}
-            className={`min-h-[7.5rem] p-5 rounded-2xl text-left shadow-sm transition-all border-2 ${
+            className={`group min-h-[7.5rem] p-5 rounded-2xl text-left shadow-md transition-all duration-200 border-2 hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-100 active:translate-y-0 ${
               roomTab === 'scores'
-                ? 'bg-white border-red-500 ring-2 ring-red-100'
+                ? 'bg-white border-red-500 ring-2 ring-red-100 shadow-red-100/70'
                 : 'bg-white border-slate-100 hover:border-red-300'
             }`}
           >
-            <Award size={22} className="text-red-600 mb-2" />
-            <p className="font-black text-slate-800 text-base">Xem điểm của tôi</p>
-            <p className="text-xs text-slate-500 mt-1 font-medium">Nhật ký điểm trắc nghiệm &amp; chứng nhận</p>
+            <div className="grid grid-cols-[3.5rem_minmax(0,1fr)] items-center gap-4">
+              <span className="relative flex h-14 w-14 shrink-0 items-center justify-center justify-self-center overflow-hidden rounded-2xl bg-gradient-to-br from-amber-400 via-orange-500 to-red-700 text-white shadow-lg shadow-orange-300/50 ring-1 ring-white/80 transition-transform duration-300 group-hover:scale-105 group-hover:rotate-2">
+                <span className="absolute -right-5 -top-5 h-10 w-10 rounded-full bg-white/35 blur-md transition-transform duration-500 group-hover:translate-x-1 group-hover:translate-y-1" />
+                <Award size={32} strokeWidth={2.1} className="relative drop-shadow-md" aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="font-black text-slate-800 text-base">Xem điểm của tôi</p>
+                <p className="text-xs text-slate-500 mt-1 font-medium">Nhật ký điểm trắc nghiệm &amp; chứng nhận</p>
+              </div>
+            </div>
           </button>
         </div>
 

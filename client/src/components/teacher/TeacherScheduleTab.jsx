@@ -104,8 +104,9 @@ export default function TeacherScheduleTab({
       {/* Top Banner Toolbar & Quick Stats */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center shrink-0 border border-red-100 shadow-sm">
-            <Calendar size={22} />
+          <div className="relative flex w-11 h-11 sm:w-12 sm:h-12 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-red-500 via-rose-500 to-red-700 text-white shadow-lg shadow-red-200/70 ring-2 ring-white">
+            <span className="absolute -right-3 -top-3 h-8 w-8 rounded-full bg-white/45 blur-md" aria-hidden="true" />
+            <Calendar size={24} strokeWidth={2.3} className="relative drop-shadow-md" />
           </div>
           <div className="min-w-0">
             <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
@@ -121,8 +122,9 @@ export default function TeacherScheduleTab({
       {/* Stats Summary Cards */}
       <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
         <div className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center gap-2 sm:gap-3 text-center sm:text-left">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-            <CheckCircle size={20} />
+          <div className="relative flex w-10 h-10 sm:w-11 sm:h-11 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-400 via-emerald-500 to-teal-700 text-white shadow-lg shadow-emerald-200/70 ring-1 ring-white">
+            <span className="absolute -right-2 -top-2 h-7 w-7 rounded-full bg-white/45 blur-md" aria-hidden="true" />
+            <CheckCircle size={22} strokeWidth={2.3} className="relative drop-shadow-md" />
           </div>
           <div>
             <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wide">Đã dạy tháng này</p>
@@ -133,8 +135,9 @@ export default function TeacherScheduleTab({
         </div>
 
         <div className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center gap-2 sm:gap-3 text-center sm:text-left">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-            <Clock size={20} />
+          <div className="relative flex w-10 h-10 sm:w-11 sm:h-11 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-amber-300 via-orange-400 to-orange-600 text-white shadow-lg shadow-orange-200/70 ring-1 ring-white">
+            <span className="absolute -right-2 -top-2 h-7 w-7 rounded-full bg-white/45 blur-md" aria-hidden="true" />
+            <Clock size={22} strokeWidth={2.3} className="relative drop-shadow-md" />
           </div>
           <div>
             <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wide">Buổi sắp tới</p>
@@ -145,8 +148,9 @@ export default function TeacherScheduleTab({
         </div>
 
         <div className="bg-white rounded-2xl p-3 sm:p-4 border border-slate-100 shadow-sm flex flex-col sm:flex-row items-center gap-2 sm:gap-3 text-center sm:text-left">
-          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-            <Ban size={20} />
+          <div className="relative flex w-10 h-10 sm:w-11 sm:h-11 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-rose-400 via-pink-500 to-red-700 text-white shadow-lg shadow-rose-200/70 ring-1 ring-white">
+            <span className="absolute -right-2 -top-2 h-7 w-7 rounded-full bg-white/45 blur-md" aria-hidden="true" />
+            <Ban size={22} strokeWidth={2.3} className="relative drop-shadow-md" />
           </div>
           <div>
             <p className="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wide">Đã hủy</p>
