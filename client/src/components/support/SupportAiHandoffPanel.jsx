@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Headphones, Loader2 } from 'lucide-react';
 import { aiSupportAPI } from '../../services/api';
 import { useSocket } from '../../context/SocketContext';
-import { AI_SUPPORT_STATUS } from '../../utils/aiSupport';
+import { AI_SUPPORT_STATUS, handoffReasonLabel } from '../../utils/aiSupport';
 
 function statusLabel(status) {
   if (status === AI_SUPPORT_STATUS.SUPPORT_ACTIVE) return 'Đang hỗ trợ';
@@ -84,7 +84,7 @@ export default function SupportAiHandoffPanel({ onOpen, onQueueChange }) {
                   </span>
                 </span>
                 <span className="block text-[11px] text-slate-500 truncate mt-0.5">
-                  {item.lastMessage || item.handoffReason || 'Cần hỗ trợ'}
+                  {item.lastMessage || handoffReasonLabel(item.handoffReason)}
                 </span>
               </button>
             </li>

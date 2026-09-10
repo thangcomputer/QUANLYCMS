@@ -39,6 +39,7 @@ async function upsertPresence(key, user) {
   const row = {
     userId: user.userId,
     role: user.role,
+    adminRole: user.adminRole || null,
     name: user.name,
     branchId: user.branchId || null,
     branchCode: user.branchCode || '',

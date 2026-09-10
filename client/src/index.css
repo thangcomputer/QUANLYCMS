@@ -691,6 +691,62 @@
   body.cms-lms-player-open .cms-fm-root {
     z-index: 115;
   }
+  .cms-lms-attention {
+    position: fixed;
+    z-index: 130;
+    top: max(0.75rem, env(safe-area-inset-top, 0px));
+    right: max(0.75rem, env(safe-area-inset-right, 0px));
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    max-width: calc(100vw - 1.5rem);
+    padding: 0.35rem;
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    border-radius: 0.9rem;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 8px 28px rgba(15, 23, 42, 0.2);
+    backdrop-filter: blur(12px);
+    animation: cms-fade-in 180ms ease both;
+  }
+  .cms-lms-attention.is-dismissed { display: none; }
+  .cms-lms-attention__label {
+    @apply hidden sm:inline-flex items-center px-2 text-[10px] font-black uppercase tracking-wide text-slate-400;
+  }
+  .cms-lms-attention__item {
+    @apply inline-flex items-center gap-1.5 min-h-9 rounded-lg px-2.5 text-[11px] font-bold transition;
+  }
+  .cms-lms-attention__item strong {
+    @apply min-w-[1.1rem] h-[1.1rem] px-1 rounded-full text-[10px] flex items-center justify-center;
+  }
+  .cms-lms-attention__item--notification {
+    @apply bg-red-50 text-red-700 hover:bg-red-100;
+  }
+  .cms-lms-attention__item--notification strong {
+    @apply bg-red-600 text-white;
+  }
+  .cms-lms-attention__item--message {
+    @apply bg-violet-50 text-violet-700 hover:bg-violet-100;
+  }
+  .cms-lms-attention__item--message strong {
+    @apply bg-violet-600 text-white;
+  }
+  .cms-lms-attention__close {
+    @apply w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition;
+  }
+  @media (max-width: 639.98px) {
+    .cms-lms-attention {
+      top: max(0.5rem, env(safe-area-inset-top, 0px));
+      right: max(0.5rem, env(safe-area-inset-right, 0px));
+      left: max(0.5rem, env(safe-area-inset-left, 0px));
+      justify-content: flex-end;
+    }
+    .cms-lms-attention__item {
+      flex: 1 1 0;
+      justify-content: center;
+      min-width: 0;
+    }
+    .cms-lms-attention__item span { @apply truncate; }
+  }
   .cms-fm-root > * { pointer-events: auto; }
 
   .cms-fm-dock {
@@ -764,6 +820,9 @@
   }
   .cms-fm-fab--mascot {
     @apply p-0 bg-transparent border-0 shadow-none hover:scale-105 active:scale-95 transition-all duration-200;
+  }
+  .cms-fm-fab--mascot.is-expanded {
+    @apply bg-slate-800 text-white shadow-xl;
   }
   .cms-fm-fab__badge {
     @apply absolute -top-0.5 -right-0.5 min-w-[1.15rem] h-[1.15rem] px-1 rounded-full bg-emerald-500 text-[10px] font-black text-white flex items-center justify-center ring-2 ring-white;
@@ -964,11 +1023,22 @@
     }
     .cms-fm-window {
       width: min(100vw - 1rem, 400px);
-      height: min(58dvh, 480px);
+      height: min(70dvh, 560px);
+      max-height: calc(100dvh - 1rem);
     }
     .cms-fm-support {
       width: min(100vw - 1rem, 320px);
       max-height: min(50dvh, 360px);
+    }
+    .cms-fm-icon-btn,
+    .cms-fm-attach,
+    .cms-fm-reaction-trigger {
+      min-width: 40px;
+      min-height: 40px;
+    }
+    .cms-fm-reaction-option {
+      min-width: 40px;
+      min-height: 40px;
     }
   }
 
@@ -3683,4 +3753,3 @@ details[open] > summary .cms-rbac-accordion-chevron { transform: rotate(180deg);
   color: #dc2626;
   border-bottom-color: #dc2626;
 }
-

@@ -15,6 +15,7 @@ import {
   practicalFileViewUrl,
 } from '../utils/teacherExam';
 import { isTeacherPending } from '../../../constants/teacherStatus';
+import TeacherAccessReasonModal from '../shared/TeacherAccessReasonModal';
 
 const PROCESS_STEPS = [
   'Bài Test ≥ 80đ',
@@ -23,9 +24,10 @@ const PROCESS_STEPS = [
   'Cấp quyền',
 ];
 
-function StatusBadge({ active, pending, locked }) {
+function StatusBadge({ active, pending, locked, suspended }) {
   if (active) return <span className="cms-students-badge-success">Đã cấp quyền</span>;
   if (pending) return <span className="cms-students-badge-neutral" style={{ background: '#fffbeb', color: '#b45309' }}>Chờ duyệt</span>;
+  if (suspended) return <span className="cms-students-badge-primary" style={{ background: '#fff7ed', color: '#c2410c' }}>Tạm ngưng</span>;
   if (locked) return <span className="cms-students-badge-primary">Đã khóa</span>;
   return <span className="cms-students-badge-neutral">Chưa cấp quyền</span>;
 }
@@ -39,6 +41,7 @@ function TeacherActionMenu({
   setReviewModal,
   setGrantModal,
   setApproveModal,
+  setAccessModal,
   setEditTeacher,
   handlePayTeacher,
   removeTeacher,
@@ -70,6 +73,18 @@ function TeacherActionMenu({
           <span>Thanh toán lương</span>
         </button>
       )}
+      {canManageTeacherActions && active && (
+        <button type="button" role="menuitem" onClick={() => { setAccessModal({ id: t.id, name: t.name || t.email || t.phone, type: 'suspend' }); close(); }}
+          className={`${itemCls} text-amber-700 hover:bg-amber-50`}>
+          <span className="shrink-0">⏸</span><span>Tạm ngưng quyền giảng dạy</span>
+        </button>
+      )}
+      {canManageTeacherActions && String(t.status).toLowerCase() === 'suspended' && (
+        <button type="button" role="menuitem" onClick={() => { setAccessModal({ id: t.id, name: t.name || t.email || t.phone, type: 'reactivate' }); close(); }}
+          className={`${itemCls} text-emerald-700 hover:bg-emerald-50`}>
+          <span className="shrink-0">▶</span><span>Khôi phục quyền giảng dạy</span>
+        </button>
+      )}
       {canManageTeacherActions && inactive && (
         <button type="button" role="menuitem"
           onClick={() => { setGrantModal({ id: t.id, name: t.name || t.email || t.phone, type: locked ? 'retry' : 'first' }); close(); }}
@@ -78,12 +93,24 @@ function TeacherActionMenu({
           <span>{locked ? 'Cấp quyền thi lại' : 'Cấp truy cập thi'}</span>
         </button>
       )}
+      {canManageTeacherActions && !active && !pending && String(t.status).toLowerCase() !== 'suspended' && (
+        <button type="button" role="menuitem"
+          onClick={() => { setAccessModal({ id: t.id, name: t.name || t.email || t.phone, type: 'manual' }); close(); }}
+          className={`${itemCls} text-violet-700 hover:bg-violet-50`}>
+          <Unlock size={15} className="shrink-0" />
+          <span>Cấp quyền thủ công</span>
+        </button>
+      )}
       {canManageTeacherActions && pending && (
-        <button type="button" role="menuitem" disabled={!canApprove}
-          onClick={() => { if (canApprove) { setApproveModal(t); close(); } }}
-          className={`${itemCls} ${canApprove ? 'text-emerald-700 hover:bg-emerald-50' : 'text-slate-300 cursor-not-allowed'}`}>
+        <button type="button" role="menuitem"
+          onClick={() => {
+            if (canApprove) setApproveModal(t);
+            else setAccessModal({ id: t.id, name: t.name || t.email || t.phone, type: 'manual' });
+            close();
+          }}
+          className={`${itemCls} ${canApprove ? 'text-emerald-700 hover:bg-emerald-50' : 'text-violet-700 hover:bg-violet-50'}`}>
           <UserCheck size={15} className="shrink-0" />
-          <span>Cấp quyền giảng dạy</span>
+          <span>{canApprove ? 'Cấp quyền giảng dạy' : 'Cấp quyền thủ công'}</span>
         </button>
       )}
       {canManageTeacherActions && t.practicalFile && t.practicalStatus !== 'reviewed' && (
@@ -97,7 +124,7 @@ function TeacherActionMenu({
         <button type="button" role="menuitem" onClick={() => { setEditTeacher(t); close(); }}
           className={`${itemCls} text-slate-700 hover:bg-slate-50`}>
           <Edit3 size={15} className="shrink-0 text-slate-500" />
-          <span>Chỉnh sửa / lương</span>
+          <span>Chỉnh sửa hồ sơ &amp; mức lương</span>
         </button>
       )}
       {canManageTeacherActions && (
@@ -122,6 +149,7 @@ export default function AdminTeachersTab() {
     teachers, safeTeachers, filteredTeachers, teacherSearch, setTeacherSearch, isSuperAdmin, isHighAdmin, setShowTeacherModal,
     getTeacherRating, setReviewModal, setGrantModal, setApproveModal, setEditTeacher, handlePayTeacher,
     removeTeacher, approveTeacher, fetchTeachers, reviewModal, approveModal, markFileReviewed, toast,
+    manualActivateTeacher, suspendTeacher, reactivateTeacher,
   } = useAdminTab();
 
   const canManageTeacherActions = !!(isSuperAdmin || isHighAdmin);
@@ -129,6 +157,7 @@ export default function AdminTeachersTab() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [menuId, setMenuId] = useState(null);
   const [submittingAction, setSubmittingAction] = useState(null);
+  const [accessModal, setAccessModal] = useState(null);
   const menuRootRef = useRef(null);
 
   useEffect(() => {
@@ -167,6 +196,7 @@ export default function AdminTeachersTab() {
     setReviewModal,
     setGrantModal,
     setApproveModal,
+    setAccessModal,
     setEditTeacher,
     handlePayTeacher,
     removeTeacher,
@@ -320,7 +350,7 @@ export default function AdminTeachersTab() {
                   </div>
                   <div className="flex items-center justify-between sm:flex sm:flex-col sm:items-end gap-1 min-w-0">
                     <p className="text-[10px] font-semibold text-slate-500 uppercase">Trạng thái</p>
-                    <StatusBadge active={active} pending={pending} locked={locked} />
+                    <StatusBadge active={active} pending={pending} locked={locked} suspended={String(t.status).toLowerCase() === 'suspended'} />
                   </div>
                 </div>
 
@@ -508,10 +538,11 @@ export default function AdminTeachersTab() {
           <div className="cms-sheet w-full md:max-w-lg" role="dialog" aria-modal="true">
             <div className="cms-sheet-handle md:hidden" aria-hidden="true" />
             <div className="cms-sheet-header">
-              <h3 className="text-base font-semibold text-slate-900 flex items-center gap-2">
-                <FileSpreadsheet size={18} className="text-sky-600" /> Kiểm tra bài thực hành
-              </h3>
-              <button type="button" onClick={() => setReviewModal(null)} className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-500" aria-label="Đóng">
+              <span className="cms-sheet-header__side bg-sky-50 text-sky-600" aria-hidden="true">
+                <FileSpreadsheet size={18} />
+              </span>
+              <h3 className="cms-sheet-header__title">Kiểm tra bài thực hành</h3>
+              <button type="button" onClick={() => setReviewModal(null)} className="cms-sheet-header__side bg-slate-50 text-slate-500" aria-label="Đóng">
                 <X size={18} />
               </button>
             </div>
@@ -563,8 +594,11 @@ export default function AdminTeachersTab() {
           <div className="cms-sheet w-full md:max-w-md" role="dialog" aria-modal="true">
             <div className="cms-sheet-handle md:hidden" aria-hidden="true" />
             <div className="cms-sheet-header">
-              <h3 className="text-base font-semibold text-slate-900">Cấp quyền giảng viên</h3>
-              <button type="button" onClick={() => setApproveModal(null)} className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-500" aria-label="Đóng">
+              <span className="cms-sheet-header__side bg-emerald-50 text-emerald-600" aria-hidden="true">
+                <Unlock size={18} />
+              </span>
+              <h3 className="cms-sheet-header__title">Cấp quyền giảng viên</h3>
+              <button type="button" onClick={() => setApproveModal(null)} className="cms-sheet-header__side bg-slate-50 text-slate-500" aria-label="Đóng">
                 <X size={18} />
               </button>
             </div>
@@ -615,6 +649,22 @@ export default function AdminTeachersTab() {
           </div>
         </>
       )}
+      <TeacherAccessReasonModal
+        modal={accessModal}
+        onCancel={() => setAccessModal(null)}
+        onConfirm={async (reason) => {
+          try {
+            if (accessModal.type === 'manual') await manualActivateTeacher(accessModal.id, reason);
+            else if (accessModal.type === 'suspend') await suspendTeacher(accessModal.id, reason);
+            else await reactivateTeacher(accessModal.id);
+            toast.success(accessModal.type === 'manual' ? 'Đã cấp quyền thủ công' : accessModal.type === 'suspend' ? 'Đã tạm ngưng quyền' : 'Đã hoạt động lại quyền');
+            setAccessModal(null);
+            fetchTeachers();
+          } catch (err) {
+            toast.error(err.message || 'Không thể cập nhật quyền giảng dạy');
+          }
+        }}
+      />
     </>
   );
 }

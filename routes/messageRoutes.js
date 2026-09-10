@@ -332,10 +332,17 @@ router.get('/sync/:userId', messagesGuard('sync'), async (req, res) => {
 
     // Lấy tin nhắn cá nhân + tin nhắn nhóm
     // Legacy receiverId/senderId 'admin' chỉ cho SUPER/HIGH — không fan-out cho STAFF
+    const syncRole = getMessagingRole(req.user);
+    const broadcastIds = syncRole === 'student'
+      ? ['ALL_USERS', 'ALL_STUDENTS']
+      : syncRole === 'teacher'
+        ? ['ALL_USERS', 'ALL_TEACHERS']
+        : ['ALL_USERS'];
     const messages = await Message.find({
       $or: [
         { senderId: { $in: targetIds } },
         { receiverId: { $in: targetIds } },
+        { receiverId: { $in: broadcastIds } },
         ...(isAdminLevelAccount(req.user) ? [{ senderId: 'admin' }, { receiverId: 'admin' }] : []),
         ...(groupIds.length > 0 ? [
           { conversationId: { $in: groupIds.map(id => `group_${id}`) } },
@@ -585,6 +592,22 @@ router.put('/:conversationId/pin', messagesGuard('reaction'), async (req, res) =
     const message = await Message.findOne({ _id: messageId, conversationId });
     if (!message) return res.status(404).json({ success: false, message: 'Không tìm thấy tin nhắn' });
 
+    const isGroupConv = String(conversationId).startsWith('group_');
+    let canPin = false;
+    if (isGroupConv) {
+      const groupId = String(conversationId).slice('group_'.length);
+      const group = await Group.findById(groupId).select('participants').lean();
+      canPin = Boolean(
+        group?.participants?.some((p) => String(p.userId) === String(req.user.id))
+        || isAdminLevelAccount(req.user),
+      );
+    } else {
+      canPin = canAccessDirectConversation(conversationId, req.user);
+    }
+    if (!canPin) {
+      return res.status(403).json({ success: false, message: 'Bạn không thuộc cuộc hội thoại này' });
+    }
+
     // Toggle pin status
     message.isPinned = !message.isPinned;
     await message.save();
@@ -632,11 +655,17 @@ router.patch('/:messageId/reaction', messagesGuard('reaction'), async (req, res)
   try {
     const { messageId } = req.params;
     const { type } = req.body; // 'heart' or 'like'
+    if (!['heart', 'like'].includes(type)) {
+      return res.status(400).json({ success: false, message: 'Loại reaction không hợp lệ' });
+    }
     const userId = req.user.id;
     const userName = req.user.name;
 
     const message = await Message.findById(messageId);
     if (!message) return res.status(404).json({ success: false, message: 'Không tìm thấy tin nhắn' });
+    if (String(message.conversationId || '').includes('system_ai_support')) {
+      return res.status(403).json({ success: false, message: 'Không thể thả cảm xúc trong cuộc trò chuyện với Trợ lý AI' });
+    }
 
     // BUG-04: Kiểm tra user thuộc cuộc hội thoại
     if (message.isGroup && message.groupId) {
@@ -1239,4 +1268,3 @@ router.use((err, req, res, next) => {
 });
 
 module.exports = router;
-

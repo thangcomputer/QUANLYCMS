@@ -119,6 +119,14 @@ const TeacherSchema = new mongoose.Schema(
       default: null,
     },
     approvedAt: { type: Date },
+    approvalMode: {
+      type: String,
+      enum: ['workflow', 'manual', null],
+      default: null,
+    },
+    approvalNote: { type: String, default: '' },
+    suspendedBy: { type: String, default: null },
+    suspendedAt: { type: Date, default: null },
 
     // ── Lớp phụ trách ─────────────────────────────────────────────
     assignedClasses: [{ type: String }], // Tên các lớp/khóa học

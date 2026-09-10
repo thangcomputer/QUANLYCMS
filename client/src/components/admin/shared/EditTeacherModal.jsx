@@ -227,14 +227,18 @@ export default function EditTeacherModal({
                       <label className="cms-label">Trạng thái duyệt</label>
                       <CmsSelect
                         value={String(editTeacher.status || 'inactive').toLowerCase()}
-                        onChange={(e) => setEditTeacher((p) => ({ ...p, status: e.target.value }))}
                         className="cms-input"
+                        disabled
                       >
                         <option value="inactive">Chưa cấp quyền</option>
                         <option value="pending">Cấp quyền thi (chờ làm bài)</option>
                         <option value="active">Đã cấp quyền (Active)</option>
                         <option value="locked">Đã khóa</option>
+                        <option value="suspended">Tạm ngưng quyền giảng dạy</option>
                       </CmsSelect>
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        Dùng menu thao tác để cấp, tạm ngưng hoặc khôi phục quyền giảng dạy.
+                      </p>
                     </div>
                     <div>
                       <label className="cms-label flex items-center gap-1">

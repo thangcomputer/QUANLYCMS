@@ -36,6 +36,7 @@ import {
   isAiIdlePing,
   isAiIdleEnd,
   isAiIdleStill,
+  handoffReasonLabel,
 } from '../utils/aiSupport';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const showFileName = (name) => displayFileName(name);
@@ -102,7 +103,10 @@ function splitHandoffSummary(text) {
   const marker = 'Hội thoại gần nhất:';
   const i = raw.indexOf(marker);
   if (i < 0) return { head: raw.trim(), transcript: '', footer: '' };
-  const head = raw.slice(0, i).trim();
+  const head = raw.slice(0, i).trim().replace(
+    /Lý do chuyển:\s*([A-Z_]+)/i,
+    (_, reason) => `Lý do chuyển: ${handoffReasonLabel(reason)}`,
+  );
   const rest = raw.slice(i + marker.length).trim();
   const footerIdx = rest.search(/Cần Support xem lại/i);
   if (footerIdx >= 0) {
@@ -2207,9 +2211,14 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
                   );
                 })()}
                 {activeConv.isAiHandoff ? (
+                  (() => {
+                    const isResolved = aiHandoffSession?.status === 'SUPPORT_RESOLVED';
+                    return (
                   <button
                     type="button"
+                    disabled={isResolved}
                     onClick={async () => {
+                      if (isResolved) return;
                       try {
                         const res = await aiSupportAPI.resolve(activeConv.id);
                         if (!res?.success) throw new Error(res?.message || 'Không đóng được');
@@ -2219,11 +2228,17 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
                         toast.error(err.message || 'Không đóng được yêu cầu');
                       }
                     }}
-                    className="flex shrink-0 items-center justify-center px-3 h-9 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-xl text-[10px] font-black uppercase tracking-wide"
-                    title="Đánh dấu đã xử lý"
+                    className={`flex shrink-0 items-center justify-center px-3 h-9 rounded-xl text-[10px] font-black uppercase tracking-wide ${
+                      isResolved
+                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                        : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                    }`}
+                    title={isResolved ? 'Yêu cầu đã được xử lý' : 'Xử lý xong yêu cầu'}
                   >
-                    Đã xử lý
+                    {isResolved ? 'Đã xử lý' : 'Xử lý xong'}
                     </button>
+                    );
+                  })()
                   ) : null}
                   
                   
@@ -3249,7 +3264,6 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
 };
 
 export default Inbox;
-
 
 
 

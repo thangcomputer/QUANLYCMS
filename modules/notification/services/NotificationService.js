@@ -49,15 +49,21 @@ class NotificationService {
           io.to('ALL_STAFF').emit('RECEIVE_NOTIFICATION', socketData);
           io.to('ALL_SUPPORT').emit('RECEIVE_NOTIFICATION', socketData);
           io.to('ALL_TEACHER').emit('RECEIVE_NOTIFICATION', socketData);
+          io.to('ALL_STUDENT').emit('RECEIVE_NOTIFICATION', socketData);
           io.to('ALL_ADMIN').emit('data:refresh', { type: 'global' });
           io.to('ALL_ADMIN').emit('new-notification');
           io.to('ALL_STAFF').emit('new-notification');
           io.to('ALL_SUPPORT').emit('new-notification');
           io.to('ALL_TEACHER').emit('new-notification');
+          io.to('ALL_STUDENT').emit('new-notification');
         } else {
           receiversArr.forEach((receiver) => {
             if (!receiver) return;
-            io.to(receiver).emit('RECEIVE_NOTIFICATION', { ...socketData, userId: receiver });
+            const isBroadcastRoom = /^(ALL_|GLOBAL$|ALL$)/.test(String(receiver));
+            io.to(receiver).emit(
+              'RECEIVE_NOTIFICATION',
+              isBroadcastRoom ? socketData : { ...socketData, userId: receiver },
+            );
             io.to(receiver).emit('data:refresh', { type: 'notification', receiver });
             io.to(String(receiver)).emit('new-notification');
           });

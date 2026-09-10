@@ -56,6 +56,12 @@ export const SocketProvider = ({ userId, role, name, token, adminRole, children 
     }
   }, []);
 
+  const emitMessageRead = useCallback((conversationId) => {
+    if (socketRef.current?.connected && conversationId) {
+      socketRef.current.emit('message:read', { conversationId });
+    }
+  }, []);
+
   const onMessageReceive = useCallback((callback) => {
     messageCallbacksRef.current.add(callback);
     return () => messageCallbacksRef.current.delete(callback);
@@ -284,57 +290,59 @@ export const SocketProvider = ({ userId, role, name, token, adminRole, children 
       triggerRefresh({ type: 'socket:any', eventName, payload });
     };
 
+    const normalizeNotification = (data) => {
+      const id = data?._id || data?.id || Date.now();
+      return {
+        ...data,
+        id,
+        read: Boolean(data?.read),
+        message: data?.content || data?.message || '',
+        time: data?.createdAt || data?.time || new Date(),
+      };
+    };
+
+    const mergeNotifications = (current, incoming) => {
+      const merged = new Map();
+      [...(Array.isArray(current) ? current : []), ...(Array.isArray(incoming) ? incoming : [])]
+        .filter(Boolean)
+        .forEach((item) => {
+          const normalized = normalizeNotification(item);
+          const key = String(normalized.id || normalized._id || '');
+          if (!key) return;
+          merged.set(key, { ...(merged.get(key) || {}), ...normalized });
+        });
+      return [...merged.values()].sort(
+        (a, b) => new Date(b.time || 0) - new Date(a.time || 0),
+      );
+    };
+
     const onReceiveNotification = (data) => {
       if (!data || typeof data !== 'object') return;
       playNotifySound();
       setNotifications((prev) => {
-        const list = Array.isArray(prev) ? prev.filter(Boolean) : [];
-        const id = data._id || data.id || Date.now();
-        if (list.some((n) => n && (n.id === id || n._id === id))) {
-          return list.map((n) => (n && (n.id === id || n._id === id) ? { ...n, ...data, id, read: false } : n));
-        }
-        return [{
-          ...data,
-          id,
-          read: Boolean(data.read),
-          message: data.content || data.message || '',
-          time: data.createdAt || data.time || new Date(),
-        }, ...list];
+        return mergeNotifications(prev, [{ ...data, read: false }]);
       });
     };
 
     const onNewNotification = (notif) => {
-      playNotifySound();
       if (notif && typeof notif === 'object' && (notif._id || notif.id || notif.message || notif.content)) {
-        setNotifications((prev) => {
-          const list = Array.isArray(prev) ? prev.filter(Boolean) : [];
-          const id = notif._id || notif.id || Date.now();
-          if (list.some((n) => n && (n.id === id || n._id === id))) {
-            return list.map((n) => (n && (n.id === id || n._id === id) ? { ...n, ...notif, id, read: false } : n));
-          }
-          return [{
-            ...notif,
-            id,
-            read: false,
-            message: notif.content || notif.message || '',
-            time: notif.createdAt || notif.time || new Date(),
-          }, ...list];
-        });
+        playNotifySound();
+        setNotifications((prev) => mergeNotifications(prev, [{ ...notif, read: false }]));
       } else if (userId) {
         apiFetch('/notifications/unread')
           .then((res) => res.json())
           .then((data) => {
             if (data?.success && Array.isArray(data.data)) {
-              setNotifications(data.data.filter(Boolean).map((n) => ({
+              const incoming = data.data.filter(Boolean).map((n) => ({
                 ...n,
-                id: n._id || n.id || Date.now(),
                 read: Array.isArray(n.read_by) && n.read_by.includes(String(userId)),
-                message: n.content || n.message || '',
-                time: n.createdAt || n.time || new Date(),
-              })));
+              }));
+              setNotifications((prev) => mergeNotifications(prev, incoming));
             }
           })
-          .catch(() => {});
+          .catch((error) => {
+            console.warn('[Socket] Cannot refresh notifications:', error);
+          });
       }
     };
 
@@ -516,6 +524,7 @@ export const SocketProvider = ({ userId, role, name, token, adminRole, children 
     onTypingChange,
     emitTypingStart,
     emitTypingStop,
+    emitMessageRead,
     joinGroupChat,
   };
 
@@ -546,6 +555,7 @@ export const useSocket = () => {
       onGroupNew: () => () => {},
       onGroupDelete: () => () => {},
       onDataRefresh: () => () => {},
+      emitMessageRead: () => {},
     };
   }
   return ctx;

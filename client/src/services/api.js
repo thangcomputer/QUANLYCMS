@@ -1057,6 +1057,32 @@ export const teachersAPI = {
     const res = await apiFetch(`/teachers/${id}/approve`, { method: 'PUT' });
     return res.json();
   },
+  grantExamAccess: async (id) => {
+    const res = await apiFetch(`/teachers/${id}/grant-exam-access`, { method: 'PUT' });
+    return res.json();
+  },
+  reviewPractical: async (id) => {
+    const res = await apiFetch(`/teachers/${id}/review-practical`, { method: 'PUT' });
+    return res.json();
+  },
+  manualActivate: async (id, note) => {
+    const res = await apiFetch(`/teachers/${id}/manual-activate`, {
+      method: 'PUT',
+      body: JSON.stringify({ note }),
+    });
+    return res.json();
+  },
+  suspend: async (id, reason) => {
+    const res = await apiFetch(`/teachers/${id}/suspend`, {
+      method: 'PUT',
+      body: JSON.stringify({ reason }),
+    });
+    return res.json();
+  },
+  reactivate: async (id) => {
+    const res = await apiFetch(`/teachers/${id}/reactivate`, { method: 'PUT' });
+    return res.json();
+  },
   uploadPractical: async (file) => {
     const formData = new FormData();
     formData.append('file', file);
@@ -2528,8 +2554,5 @@ export default {
   blog:          blogAPI,
   centerInfo:    centerInfoAPI,
 };
-
-
-
 
 

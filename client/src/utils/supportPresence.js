@@ -98,14 +98,11 @@ export function buildSupportDirectory({ session, onlineUsers, meId, staffs = [],
     // Presence may mark online — must NOT invent unauthorized peers.
     const onlineIds = new Set();
     users.forEach((u) => {
-      const r = String(u.role || '').toLowerCase();
-      const ar = String(u.adminRole || '').toUpperCase();
-      const isSupport = ar === 'SUPPORT';
-      const isOps = supportAgentsOnly ? isSupport : (r === 'staff' || ar === 'STAFF' || ar === 'SUPPORT');
-      if (isOps) {
-        const uid = String(u.userId || u.id || '');
-        if (uid) onlineIds.add(uid);
-      }
+      // Contacts remain the authorization source; presence only supplies online state.
+      // Transport maps SUPPORT to "staff", so filtering presence by role would hide
+      // an authorized support contact even while their socket is connected.
+      const uid = String(u.userId || u.id || '');
+      if (uid) onlineIds.add(uid);
     });
 
     const peopleList = [];
@@ -118,7 +115,7 @@ export function buildSupportDirectory({ session, onlineUsers, meId, staffs = [],
         // Presentation filter on already-authorized contacts (from /contacts).
         // Prefer productRole when present — never map transport staff → product STAFF.
         const product = String(st.productRole || '').toUpperCase();
-        const isSupportAgent = product === 'SUPPORT' || ar === 'SUPPORT';
+        const isSupportAgent = product === 'SUPPORT' || ar === 'SUPPORT' || r === 'support';
         const isOps = supportAgentsOnly
           ? isSupportAgent
           : (product === 'SUPPORT' || product === 'STAFF'

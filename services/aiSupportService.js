@@ -353,7 +353,9 @@ function uniqueModels() {
 }
 
 function isAiSupportEnabled() {
-  return process.env.AI_SUPPORT_ENABLED === '1';
+  // Keep the explicit flag as an opt-out, while allowing an already configured
+  // AI provider to restore the original automatic-reply behavior.
+  return process.env.AI_SUPPORT_ENABLED !== '0' && isAiConfigured();
 }
 
 function aiSupportConfigured() {
@@ -598,6 +600,336 @@ function studentFaqReply(userRole, userText) {
       '**Bước 3:** Lồng nhiều điều kiện thì dùng `IFS` hoặc `IF` *lồng nhau*.',
       'Muốn xem thêm bài trên LMS: ⟦go:/student#materials|Mở Video học⟧',
       'Bạn đang chấm đạt/không đạt theo cột nào?',
+    ].join('\n');
+  }
+  return null;
+}
+
+function lmsFaqReply(userRole, userText) {
+  const t = normalizeFaqKey(userText);
+  const teacher = isTeacherRole(userRole);
+  const student = isStudentRole(userRole);
+  if (!teacher && !student) return null;
+
+  if (teacher && /(tổng quan|dashboard|công việc cần xử lý|đang dạy|học viên mới|uy tín|5 sao)/i.test(t)) {
+    return [
+      'Hướng dẫn **Tổng quan giảng viên**:',
+      '• **Công việc cần xử lý ngay**: xem điểm danh, bài cần chấm, tin nhắn và lịch cần xếp.',
+      '• **Thu nhập tháng**: xem nhanh thu nhập và mở chi tiết tài chính.',
+      '• **Đang dạy / Học viên mới**: xem số học viên đang phụ trách và học viên mới.',
+      '• **Lịch dạy sắp tới**: xem các buổi trong tháng và mở nhanh Lịch dạy.',
+      '• **5 sao / Uy tín**: theo dõi đánh giá và uy tín giảng viên.',
+      '⟦go:/teacher|Mở Tổng quan⟧',
+    ].join('\n');
+  }
+
+  if (teacher && /(xếp lịch|sắp lịch|tạo buổi học|thêm buổi học|chọn khung giờ|đặt lịch).*(học viên|hv)|học viên.*(xếp lịch|sắp lịch|tạo buổi học|thêm buổi học|chọn khung giờ|đặt lịch)/i.test(t)) {
+    return [
+      'Để **xếp lịch học cho học viên**:',
+      '**Bước 1:** Mở **Tổng quan** và chọn **Xếp lịch**, hoặc mở **Học viên**.',
+      '**Bước 2:** Nếu mở từ **Học viên**, chọn đúng học viên rồi bấm **Sắp lịch**.',
+      '**Bước 3:** Trong popup **Xếp lịch tuần · [Tên học viên]**, kiểm tra đúng khóa học và số buổi còn lại.',
+      '**Bước 4:** Chọn tuần bằng nút tuần trước, tuần hiện tại hoặc tuần sau.',
+      '**Bước 5:** Chọn khung giờ ở đúng ngày cần xếp.',
+      '**Bước 6:** Kiểm tra lại ngày, giờ và học viên rồi bấm **Xếp lịch ngay**.',
+      '*Chỉ khi bấm **Xếp lịch ngay** hệ thống mới lưu thay đổi. Ngày đã qua không thể xếp hoặc sửa lịch; khung giờ bị trùng có thể bị khóa.*',
+      '⟦go:/teacher#students|Mở Học viên⟧ · ⟦go:/teacher#schedule|Mở Lịch học & Điểm danh⟧',
+    ].join('\n');
+  }
+
+  if (teacher && /(học viên|tiến độ|ghi chú học viên)/i.test(t)) {
+    const parts = [
+      '**Học viên** có các mục:',
+      '• **Tiến độ**: xem số buổi đã học, còn lại và điểm trung bình.',
+      '• **Bài tập**: xem bài đã giao hoặc bấm **Giao bài**.',
+      '• **Trắc nghiệm**: tạo bài trắc nghiệm theo buổi học, chọn học viên, thời gian và câu hỏi.',
+      '• **Link học**: cập nhật link Google Meet/Zoom để học viên sử dụng.',
+      '• **Sắp lịch**: chọn khung giờ trong tuần rồi bấm **Xếp lịch ngay**.',
+      '• **Nhật ký**: xem lịch sử điểm danh, hủy buổi, nộp bài, chấm điểm và đánh giá.',
+      '⟦go:/teacher#students|Mở Học viên⟧',
+    ];
+    if (/(bài tập|trắc nghiệm|link học|sắp lịch|nhật ký)/i.test(t)) {
+      parts.push('Hãy mở thẻ đúng tên ở phía trên hồ sơ học viên để thao tác.');
+    }
+    return parts.join('\n');
+  }
+
+  if (/(chức năng|menu|dùng lms|sử dụng lms|trên lms|lms có gì|hướng dẫn lms)/i.test(t)) {
+    return teacher
+      ? [
+        'Các chức năng chính dành cho **giảng viên** trên LMS:',
+        '1. **Tổng quan**: xem lịch sắp tới, học viên và thông báo.',
+        '2. **Học viên**: xem hồ sơ, tiến độ, ghi chú và thao tác điểm danh.',
+        '3. **Lịch dạy**: tạo/sửa buổi học, chọn học viên, điểm danh và yêu cầu điểm danh bù.',
+        '4. **Bài tập & kiểm tra**: tạo bài tập, quiz, giao bài và xem kết quả.',
+        '5. **Đào tạo**: học khóa nội bộ và theo dõi tiến độ.',
+        '6. **Tài chính**: xem buổi đã dạy, tạm tính và thanh toán.',
+        '7. **Hộp thư**: nhắn học viên, giáo vụ hoặc hỗ trợ trực tiếp.',
+        '⟦go:/teacher|Mở Tổng quan⟧ · ⟦go:/teacher#students|Mở Học viên⟧ · ⟦go:/teacher#schedule|Mở Lịch dạy⟧',
+        'Bạn muốn hướng dẫn chức năng nào trước ạ?',
+      ].join('\n')
+      : [
+        'Các chức năng chính dành cho **học viên** trên LMS:',
+        '1. **Tổng quan**: xem tình trạng khóa học và hoạt động gần đây.',
+        '2. **Lịch học**: xem buổi học, giáo viên, điểm danh và lịch sử.',
+        '3. **Tài liệu/Video**: học video, mở tài liệu và phần mềm học tập.',
+        '4. **Bài tập & điểm**: làm bài được giao và xem kết quả.',
+        '5. **Phòng thi/MOS-IC3**: vào thi hoặc luyện chứng chỉ.',
+        '6. **Đánh giá giáo viên**: đánh giá sau buổi học đủ điều kiện.',
+        '7. **Hộp thư**: nhắn giáo viên, giáo vụ hoặc hỗ trợ trực tiếp.',
+        '⟦go:/student|Mở Tổng quan⟧ · ⟦go:/student#schedule|Mở Lịch học⟧ · ⟦go:/student#materials-videos|Mở Video học⟧',
+        'Bạn muốn hướng dẫn chức năng nào trước?',
+      ].join('\n');
+  }
+
+  if (teacher && /(điểm danh|điểm danh bù)/i.test(t)) {
+    return [
+      'Hướng dẫn **điểm danh buổi học**:',
+      '**Bước 1:** Mở **Lịch dạy** hoặc **Học viên**.',
+      '**Bước 2:** Chọn đúng buổi học và học viên.',
+      '**Bước 3:** Chọn trạng thái điểm danh, nhập nhận xét nếu cần rồi lưu.',
+      '**Bước 4:** Nếu bỏ lỡ buổi, chọn **Yêu cầu điểm danh bù** và gửi lý do.',
+      '⟦go:/teacher#schedule|Mở Lịch dạy⟧',
+    ].join('\n');
+  }
+  if (teacher && /(lịch dạy|xếp lịch|tạo lịch)/i.test(t)) {
+    return [
+      'Hướng dẫn **Quản lý Lịch học & Điểm danh**:',
+      '**Bước 1:** Mở mục **Lịch học & Điểm danh** để xem lịch theo tuần.',
+      '**Bước 2:** Chọn **Sắp lịch ngày này** nếu muốn xếp lịch từ lịch tháng, hoặc mở hồ sơ học viên và chọn **Sắp lịch**.',
+      '**Bước 3:** Chọn ngày/khung giờ trong popup rồi bấm **Xếp lịch ngay**.',
+      '**Bước 4:** Với lịch đã có, dùng thao tác đang hiển thị trên ca để xem, ghi chú/đổi lịch hoặc hủy theo quyền được cấp.',
+      '⟦go:/teacher#schedule|Mở Lịch dạy⟧',
+    ].join('\n');
+  }
+  if (teacher && /(tài chính|hoa hồng|thanh toán|thu nhập)/i.test(t)) {
+    return [
+      'Hướng dẫn xem **Tài chính**:',
+      '**Bước 1:** Mở menu **Tài chính**.',
+      '**Bước 2:** Xem các buổi đã dạy, khoản tạm tính và đã thanh toán.',
+      '**Bước 3:** Dùng bảng kê để đối chiếu khi cần.',
+      '⟦go:/teacher/finance|Mở Tài chính⟧',
+    ].join('\n');
+  }
+  if (teacher && /(đào tạo|khóa đào tạo|học khóa)/i.test(t)) {
+    return [
+      'Hướng dẫn **Đào tạo**:',
+      '**Bước 1:** Mở mục **Đào tạo**.',
+      '**Bước 2:** Chọn khóa học nội bộ.',
+      '**Bước 3:** Học video/tài liệu theo thứ tự và theo dõi tiến độ.',
+      '⟦go:/teacher#training|Mở Đào tạo⟧',
+    ].join('\n');
+  }
+  if (teacher && /(học viên|tiến độ học viên|ghi chú học viên)/i.test(t)) {
+    return [
+      'Hướng dẫn quản lý **học viên**:',
+      '**Bước 1:** Mở menu **Học viên**.',
+      '**Bước 2:** Tìm và mở hồ sơ học viên.',
+      '**Bước 3:** Xem tiến độ, lịch học, điểm danh và ghi chú.',
+      '**Bước 4:** Lưu nhận xét/ghi chú hoặc chuyển sang lịch dạy để thao tác buổi học.',
+      '⟦go:/teacher#students|Mở danh sách học viên⟧',
+    ].join('\n');
+  }
+  if (teacher && /(bài tập|quiz|trắc nghiệm|giao bài)/i.test(t)) {
+    return [
+      'Hướng dẫn **bài tập và kiểm tra**:',
+      '**Bước 1:** Mở **Bài tập & kiểm tra**.',
+      '**Bước 2:** Chọn tạo bài tập hoặc quiz.',
+      '**Bước 3:** Nhập câu hỏi, đáp án, thời hạn và chọn học viên.',
+      '**Bước 4:** Lưu/giao bài, sau đó xem kết quả trong cùng khu vực.',
+      '⟦go:/teacher#assignments|Mở Bài tập & kiểm tra⟧',
+    ].join('\n');
+  }
+  if (teacher && /(bảng tin|đăng bài|hỏi bài|chia sẻ bài tập)/i.test(t)) {
+    return [
+      'Hướng dẫn **Bảng tin**:',
+      '**Bước 1:** Mở **Bảng tin**.',
+      '**Bước 2:** Nhập câu hỏi hoặc nội dung muốn chia sẻ, có thể dán ảnh.',
+      '**Bước 3:** Chọn phạm vi người xem rồi bấm **Đăng bài**.',
+      '**Bước 4:** Theo dõi bình luận và trao đổi ngay dưới bài đăng.',
+      '⟦go:/teacher/feed|Mở Bảng tin⟧',
+    ].join('\n');
+  }
+  if (teacher && /(tin tức|bài viết|thông báo trung tâm)/i.test(t)) {
+    return [
+      'Hướng dẫn **Tin tức**:',
+      '**Bước 1:** Mở **Học & tài nguyên → Tin tức**.',
+      '**Bước 2:** Tìm bài viết theo từ khóa, chủ đề, thời gian hoặc sắp xếp mới nhất.',
+      '**Bước 3:** Bấm vào thẻ tin để xem nội dung chi tiết.',
+      '⟦go:/teacher/news|Mở Tin tức⟧',
+    ].join('\n');
+  }
+  if (student && /(tổng quan|dashboard|việc cần làm|tiến độ khóa học|buổi còn lại|điểm trung bình)/i.test(t)) {
+    return [
+      'Hướng dẫn **Tổng quan học viên**:',
+      '• **Khóa học và GV**: xem khóa đang học, giảng viên và số buổi đã học/còn lại.',
+      '• **Điểm TB / Tiến độ**: chỉ hiển thị khi hệ thống đã có điểm hoặc dữ liệu buổi học.',
+      '• **Việc cần làm hôm nay**: xem bài trắc nghiệm, bài tập, lịch học và tin nhắn mới.',
+      '• **Nhật ký học tập & Điểm số**: xem bài nộp, trắc nghiệm và điểm đã được cập nhật.',
+      '*Nếu màn hình ghi “Chưa có lịch sắp tới”, “Chưa có khóa học” hoặc “Chưa có dữ liệu điểm số”, tài khoản chưa được cấp dữ liệu tương ứng hoặc giáo viên chưa tạo/gửi nội dung. Hãy liên hệ giáo viên/giáo vụ nếu bạn đã đăng ký nhưng vẫn trống.*',
+      '⟦go:/student|Mở Tổng quan⟧',
+    ].join('\n');
+  }
+  if (student && /(lịch học|lịch theo tuần|buổi sắp tới|lịch hủy|chưa điểm danh|nhật ký học tập)/i.test(t)) {
+    return [
+      'Hướng dẫn **Lịch học & Điểm danh**:',
+      '**Bước 1:** Mở **Học tập → Lịch học** để xem lịch đã được giảng viên xếp.',
+      '**Bước 2:** Dùng mũi tên để chuyển tuần và xem lịch theo từng ngày.',
+      '**Bước 3:** Xem số buổi đã học, sắp tới, đã hủy và khóa học tương ứng.',
+      '**Bước 4:** Ở **Nhật ký học tập**, chọn **Tất cả**, **Ngày**, **Tuần**, **Tháng**, **Chưa điểm danh** hoặc **Lịch hủy** để lọc.',
+      '**Bước 5:** Khi popup điểm danh xuất hiện, kiểm tra đúng buổi rồi xác nhận; nếu sai, liên hệ GV/giáo vụ để được xử lý.',
+      '*Học viên không tự tạo lịch ở màn hình này. Nếu lịch trống, có thể giáo viên chưa xếp lịch, tài khoản chưa được gắn khóa học, tuần đang xem chưa có buổi hoặc buổi đã bị hủy.*',
+      '⟦go:/student#schedule|Mở Lịch học⟧',
+    ].join('\n');
+  }
+  if (student && /(video|video học|tài liệu|tài liệu khóa học|phần mềm|link phần mềm)/i.test(t)) {
+    return [
+      'Hướng dẫn **Video, Tài liệu và Phần mềm**:',
+      '**Bước 1:** Mở **Học tập** rồi chọn **Video**, **Tài liệu** hoặc **Phần mềm**.',
+      '**Bước 2:** Dùng bộ lọc khóa học/môn học nếu màn hình có bộ lọc.',
+      '**Bước 3:** Với **Video**, mở bài được cấp và học theo thứ tự.',
+      '**Bước 4:** Với **Tài liệu**, bấm **Tải xuống** khi tệp đã được Admin/giáo viên đính kèm.',
+      '**Bước 5:** Với **Phần mềm**, mở link hoặc hướng dẫn cài đặt được trung tâm phát hành.',
+      '*“Chưa có khóa học nào”, “Chưa có file” hoặc “Chưa có link phần mềm” nghĩa là hiện chưa có dữ liệu được cấp cho tài khoản; hãy liên hệ Admin nếu bạn đã đăng ký.*',
+      '⟦go:/student#materials-videos|Mở Video⟧ · ⟦go:/student#materials-files|Mở Tài liệu⟧ · ⟦go:/student#materials-software|Mở Phần mềm⟧',
+    ].join('\n');
+  }
+  if (student && /(bài tập về nhà|bài tập được giao|nộp bài|hạn nộp|bài chưa làm)/i.test(t)) {
+    return [
+      'Hướng dẫn **Bài tập về nhà**:',
+      '**Bước 1:** Mở **Học tập → Bài tập**.',
+      '**Bước 2:** Chọn bài được giao để xem yêu cầu, hạn nộp và tệp đính kèm.',
+      '**Bước 3:** Làm bài theo yêu cầu, tải tệp lên nếu cần rồi bấm **Nộp bài**.',
+      '**Bước 4:** Theo dõi trạng thái đã nộp, điểm và nhận xét của giáo viên.',
+      '*Nếu hiển thị “Hiện tại bạn không có bài tập nào cần nộp”, hiện chưa có bài được giao hoặc bài đã hoàn tất; hãy kiểm tra lại sau khi giáo viên giao bài.*',
+      '⟦go:/student#materials-assignments|Mở Bài tập⟧',
+    ].join('\n');
+  }
+  if (student && /(điểm thi|bảng điểm|kết quả thi|xem điểm của tôi)/i.test(t)) {
+    return [
+      'Hướng dẫn **Điểm thi**:',
+      '**Bước 1:** Mở **Thi & chứng chỉ → Điểm thi**.',
+      '**Bước 2:** Xem bảng điểm tổng hợp theo từng môn: trắc nghiệm, tự luận/thực hành và kết quả.',
+      '**Bước 3:** Trạng thái **CHƯA THI** hoặc **Chưa làm** nghĩa là chưa có kết quả được ghi nhận, không phải điểm 0.',
+      '**Bước 4:** Nếu đã thi nhưng chưa cập nhật, gửi mã môn và thời điểm thi cho giáo viên/giáo vụ kiểm tra.',
+      '⟦go:/student#exam-scores|Mở Điểm thi⟧',
+    ].join('\n');
+  }
+  if (student && /(phòng thi|trắc nghiệm buổi học|bài kiểm tra|thi chứng nhận môn học)/i.test(t)) {
+    return [
+      'Hướng dẫn **Phòng thi**:',
+      '**Bước 1:** Mở **Thi & chứng chỉ → Phòng thi**.',
+      '**Bước 2:** Chọn **Trắc nghiệm buổi học** để xem bài giáo viên đã giao.',
+      '**Bước 3:** Chỉ bấm bắt đầu khi đã sẵn sàng; đọc thời lượng và quy định trước khi làm.',
+      '**Bước 4:** Với bài thi chứng nhận môn học, làm bài theo hướng dẫn và nộp trước khi hết giờ.',
+      '*Nếu ghi “Hiện chưa có bài trắc nghiệm mới nào”, giáo viên chưa giao bài hoặc bài chưa được mở cho tài khoản.*',
+      '⟦go:/student/exam|Mở Phòng thi⟧',
+    ].join('\n');
+  }
+  if (student && /(mos|ic3|ôn thi|luyện chứng chỉ|khóa ôn thi)/i.test(t)) {
+    return [
+      'Hướng dẫn **Ôn thi MOS/IC3**:',
+      '**Bước 1:** Mở **Thi & chứng chỉ → MOS / IC3**.',
+      '**Bước 2:** Chọn khóa/cấp độ được cấp để xem bài luyện và tiến độ.',
+      '**Bước 3:** Làm bài luyện, xem kết quả hoặc lịch sử lần làm nếu khóa có hỗ trợ.',
+      '*Nếu ghi “Chưa có khóa ôn thi cho tài khoản này”, Admin chưa liên kết khóa MOS/IC3 hoặc chưa cấp quyền thủ công; hãy liên hệ trung tâm để được kiểm tra.*',
+      '⟦go:/student/cert-prep|Mở Ôn thi MOS/IC3⟧',
+    ].join('\n');
+  }
+  if (student && /(bảng tin|hỏi bài|đăng bài|chia sẻ bài|thêm ảnh bảng tin)/i.test(t)) {
+    return [
+      'Hướng dẫn **Bảng tin trao đổi & Hỏi bài**:',
+      '**Bước 1:** Mở **Bảng tin**.',
+      '**Bước 2:** Nhập câu hỏi hoặc nội dung muốn chia sẻ.',
+      '**Bước 3:** Chọn phạm vi **Công khai** hoặc phạm vi được phép, có thể thêm ảnh.',
+      '**Bước 4:** Bấm **Đăng bài**, sau đó theo dõi phản hồi của giáo viên/trung tâm.',
+      '⟦go:/student/feed|Mở Bảng tin⟧',
+    ].join('\n');
+  }
+  if (student && /(tin tức|tìm bài viết|lọc tin|chủ đề tin tức|thời gian tin tức)/i.test(t)) {
+    return [
+      'Hướng dẫn **Tin tức**:',
+      '**Bước 1:** Mở **Tin tức & góp ý → Tin tức**.',
+      '**Bước 2:** Tìm theo tên bài viết, chọn chế độ lưới/danh sách.',
+      '**Bước 3:** Lọc theo **Chủ đề**, **Tin mới nhất** hoặc **Thời gian**.',
+      '**Bước 4:** Bấm thẻ tin để đọc nội dung đầy đủ.',
+      '⟦go:/student/news|Mở Tin tức⟧',
+    ].join('\n');
+  }
+  if (student && /(đánh giá giáo viên|đánh giá gv|phản hồi trung tâm|gửi phản hồi)/i.test(t)) {
+    return [
+      'Hướng dẫn **Đánh giá GV và Phản hồi trung tâm**:',
+      '**Bước 1:** Mở **Tin tức & góp ý → Đánh giá GV**.',
+      '**Bước 2:** Chọn tab **Đánh giá GV** để đánh giá giảng viên hoặc **Phản hồi trung tâm** để gửi góp ý khóa học.',
+      '**Bước 3:** Chọn đúng khóa học/giảng viên, nhập nhận xét và gửi biểu mẫu.',
+      '*Chỉ những khóa học/buổi đủ điều kiện mới xuất hiện nút **Gửi phản hồi**.*',
+      '⟦go:/student#evaluation|Mở Đánh giá GV⟧',
+    ].join('\n');
+  }
+  if (student && /(trung tâm|chi nhánh|nhân sự|mạng xã hội|dịch vụ đào tạo|địa điểm thi|chứng chỉ)/i.test(t)) {
+    return [
+      'Hướng dẫn **Thông tin trung tâm**:',
+      '**Bước 1:** Mở menu **Trung tâm**.',
+      '**Bước 2:** Chọn **Tổng quan**, **Nhân sự**, **Chi nhánh**, **Mạng xã hội**, **Dịch vụ đào tạo**, **Địa điểm thi** hoặc **Chứng chỉ**.',
+      '**Bước 3:** Xem nội dung được trung tâm công bố ở từng tab.',
+      '*Nếu hiển thị “Nội dung đang được cập nhật”, dữ liệu tab đó chưa được trung tâm phát hành hoặc đang được cập nhật; không phải lỗi thao tác của bạn.*',
+      '⟦go:/student/center-info|Mở Trung tâm⟧',
+    ].join('\n');
+  }
+  if (student && /(hồ sơ|thông tin cá nhân|đổi mật khẩu|cập nhật số điện thoại|email|địa chỉ)/i.test(t)) {
+    return [
+      'Hướng dẫn **Hồ sơ**:',
+      '**Bước 1:** Mở **Hồ sơ** ở cuối menu.',
+      '**Bước 2:** Xem tiến độ, điểm trung bình, số buổi còn lại và khóa học.',
+      '**Bước 3:** Chọn **Cập nhật** trong phần thông tin cá nhân để bổ sung email, số điện thoại hoặc địa chỉ nếu được phép.',
+      '**Bước 4:** Chọn **Đổi mật khẩu** để thay đổi mật khẩu đăng nhập.',
+      '*Thông tin chưa cập nhật sẽ hiển thị “Chưa cập nhật”; hãy nhập và lưu lại, hoặc liên hệ Admin nếu trường bị khóa.*',
+      '⟦go:/student#profile|Mở Hồ sơ⟧',
+    ].join('\n');
+  }
+  if (student && /(điểm danh|xác nhận điểm danh|vắng|điểm danh bù)/i.test(t)) {
+    return [
+      'Hướng dẫn **điểm danh học viên**:',
+      '**Bước 1:** Mở **Lịch học** và chọn buổi học.',
+      '**Bước 2:** Xác nhận trạng thái điểm danh khi popup xuất hiện.',
+      '**Bước 3:** Nếu có sai lệch hoặc vắng, gửi yêu cầu điểm danh bù và ghi rõ lý do.',
+      '⟦go:/student#schedule|Mở Lịch học⟧',
+    ].join('\n');
+  }
+  if (student && /(video|tài liệu|phần mềm học)/i.test(t)) {
+    return [
+      'Hướng dẫn **Tài liệu và Video**:',
+      '**Bước 1:** Mở **Tài liệu**.',
+      '**Bước 2:** Chọn tab **Video học**, **Tài liệu** hoặc **Phần mềm**.',
+      '**Bước 3:** Mở nội dung theo khóa học và tiếp tục bài đang học.',
+      '⟦go:/student#materials-videos|Mở Video học⟧',
+    ].join('\n');
+  }
+  if (student && /(bài tập|bài được giao|xem điểm|kết quả học tập|điểm thi)/i.test(t)) {
+    return [
+      'Hướng dẫn **bài tập và điểm**:',
+      '**Bước 1:** Mở **Tài liệu/Bài tập**.',
+      '**Bước 2:** Chọn bài được giao để xem nội dung và hạn nộp.',
+      '**Bước 3:** Nộp bài theo yêu cầu; kết quả và điểm xem tại khu vực **Điểm thi/Kết quả**.',
+      '⟦go:/student#materials-assignments|Mở Bài tập⟧ · ⟦go:/student#exam-scores|Mở Điểm thi⟧',
+    ].join('\n');
+  }
+  if (student && /(phòng thi|vào thi|mos|ic3|luyện thi|chứng chỉ)/i.test(t)) {
+    return [
+      'Hướng dẫn **phòng thi và luyện chứng chỉ**:',
+      '**Bước 1:** Chọn **Phòng thi** để vào bài thi được cấp quyền.',
+      '**Bước 2:** Chọn **MOS/IC3** để luyện theo cấp độ và xem lịch sử kết quả.',
+      '**Bước 3:** Đọc kỹ quy định trước khi bắt đầu và nộp bài đúng thời gian.',
+      '⟦go:/student/exam|Mở Phòng thi⟧ · ⟦go:/student/cert-prep|Mở MOS/IC3⟧',
+    ].join('\n');
+  }
+  if (/(hộp thư|nhắn tin|tin nhắn|liên hệ giáo viên|liên hệ hỗ trợ)/i.test(t)) {
+    return [
+      'Hướng dẫn **Hộp thư**:',
+      '**Bước 1:** Mở **Hộp thư**.',
+      '**Bước 2:** Chọn người cần trao đổi hoặc mở **Trợ lý AI**.',
+      '**Bước 3:** Nhập nội dung và bấm gửi; cần người thật thì chọn **Chuyển sang hỗ trợ trực tiếp**.',
+      `⟦go:/${student ? 'student' : 'teacher'}/inbox|Mở Hộp thư⟧`,
     ].join('\n');
   }
   return null;
@@ -920,7 +1252,8 @@ async function replyToUserMessage({
     });
   }
 
-  const faq = teacherFaqReply(humanRole, userText)
+  const faq = lmsFaqReply(humanRole, userText)
+    || teacherFaqReply(humanRole, userText)
     || studentFaqReply(humanRole, userText);
   if (faq && !imageFileUrl) {
     sessionDoc.consecutiveAiFailures = 0;

@@ -165,6 +165,11 @@ function legacyTeachersGate(action, req, res, next) {
     case 'score':
     case 'approve':
     case 'reject':
+    case 'review_practical':
+    case 'grant_exam_access':
+    case 'manual_activate':
+    case 'suspend':
+    case 'reactivate':
       return compose(legacyManageTeachers, assertTeacherBranchAccess)(req, res, next);
     case 'finance_pending':
       return legacyManageFinance(req, res, next);

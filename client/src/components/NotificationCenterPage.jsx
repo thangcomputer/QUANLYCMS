@@ -368,6 +368,10 @@ export default function NotificationCenterPage({ role = 'admin', session }) {
       return;
     }
     const path = resolveNavPath(n.path, n);
+    if (!path && String(n.type || '').toUpperCase() === 'MESSAGE') {
+      navigate(`/${role}/inbox`);
+      return;
+    }
     if (path && role === 'teacher' && String(path).includes('evaluationId=')) {
       await openTeacherRatingDetail(n);
       return;

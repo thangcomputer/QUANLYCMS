@@ -48,6 +48,19 @@ export const AI_SUPPORT_STATUS = Object.freeze({
   CLOSED: 'CLOSED',
 });
 
+export function handoffReasonLabel(reason) {
+  const labels = {
+    USER_REQUESTED: 'Người dùng yêu cầu hỗ trợ trực tiếp',
+    REPEATED_FAILURE: 'AI trả lời chưa giải quyết được yêu cầu',
+    TECHNICAL_ISSUE: 'Lỗi kỹ thuật cần nhân viên kiểm tra',
+    PAYMENT_ISSUE: 'Vấn đề thanh toán',
+    ACCESS_ISSUE: 'Vấn đề quyền truy cập',
+    ACCOUNT_ISSUE: 'Vấn đề tài khoản',
+  };
+  const key = String(reason || '').trim().toUpperCase();
+  return labels[key] || String(reason || '').trim() || 'Người dùng cần hỗ trợ';
+}
+
 export function isAiSupportConversationId(cid) {
   return String(cid || '').includes('system_ai_support');
 }

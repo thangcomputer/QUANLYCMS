@@ -354,7 +354,7 @@ async function sendCanonicalMessageInner({
   if (
     !isGroupFinal
     && String(finalReceiverId) === 'ai_support'
-    && process.env.AI_SUPPORT_ENABLED === '1'
+    && require('./aiSupportService').isAiSupportEnabled()
     && (String(content || '').trim() || isAiImage)
   ) {
     try {

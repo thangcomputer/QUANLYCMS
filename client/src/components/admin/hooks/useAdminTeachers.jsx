@@ -98,7 +98,24 @@ export function useAdminTeachers({
   useEffect(() => {
     if (onDataRefresh && activeTab === 'teachers') {
       return onDataRefresh((payload) => {
-        if (payload?.type === 'teachers' || payload?.type === 'teacher' || payload?.type === 'socket:any') {
+        if (
+          payload?.type === 'teachers'
+          || payload?.type === 'teacher'
+          || payload?.type === 'socket:any'
+          || payload?.teacherId
+          || payload?.status
+        ) {
+          if (payload?.teacherId && payload?.status) {
+            setLocalTeachers((current) => current.map((teacher) => (
+              String(teacher.id || teacher._id) === String(payload.teacherId)
+                ? {
+                  ...teacher,
+                  status: payload.status,
+                  ...(payload.practicalStatus ? { practicalStatus: payload.practicalStatus } : {}),
+                }
+                : teacher
+            )));
+          }
           fetchTeachers();
         }
       });
@@ -263,7 +280,7 @@ export function useAdminTeachers({
   const markFileReviewed = async (id) => {
     try {
       // Chỉ đánh dấu đã xem — kích hoạt giảng dạy qua bước "Cấp quyền giảng dạy"
-      await ctxUpdateTeacher(id, { practicalStatus: 'reviewed' });
+      await api.teachers.reviewPractical(id);
       toast.success('Đã kiểm tra bài thực hành. Tiếp theo: Cấp quyền giảng dạy.');
       fetchTeachers();
     } catch {

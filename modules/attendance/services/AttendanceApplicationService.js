@@ -780,7 +780,7 @@ class AttendanceApplicationService {
     const noteVal = note !== undefined ? note : topic;
     if (noteVal !== undefined) updates.note = String(noteVal).trim();
     if ('studentNote' in data.body) {
-      const nextStudentNote = String(data.studentNote ?? data.body.studentNote || '').trim();
+      const nextStudentNote = String((data.studentNote ?? data.body.studentNote) || '').trim();
       updates.studentNote = nextStudentNote;
       updates.hasUnreadStudentNote = Boolean(nextStudentNote);
     }
@@ -867,7 +867,7 @@ class AttendanceApplicationService {
     }
 
     // BUSINESS LOGIC: Gửi thông báo chuông cho Giảng viên nếu Học viên gửi Ghi chú (studentNote)
-    if ('studentNote' in data.body && String(data.studentNote ?? data.body.studentNote || '').trim() && schedule.teacherId && io) {
+    if ('studentNote' in data.body && String((data.studentNote ?? data.body.studentNote) || '').trim() && schedule.teacherId && io) {
       try {
          const NotificationService = require('../../notification/services/NotificationService');
          await NotificationService.send(io, {
@@ -875,17 +875,8 @@ class AttendanceApplicationService {
            title: '📝 Ghi chú mới từ học viên',
            content: `Học viên ${schedule.studentName} vừa để lại ghi chú trên lịch học ngày ${new Date(schedule.date).toLocaleDateString('vi-VN')}.`,
            receivers: [schedule.teacherId.toString()],
-           payload: { scheduleId: schedule._id, studentId: schedule.studentId, type: 'schedule' }
-         });
-         
-         // Báo chuông
-         io.to(schedule.teacherId.toString()).emit('RECEIVE_NOTIFICATION', {
-           _id: Date.now(),
-           type: 'schedule',
-           title: '📝 Ghi chú mới từ học viên',
-           message: `Học viên ${schedule.studentName} vừa để lại ghi chú trên lịch học`,
-           time: new Date(),
-           userId: schedule.teacherId.toString()
+           payload: { scheduleId: schedule._id, studentId: schedule.studentId, type: 'schedule' },
+           link: '/teacher#schedule',
          });
 
          // Báo cập nhật calendar

@@ -4,6 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import { Award, Clock, HelpCircle, User, X } from 'lucide-react';
 import { useSocket } from '../../context/SocketContext';
 import api from '../../services/api';
+import {
+  hasBlockingLoginOverlay,
+  setLoginOverlay,
+  subscribeLoginOverlays,
+} from '../../utils/loginOverlayGate';
 
 const DISMISS_KEY = 'quiz_invite_dismissed';
 /** sessionStorage key — StudentQuizList opens this quiz on mount */
@@ -53,6 +58,21 @@ export default function StudentQuizInviteHost() {
   const [invite, setInvite] = useState(null);
   const [queue, setQueue] = useState([]);
   const [gateMessage, setGateMessage] = useState('');
+  const [blocked, setBlocked] = useState(() => hasBlockingLoginOverlay(['student-quiz-invite']));
+
+  useEffect(() => {
+    const syncBlocked = () => {
+      setBlocked(hasBlockingLoginOverlay(['student-quiz-invite']));
+    };
+    syncBlocked();
+    return subscribeLoginOverlays(syncBlocked);
+  }, []);
+
+  useEffect(() => {
+    const open = Boolean(invite) && !blocked;
+    setLoginOverlay('student-quiz-invite', open);
+    return () => setLoginOverlay('student-quiz-invite', false);
+  }, [invite, blocked]);
 
   const enqueueOrShow = useCallback((raw) => {
     const payload = toInvitePayload(raw);
@@ -161,7 +181,7 @@ export default function StudentQuizInviteHost() {
     navigate('/student/exam');
   };
 
-  if (!invite) return null;
+  if (!invite || blocked) return null;
 
   return createPortal(
     <div

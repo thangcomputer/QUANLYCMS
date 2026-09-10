@@ -301,6 +301,7 @@ function mapOnlineUser(u) {
   return {
     userId: u.userId,
     role: u.role,
+    adminRole: u.adminRole || null,
     name: u.name,
     branchId: u.branchId,
     connectedAt: u.connectedAt,
@@ -324,7 +325,14 @@ function broadcastOnlinePresence() {
 
   for (const [bid, users] of byBranch.entries()) {
     const room = bid === '_none' ? 'presence_none' : `presence_${bid}`;
-    const admins = full.filter((x) => x.role === 'admin' || x.role === 'staff' || x.userId === 'admin');
+    const admins = full.filter((x) => (
+      x.role === 'admin'
+      || x.role === 'staff'
+      || x.role === 'support'
+      || x.adminRole === 'STAFF'
+      || x.adminRole === 'SUPPORT'
+      || x.userId === 'admin'
+    ));
     const localRows = users.map(mapOnlineUser);
     const seen = new Set();
     const payload = [];
@@ -377,6 +385,7 @@ io.on('connection', (socket) => {
       socketId: socket.id,
       userId,
       role: messagingRole,
+      adminRole: socket.user.adminRole || null,
       name,
       branchId: resolvedBranchId,
       branchCode: resolvedBranchCode,

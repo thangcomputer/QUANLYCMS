@@ -105,7 +105,7 @@ export function useDataAdminCrud({
       lockReason: null,
       faceViolationCount: 0,
     };
-    const res = await api.teachers.update(teacherId, resetData);
+    const res = await api.teachers.grantExamAccess(teacherId);
     if (res && res.success === false) {
       throw new Error(res.message || 'Không thể cấp quyền thi');
     }
@@ -299,6 +299,54 @@ export function useDataAdminCrud({
       const res = await api.teachers?.approve(teacherId);
       if (!res?.success) throw new Error(res?.message || 'Lỗi phê duyệt');
       addNotification(teacherId, 'teacher', 'Chúc mừng! Admin đã cấp quyền Giảng viên cho bạn.');
+      triggerBackgroundSync();
+      return true;
+    } catch (err) {
+      setTeachers(previousTeachers);
+      throw err;
+    }
+  }, [teachers, setTeachers, triggerBackgroundSync, addNotification]);
+
+  const manualActivateTeacher = useCallback(async (teacherId, note) => {
+    const previousTeachers = [...teachers];
+    setTeachers(prev => prev.map(t => (String(t.id) === String(teacherId) || String(t._id) === String(teacherId))
+      ? { ...t, status: 'active', approvalMode: 'manual', approvalNote: note } : t));
+    try {
+      const res = await api.teachers.manualActivate(teacherId, note);
+      if (!res?.success) throw new Error(res?.message || 'Lỗi cấp quyền thủ công');
+      addNotification(teacherId, 'teacher', 'Admin đã cấp quyền giảng dạy thủ công cho bạn.');
+      triggerBackgroundSync();
+      return true;
+    } catch (err) {
+      setTeachers(previousTeachers);
+      throw err;
+    }
+  }, [teachers, setTeachers, triggerBackgroundSync, addNotification]);
+
+  const suspendTeacher = useCallback(async (teacherId, reason) => {
+    const previousTeachers = [...teachers];
+    setTeachers(prev => prev.map(t => (String(t.id) === String(teacherId) || String(t._id) === String(teacherId))
+      ? { ...t, status: 'suspended', lockReason: reason } : t));
+    try {
+      const res = await api.teachers.suspend(teacherId, reason);
+      if (!res?.success) throw new Error(res?.message || 'Lỗi tạm ngưng quyền');
+      addNotification(teacherId, 'teacher', `Quyền giảng dạy đã tạm ngưng: ${reason}`);
+      triggerBackgroundSync();
+      return true;
+    } catch (err) {
+      setTeachers(previousTeachers);
+      throw err;
+    }
+  }, [teachers, setTeachers, triggerBackgroundSync, addNotification]);
+
+  const reactivateTeacher = useCallback(async (teacherId) => {
+    const previousTeachers = [...teachers];
+    setTeachers(prev => prev.map(t => (String(t.id) === String(teacherId) || String(t._id) === String(teacherId))
+      ? { ...t, status: 'active', lockReason: null } : t));
+    try {
+      const res = await api.teachers.reactivate(teacherId);
+      if (!res?.success) throw new Error(res?.message || 'Lỗi hoạt động lại quyền');
+      addNotification(teacherId, 'teacher', 'Quyền giảng dạy của bạn đã được hoạt động lại.');
       triggerBackgroundSync();
       return true;
     } catch (err) {
@@ -629,6 +677,9 @@ export function useDataAdminCrud({
     updateStudent,
     assignTeacher,
     approveTeacher,
+    manualActivateTeacher,
+    suspendTeacher,
+    reactivateTeacher,
     rejectTeacher,
     payTeacher,
     removeStudent,

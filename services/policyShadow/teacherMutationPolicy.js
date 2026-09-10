@@ -12,7 +12,7 @@
  */
 const { TEACHER_WRITE_LIVE, actorHasLivePermission } = require('./livePermissionAdapter');
 
-const ACTIONS = new Set(['score', 'approve', 'reject']);
+const ACTIONS = new Set(['score', 'approve', 'reject', 'review_practical', 'grant_exam_access', 'manual_activate', 'suspend', 'reactivate']);
 
 /**
  * @typedef {'ALLOW'|'DENY'} Decision

@@ -64,6 +64,7 @@ export default function TeacherOverviewTab({
   const [pendingGradeCount, setPendingGradeCount] = useState(0);
 
   const meId = String(teacherId || currentTeacher?.id || currentTeacher?._id || '');
+  const todayKey = formatLocalDateKey(new Date());
 
   useEffect(() => {
     const t = setInterval(() => setNowTick(Date.now()), 30_000);
@@ -303,11 +304,11 @@ export default function TeacherOverviewTab({
             {
               icon: UserCheck,
               label: 'Điểm danh',
-              sub: `${mySchedules.filter((s) => s.status === 'scheduled' && new Date(s.date).toDateString() === new Date().toDateString()).length} buổi hôm nay`,
+              sub: `${mySchedules.filter((s) => s.status === 'scheduled' && normalizeScheduleDate(s.date) === todayKey).length} buổi hôm nay`,
               tint: 'bg-emerald-50 hover:bg-emerald-100/80 border-emerald-100 text-emerald-900',
               iconClass: 'text-emerald-600',
               action: () => {
-                const todaySchedules = mySchedules.filter((s) => s.status === 'scheduled' && new Date(s.date).toDateString() === new Date().toDateString());
+                const todaySchedules = mySchedules.filter((s) => s.status === 'scheduled' && normalizeScheduleDate(s.date) === todayKey);
                 if (todaySchedules.length > 0) {
                   const oldest = todaySchedules.sort((a, b) => {
                     const timeA = a.startTime ? a.startTime.replace(':', '') : '0000';

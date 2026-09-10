@@ -10,11 +10,12 @@ import { useSocket } from '../context/SocketContext';
 import { useToast } from '../utils/toast';
 import api, { setTokens, csrfFetch } from '../services/api';
 import { 
-  Bell, LogOut, CheckCircle2, Clock, X, Lock,
+  Bell, MessageCircle, LogOut, CheckCircle2, Clock, X, Lock,
   Calendar, DollarSign, UserPlus, Zap, BookOpen, Award, Menu, Star,
 } from 'lucide-react';
 
 import { formatNotificationStudentMask } from '../utils/studentMask';
+import { LMS_PLAYER_OPEN_EVENT, isLmsPlayerOpen } from '../utils/lmsPlayerOverlay';
 import { getMessagingRole } from '../lib/messagingRoles';
 import StudentQuizInviteHost from './student/StudentQuizInviteHost';
 import StudentAttendanceConfirmModal from './student/StudentAttendanceConfirmModal';
@@ -228,6 +229,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
   const [ratingDetailLoading, setRatingDetailLoading] = useState(false);
   const [ratingDetailError, setRatingDetailError] = useState('');
   const [adminQuickPopup, setAdminQuickPopup] = useState(null);
+  const [lmsPlayerOpen, setLmsPlayerOpen] = useState(() => isLmsPlayerOpen());
   const { socket } = useSocket() || {};
   const { students, teachers, schedules, isRefetching, triggerBackgroundSync, notifications: allNotifications, markNotificationRead, getConversations } = useData();
   const API = import.meta.env.VITE_API_URL || (import.meta.env.VITE_API_URL || "");
@@ -484,6 +486,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
   const starBonusShownRef = React.useRef(new Set());
   const [attendanceConfirm, setAttendanceConfirm] = useState(null);
   const [attendanceConfirmBusy, setAttendanceConfirmBusy] = useState(false);
+  const attendanceConfirmRevisionRef = React.useRef(0);
   const [attendanceDispute, setAttendanceDispute] = useState(null);
   const [attendanceDisputeBusy, setAttendanceDisputeBusy] = useState(false);
   const [teacherAttendanceConfirm, setTeacherAttendanceConfirm] = useState(null);
@@ -660,10 +663,11 @@ const DashboardLayout = ({ role, session, onLogout }) => {
   useEffect(() => {
     if (role !== 'student' || !myId) return undefined;
     let cancelled = false;
+    const requestRevision = attendanceConfirmRevisionRef.current;
     const loadPending = async () => {
       try {
         const res = await api.schedules.getPendingConfirm();
-        if (cancelled) return;
+        if (cancelled || requestRevision !== attendanceConfirmRevisionRef.current) return;
         const list = Array.isArray(res?.data) ? res.data : [];
         // Chỉ auto-mở khi còn bắt buộc xác nhận (pending). Disputed → không chặn.
         const firstPending = list.find((p) => (
@@ -680,11 +684,13 @@ const DashboardLayout = ({ role, session, onLogout }) => {
     const onAwait = (payload) => {
       if (!payload) return;
       if (payload.studentId && String(payload.studentId) !== myId) return;
+      attendanceConfirmRevisionRef.current += 1;
       setAttendanceConfirm({ ...payload, resolved: false, waiting: false });
     };
     const onResolved = (payload, outcome) => {
       if (!payload?.scheduleId) return;
       if (payload.studentId && String(payload.studentId) !== myId) return;
+      attendanceConfirmRevisionRef.current += 1;
       setAttendanceConfirm((prev) => {
         const same = prev && String(prev.scheduleId) === String(payload.scheduleId);
         const st = String(payload.studentConfirmStatus || '').toLowerCase();
@@ -709,6 +715,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
     const onDisputed = (payload) => {
       if (!payload?.scheduleId) return;
       if (payload.studentId && String(payload.studentId) !== myId) return;
+      attendanceConfirmRevisionRef.current += 1;
       // Sau khi HV gửi tranh chấp: đóng modal chặn; có thể mở lại dạng chờ khi bấm thông báo
       setAttendanceConfirm((prev) => (
         prev && String(prev.scheduleId) === String(payload.scheduleId) ? null : prev
@@ -774,6 +781,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
           }
         } catch { /* dùng payload socket */ }
       }
+      setStudentNotePopup(null);
       setTeacherAttendanceConfirm(merged);
     };
     socket.on('attendance:rejected', onRejected);
@@ -796,6 +804,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
   const handleStudentAttendanceDecision = React.useCallback(async (decision) => {
     const sid = attendanceConfirm?.scheduleId;
     if (!sid) return;
+    attendanceConfirmRevisionRef.current += 1;
     setAttendanceConfirmBusy(true);
     try {
       const res = await api.schedules.studentConfirm(sid, decision);
@@ -821,6 +830,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
 
   /** Mở modal HV từ thông báo: luôn check trạng thái thật (tránh mở Đồng ý khi đã xong). */
   const openStudentAttendanceFromNotif = React.useCallback(async (rawPayload, opts = {}) => {
+    attendanceConfirmRevisionRef.current += 1;
     const base = rawPayload && typeof rawPayload === 'object' ? { ...rawPayload } : {};
     const scheduleId = base.scheduleId || opts.scheduleId;
     const forceResolved = opts.forceResolved === true;
@@ -892,6 +902,11 @@ const DashboardLayout = ({ role, session, onLogout }) => {
       setAttendanceConfirm({ ...base, scheduleId, resolved: false, waiting: false });
     }
   }, [myId]);
+
+  const dismissStudentAttendanceConfirm = React.useCallback(() => {
+    attendanceConfirmRevisionRef.current += 1;
+    setAttendanceConfirm(null);
+  }, []);
 
   const handleAdminDisputeDecision = React.useCallback(async (decision) => {
     const sid = attendanceDispute?.scheduleId;
@@ -966,6 +981,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
         }
       } catch { /* dùng payload thông báo */ }
     }
+    setStudentNotePopup(null);
     setTeacherAttendanceConfirm(payload);
   }, [myId]);
 
@@ -987,6 +1003,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
     }
     const liveNote = sch ? String(sch.studentNote || '').trim() : '';
     const deletedLocal = Boolean(sch) && !liveNote;
+    setTeacherAttendanceConfirm(null);
     setStudentNotePopup({
       scheduleId: sid || String(sch?._id || sch?.id || ''),
       studentName: p.studentName || sch?.studentName || sch?.studentId?.name || 'Học viên',
@@ -1116,6 +1133,9 @@ const DashboardLayout = ({ role, session, onLogout }) => {
     setLoginOverlay('teacher-attendance-confirm', role === 'teacher' && Boolean(teacherAttendanceConfirm));
   }, [role, teacherAttendanceConfirm]);
   useEffect(() => {
+    setLoginOverlay('teacher-student-note', role === 'teacher' && Boolean(studentNotePopup));
+  }, [role, studentNotePopup]);
+  useEffect(() => {
     setLoginOverlay('admin-quick-popup', Boolean(adminQuickPopup));
   }, [adminQuickPopup]);
 
@@ -1214,6 +1234,29 @@ const DashboardLayout = ({ role, session, onLogout }) => {
 
 
   const unreadCount = myNotifications.filter(n => !n.read).length;
+  const unreadMessageCount = React.useMemo(() => {
+    if (!myId || typeof getConversations !== 'function') return 0;
+    try {
+      return (getConversations(myId) || []).reduce((sum, conversation) => (
+        sum + (Number(conversation?.unread) || 0)
+      ), 0);
+    } catch {
+      return 0;
+    }
+  }, [getConversations, myId]);
+  const inboxPath = role === 'student'
+    ? '/student/inbox'
+    : role === 'teacher'
+      ? '/teacher/inbox'
+      : '/admin/inbox';
+
+  React.useEffect(() => {
+    const onLmsPlayerChange = (event) => {
+      setLmsPlayerOpen(Boolean(event?.detail?.open));
+    };
+    window.addEventListener(LMS_PLAYER_OPEN_EVENT, onLmsPlayerChange);
+    return () => window.removeEventListener(LMS_PLAYER_OPEN_EVENT, onLmsPlayerChange);
+  }, []);
 
   // GV offline lúc đạt mốc → hiện popup khi vào lại (notif chưa xem + chưa celeb)
   useEffect(() => {
@@ -1458,6 +1501,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
           || (role === 'student' && assignedTeacherModal.open)
           || ((role === 'admin' || role === 'staff') && !!attendanceDispute)
           || (role === 'teacher' && !!teacherAttendanceConfirm)
+          || (role === 'teacher' && !!studentNotePopup)
           || (session?.isFirstLogin === true && role !== 'teacher')
         }
       />
@@ -1490,7 +1534,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
         busy={attendanceConfirmBusy}
         onAccept={() => handleStudentAttendanceDecision('accept')}
         onDispute={() => handleStudentAttendanceDecision('dispute')}
-        onDismiss={() => setAttendanceConfirm(null)}
+        onDismiss={dismissStudentAttendanceConfirm}
       />
       <StudentAssignedTeacherModal
         open={role === 'student' && assignedTeacherModal.open}
@@ -1822,6 +1866,11 @@ const DashboardLayout = ({ role, session, onLogout }) => {
                             && /^https?:\/\//i.test(String(n.payload?.linkHoc || '').trim())
                           ) {
                             window.open(String(n.payload.linkHoc).trim(), '_blank', 'noopener,noreferrer');
+                          } else if (
+                            !n.path
+                            && String(n.type || '').toLowerCase() === 'message'
+                          ) {
+                            navigate(`/${role}/inbox`);
                           } else if (n.path) {
                             let targetPath = n.path;
 
@@ -2029,6 +2078,44 @@ const DashboardLayout = ({ role, session, onLogout }) => {
 
       {/* Chat nổi toàn site — mặc định hỗ trợ online, nhiều tab kiểu Facebook */}
       <FloatingMessenger session={session} role={role} />
+      {lmsPlayerOpen && (unreadCount > 0 || unreadMessageCount > 0) ? (
+        <div className="cms-lms-attention" role="status" aria-live="polite">
+          <span className="cms-lms-attention__label">Trong LMS</span>
+          {unreadCount > 0 ? (
+            <button
+              type="button"
+              className="cms-lms-attention__item cms-lms-attention__item--notification"
+              onClick={() => { setShowNotif(true); setNotifLimit(5); }}
+              aria-label={`${unreadCount} thông báo chưa đọc`}
+            >
+              <Bell size={15} aria-hidden="true" />
+              <span>Thông báo</span>
+              <strong>{unreadCount > 99 ? '99+' : unreadCount}</strong>
+            </button>
+          ) : null}
+          {unreadMessageCount > 0 ? (
+            <button
+              type="button"
+              className="cms-lms-attention__item cms-lms-attention__item--message"
+              onClick={() => navigate(inboxPath)}
+              aria-label={`${unreadMessageCount} tin nhắn chưa đọc`}
+            >
+              <MessageCircle size={15} aria-hidden="true" />
+              <span>Tin nhắn</span>
+              <strong>{unreadMessageCount > 99 ? '99+' : unreadMessageCount}</strong>
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="cms-lms-attention__close"
+            onClick={(event) => { event.currentTarget.closest('.cms-lms-attention')?.classList.add('is-dismissed'); }}
+            aria-label="Thu gọn chỉ báo LMS"
+            title="Thu gọn"
+          >
+            <X size={14} aria-hidden="true" />
+          </button>
+        </div>
+      ) : null}
     </div>
     </FloatingMessengerProvider>
   );
@@ -2173,7 +2260,3 @@ const ChangePasswordModal = ({ session, role }) => {
 };
 
 export default DashboardLayout;
-
-
-
-

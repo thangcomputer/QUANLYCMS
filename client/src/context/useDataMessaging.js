@@ -31,6 +31,7 @@ export function useDataMessaging({ currentUser, students, teachers, staffs, trig
 
   const {
     onGroupNew, onGroupDelete, onRecallReceive, onReactionReceive, onMessageReceive, onMessageSent, onReadAck, onMessagePinned,
+    emitMessageRead,
   } = useSocket();
 
   // Strip null entries that may exist in legacy localStorage caches
@@ -332,7 +333,14 @@ export function useDataMessaging({ currentUser, students, teachers, staffs, trig
             return true;
           });
         });
-        return { ...newMsg, id: res.data._id, convId: savedConvId, isGroup: savedIsGroup, groupId: savedIsGroup ? savedGroupId : null };
+        return {
+          ...newMsg,
+          id: res.data._id,
+          convId: savedConvId,
+          isGroup: savedIsGroup,
+          groupId: savedIsGroup ? savedGroupId : null,
+          aiImageRemaining: n.aiImageRemaining,
+        };
       }
     } catch (err) {
       const failMsg = err?.message || 'Gửi tin nhắn thất bại';
@@ -444,8 +452,14 @@ export function useDataMessaging({ currentUser, students, teachers, staffs, trig
 
   // ── Reaction (Thả cảm xúc) ──
   const toggleMessageReaction = useCallback(async (msgId, emoji) => {
+    if (!msgId || String(msgId).startsWith('temp_')) {
+      throw new Error('Tin nhắn chưa được đồng bộ, vui lòng thử lại sau giây lát');
+    }
     const res = await api.messages.toggleReaction(msgId, emoji);
-    if (res.success && res.data) {
+    if (!res?.success) {
+      throw new Error(res?.message || 'Không thể thả cảm xúc');
+    }
+    if (res.data) {
       setMessages(prev => prev.map(m =>
         String(m.id) === String(msgId)
           ? { ...m, reactions: res.data }
@@ -507,7 +521,8 @@ export function useDataMessaging({ currentUser, students, teachers, staffs, trig
 
     // 2. Gọi API đánh dấu đã đọc trên server
     api.messages.markRead(convId, userId).catch(() => {});
-  }, []);
+    emitMessageRead?.(convId);
+  }, [emitMessageRead]);
 
   // ── Biến đổi danh sách tin nhắn thành danh sách cuộc trò chuyện ──
   const getConversations = useCallback((userId) => {

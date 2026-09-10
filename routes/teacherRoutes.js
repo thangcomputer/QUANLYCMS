@@ -1124,7 +1124,15 @@ router.put('/:id/approve', [
 
     const teacher = await Teacher.findByIdAndUpdate(
       req.params.id,
-      { status: 'active', approvedAt: new Date() },
+      {
+        status: 'active',
+        approvedAt: new Date(),
+        approvedBy: String(req.user?.id || 'admin'),
+        approvalMode: 'workflow',
+        approvalNote: '',
+        suspendedBy: null,
+        suspendedAt: null,
+      },
       { returnDocument: 'after' }
     ).select('-password -refreshToken');
 
@@ -1156,6 +1164,215 @@ router.put('/:id/approve', [
     });
   } catch (error) {
     logger.error('[TEACHERS] Approve error:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
+
+// ─── PUT /api/teachers/:id/grant-exam-access ──────────────────────────────────
+router.put('/:id/grant-exam-access', [
+  authMiddleware,
+  branchFilter,
+  ...teacherWriteGuard('grant_exam_access'),
+], async (req, res) => {
+  try {
+    const teacher = await Teacher.findByIdAndUpdate(req.params.id, {
+      status: 'pending',
+      testScore: 0,
+      testStatus: null,
+      testDate: null,
+      practicalFile: null,
+      practicalStatus: 'none',
+      lockReason: null,
+      faceViolationCount: 0,
+    }, { returnDocument: 'after', runValidators: true }).select('-password -refreshToken');
+    if (!teacher) return res.status(404).json({ success: false, message: 'Không tìm thấy giảng viên' });
+    const io = req.app.get('io');
+    if (io) emitTeacherEvent(io, teacher, 'teacher:updated', {
+      teacherId: String(teacher._id),
+      status: 'pending',
+      message: 'Bạn đã được cấp quyền truy cập bài thi giảng viên.',
+    });
+    return res.json({ success: true, message: `Đã cấp quyền thi cho ${teacher.name}`, data: teacher });
+  } catch (error) {
+    logger.error('[TEACHERS] Grant exam access error:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
+
+// ─── PUT /api/teachers/:id/review-practical ───────────────────────────────────
+router.put('/:id/review-practical', [
+  authMiddleware,
+  branchFilter,
+  ...teacherWriteGuard('review_practical'),
+], async (req, res) => {
+  try {
+    const teacher = await Teacher.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        testStatus: 'passed',
+        practicalStatus: 'submitted',
+      },
+      { $set: { practicalStatus: 'reviewed', status: 'pending' } },
+      { returnDocument: 'after', runValidators: true },
+    ).select('-password -refreshToken');
+    if (!teacher) {
+      const existing = await Teacher.findById(req.params.id).select('testStatus practicalStatus').lean();
+      return res.status(existing ? 409 : 404).json({
+        success: false,
+        message: existing
+          ? 'Bài thực hành không ở trạng thái chờ kiểm tra'
+          : 'Không tìm thấy giảng viên',
+      });
+    }
+    const io = req.app.get('io');
+    if (io) emitTeacherEvent(io, teacher, 'teacher:updated', {
+      teacherId: String(teacher._id),
+      status: 'pending',
+      practicalStatus: 'reviewed',
+      message: 'Bài thực hành đã được kiểm tra.',
+    });
+    return res.json({ success: true, data: teacher });
+  } catch (error) {
+    logger.error('[TEACHERS] Review practical error:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
+
+// ─── PUT /api/teachers/:id/manual-activate ───────────────────────────────────
+router.put('/:id/manual-activate', [
+  authMiddleware,
+  branchFilter,
+  ...teacherWriteGuard('manual_activate'),
+], async (req, res) => {
+  try {
+    const note = String(req.body?.note || '').trim();
+    if (note.length < 5) {
+      return res.status(400).json({ success: false, message: 'Vui lòng nhập lý do cấp quyền thủ công (ít nhất 5 ký tự).' });
+    }
+    const teacher = await Teacher.findByIdAndUpdate(req.params.id, {
+      status: 'active',
+      approvedAt: new Date(),
+      approvedBy: String(req.user?.id || 'admin'),
+      approvalMode: 'manual',
+      approvalNote: note,
+      suspendedBy: null,
+      suspendedAt: null,
+      lockReason: null,
+    }, { returnDocument: 'after', runValidators: true }).select('-password -refreshToken');
+    if (!teacher) return res.status(404).json({ success: false, message: 'Không tìm thấy giảng viên' });
+    try {
+      const { writeAudit } = require('../services/auditLogService');
+      await writeAudit({
+        action: 'teacher.manual_activate',
+        actorUserId: String(req.user?.id || ''),
+        actorRole: String(req.user?.role || ''),
+        entityType: 'teacher',
+        entityId: String(teacher._id),
+        metadata: { note },
+        userAgent: req.headers['user-agent'] || '',
+      });
+    } catch (auditErr) {
+      logger.warn('[TEACHERS] manual activate audit: %s', auditErr.message);
+    }
+    const io = req.app.get('io');
+    if (io) emitTeacherEvent(io, teacher, 'teacher:approved', {
+      teacherId: String(teacher._id),
+      name: teacher.name,
+      manual: true,
+      message: 'Tài khoản của bạn đã được cấp quyền giảng dạy thủ công.',
+    });
+    return res.json({ success: true, message: `Đã cấp quyền thủ công cho ${teacher.name}`, data: teacher });
+  } catch (error) {
+    logger.error('[TEACHERS] Manual activate error:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
+
+// ─── PUT /api/teachers/:id/suspend ───────────────────────────────────────────
+router.put('/:id/suspend', [
+  authMiddleware,
+  branchFilter,
+  ...teacherWriteGuard('suspend'),
+], async (req, res) => {
+  try {
+    const reason = String(req.body?.reason || '').trim();
+    if (reason.length < 5) {
+      return res.status(400).json({ success: false, message: 'Vui lòng nhập lý do tạm ngưng (ít nhất 5 ký tự).' });
+    }
+    const teacher = await Teacher.findByIdAndUpdate(req.params.id, {
+      status: 'suspended',
+      lockReason: reason,
+      suspendedBy: String(req.user?.id || 'admin'),
+      suspendedAt: new Date(),
+      $inc: { tokenVersion: 1 },
+    }, { returnDocument: 'after', runValidators: true }).select('-password -refreshToken');
+    if (!teacher) return res.status(404).json({ success: false, message: 'Không tìm thấy giảng viên' });
+    try {
+      const { writeAudit } = require('../services/auditLogService');
+      await writeAudit({
+        action: 'teacher.suspend',
+        actorUserId: String(req.user?.id || ''),
+        actorRole: String(req.user?.role || ''),
+        entityType: 'teacher',
+        entityId: String(teacher._id),
+        metadata: { reason },
+        userAgent: req.headers['user-agent'] || '',
+      });
+    } catch (auditErr) {
+      logger.warn('[TEACHERS] suspend audit: %s', auditErr.message);
+    }
+    const io = req.app.get('io');
+    if (io) emitTeacherEvent(io, teacher, 'teacher:updated', {
+      teacherId: String(teacher._id),
+      status: 'suspended',
+      message: 'Quyền giảng dạy của bạn đã tạm ngưng.',
+    });
+    return res.json({ success: true, message: `Đã tạm ngưng quyền của ${teacher.name}`, data: teacher });
+  } catch (error) {
+    logger.error('[TEACHERS] Suspend error:', error);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+});
+
+// ─── PUT /api/teachers/:id/reactivate ────────────────────────────────────────
+router.put('/:id/reactivate', [
+  authMiddleware,
+  branchFilter,
+  ...teacherWriteGuard('reactivate'),
+], async (req, res) => {
+  try {
+    const teacher = await Teacher.findOneAndUpdate({ _id: req.params.id, status: 'suspended' }, {
+      status: 'active',
+      lockReason: null,
+      suspendedBy: null,
+      suspendedAt: null,
+      approvedAt: new Date(),
+      approvedBy: String(req.user?.id || 'admin'),
+      $inc: { tokenVersion: 1 },
+    }, { returnDocument: 'after', runValidators: true }).select('-password -refreshToken');
+    if (!teacher) return res.status(404).json({ success: false, message: 'Không tìm thấy giảng viên đang tạm ngưng' });
+    try {
+      const { writeAudit } = require('../services/auditLogService');
+      await writeAudit({
+        action: 'teacher.reactivate',
+        actorUserId: String(req.user?.id || ''),
+        actorRole: String(req.user?.role || ''),
+        entityType: 'teacher',
+        entityId: String(teacher._id),
+        userAgent: req.headers['user-agent'] || '',
+      });
+    } catch (auditErr) {
+      logger.warn('[TEACHERS] reactivate audit: %s', auditErr.message);
+    }
+    const io = req.app.get('io');
+    if (io) emitTeacherEvent(io, teacher, 'teacher:updated', {
+      teacherId: String(teacher._id),
+      status: 'active',
+      message: 'Quyền giảng dạy của bạn đã được hoạt động lại.',
+    });
+    return res.json({ success: true, message: `Đã hoạt động lại quyền của ${teacher.name}`, data: teacher });
+  } catch (error) {
+    logger.error('[TEACHERS] Reactivate error:', error);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 });
