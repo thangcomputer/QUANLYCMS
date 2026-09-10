@@ -1163,7 +1163,7 @@ export const StudentCard = ({
         ) : null}
 
         {/* Tabs — Tiến độ, Bài tập, Tạo TN, Link học, Đánh giá, Nhật ký */}
-        <div className="grid grid-cols-6 w-full bg-white border-b border-slate-100 min-w-0">
+        <div className="flex w-full px-3 sm:px-6 md:px-10 bg-white border-b border-slate-100 min-w-0 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {panels.map(({ key, icon: Icon, label }) => (
             <button
               key={key}
@@ -1195,12 +1195,12 @@ export const StudentCard = ({
               title={key === 'quiz' ? 'Tạo trắc nghiệm' : label}
               aria-label={key === 'quiz' ? 'Tạo trắc nghiệm' : label}
               aria-current={activePanel === key ? 'page' : undefined}
-              className={`relative flex flex-col items-center justify-center gap-0.5 px-0.5 sm:px-1 min-h-11 sm:min-h-0 py-2 sm:py-3.5 text-[10px] sm:text-xs font-bold tracking-wide transition-all min-w-0 ${
+              className={`relative flex-1 min-w-[76px] sm:min-w-0 flex flex-col items-center justify-center gap-0.5 px-1 sm:px-1 min-h-11 sm:min-h-0 py-2 sm:py-3.5 text-[10px] sm:text-xs font-bold tracking-wide transition-all ${
                 activePanel === key ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
               <Icon size={16} className="shrink-0" aria-hidden="true" />
-              <span className="hidden min-[400px]:block truncate max-w-full leading-tight px-0.5">{label}</span>
+              <span className="block truncate max-w-full leading-tight px-0.5">{label}</span>
               {activePanel === key && (
                 <div className="absolute bottom-0 left-1 right-1 h-0.5 bg-blue-600 rounded-t-full" />
               )}
@@ -1213,7 +1213,7 @@ export const StudentCard = ({
            {activePanel === 'progress' && (
               <div className="space-y-4 sm:space-y-8 animate-in fade-in duration-500">
                  {/* Stat Boxes — 3 cột trên mobile */}
-                 <div className="grid grid-cols-3 gap-1.5 sm:gap-4 md:gap-6 min-w-0">
+                 <div className="grid grid-cols-1 min-[360px]:grid-cols-3 gap-2 sm:gap-4 md:gap-6 min-w-0">
                     <div className="bg-blue-50/60 border border-blue-100 rounded-xl sm:rounded-2xl text-center flex flex-col items-center justify-center p-2.5 sm:p-6 min-w-0 overflow-hidden">
                        <p className="text-[10px] sm:text-xs font-bold text-blue-600 uppercase tracking-wide mb-1 truncate max-w-full">Đã học</p>
                        <h4 className="text-lg sm:text-4xl font-extrabold text-blue-600 leading-none tabular-nums">{done}</h4>
@@ -1244,7 +1244,7 @@ export const StudentCard = ({
 
                  {/* Actions: Điểm danh | Hủy ca / Hủy điểm danh — ẩn khi không còn lịch */}
                  {showSessionActionRow ? (
-                 <div className="grid grid-cols-2 gap-2 mt-4 sm:gap-4 min-w-0">
+                 <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2 mt-4 sm:gap-4 min-w-0">
                      <button 
                        type="button"
                        onClick={openAttendanceModal} 

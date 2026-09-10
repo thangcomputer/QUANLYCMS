@@ -134,6 +134,23 @@ export default function FeedBoard({ session, role }) {
   const editFileRef = useRef(null);
   const meId = String(session?.id || session?._id || '');
   const meRole = role || session?.role || 'student';
+  const currentAvatar = session?.avatar || session?.avatarUrl || '';
+  const resolveFeedAvatar = useCallback((person = {}) => {
+    const personId = String(person.authorId || person.userId || person.id || '');
+    const isCurrentUser = personId && meId && personId === meId;
+    const presenceAvatar = (onlineUsers || []).find(
+      (user) => String(user.userId || user.id || '') === personId,
+    )?.avatar;
+    return resolveAvatarUrl({
+      avatar: isCurrentUser && currentAvatar
+        ? currentAvatar
+        : presenceAvatar || person.authorAvatar || person.avatar,
+      role: person.authorRole || person.role || meRole,
+      name: person.authorName || person.userName || session?.name,
+      id: personId,
+      adminRole: person.authorAdminRole || person.adminRole || (isCurrentUser ? session?.adminRole : null),
+    });
+  }, [currentAvatar, meId, meRole, onlineUsers, session?.adminRole, session?.name]);
   const isSuper = isSuperAdminViewer(session);
 
   const meAdminRole = String(session?.adminRole || '').toUpperCase();
@@ -832,7 +849,7 @@ export default function FeedBoard({ session, role }) {
                   {/* Card Head */}
                   <div className="cms-feed-card__head flex items-start gap-3">
                     <img
-                      src={resolveAvatarUrl({ avatar: post.authorAvatar, role: post.authorRole, name: post.authorName, id: post.authorId, adminRole: post.authorAdminRole })}
+                      src={resolveFeedAvatar(post)}
                       alt=""
                       width={44}
                       height={44}
@@ -1016,7 +1033,7 @@ export default function FeedBoard({ session, role }) {
                               <div className="flex-1 min-w-0 bg-white rounded-xl px-3 py-2 border border-slate-200/80 shadow-xs">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <img
-                                    src={resolveAvatarUrl({ avatar: c.authorAvatar, role: c.authorRole, name: c.authorName, id: c.authorId, adminRole: c.authorAdminRole })}
+                                    src={resolveFeedAvatar(c)}
                                     alt=""
                                     className="w-6 h-6 rounded-full object-cover shrink-0 border border-slate-100"
                                   />
@@ -1128,7 +1145,7 @@ export default function FeedBoard({ session, role }) {
                                   <div className="flex-1 min-w-0 bg-white rounded-xl px-3 py-2 border border-slate-200 border-l-2 border-l-indigo-300">
                                     <div className="flex items-center gap-1.5 flex-wrap">
                                       <img
-                                        src={resolveAvatarUrl({ avatar: r.authorAvatar, role: r.authorRole, name: r.authorName, id: r.authorId, adminRole: r.authorAdminRole })}
+                                        src={resolveFeedAvatar(r)}
                                         alt=""
                                         className="w-5 h-5 rounded-full object-cover shrink-0 border border-slate-100"
                                       />

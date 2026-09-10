@@ -41,6 +41,7 @@ async function upsertPresence(key, user) {
     role: user.role,
     adminRole: user.adminRole || null,
     name: user.name,
+    avatar: user.avatar || '',
     branchId: user.branchId || null,
     branchCode: user.branchCode || '',
     connectedAt: user.connectedAt || new Date().toISOString(),

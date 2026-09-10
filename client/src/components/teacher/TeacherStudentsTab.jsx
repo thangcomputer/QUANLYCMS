@@ -61,7 +61,7 @@ export default function TeacherStudentsTab({
   cancelSchedule,
 }) {
   return (
-          <div className="py-1 sm:py-4 md:py-6 min-h-0 flex-1 flex flex-col lg:flex-row gap-4 sm:gap-6 lg:min-h-0 overflow-y-auto overscroll-y-contain lg:overflow-hidden min-w-0 w-full max-w-full">
+          <div className="cms-page-gutter py-3 sm:py-4 md:py-6 min-h-0 flex-1 flex flex-col lg:flex-row gap-4 sm:gap-6 lg:min-h-0 overflow-y-auto overscroll-y-contain lg:overflow-hidden min-w-0 w-full max-w-full">
             
             {/* CỘT 1: DANH SÁCH HỌC VIÊN (Sidebar) */}
             <div className="w-full lg:w-80 xl:w-96 lg:h-full flex flex-col bg-white rounded-2xl sm:rounded-3xl border border-slate-100 shadow-sm overflow-hidden shrink-0 min-w-0 min-h-0 max-lg:flex-none">
@@ -199,7 +199,7 @@ export default function TeacherStudentsTab({
             </div>
 
             {/* CỘT 2: CHI TIẾT HỌC VIÊN (Main Content) */}
-            <div className="flex-1 min-w-0 min-h-0 lg:overflow-y-auto pr-0 sm:pr-1">
+            <div className="flex-1 min-w-0 min-h-0 lg:overflow-y-auto pr-0 pb-4 sm:pr-1 sm:pb-6">
               {selectedEnrollmentKey ? (
                 (() => {
                   const student = students.find(s => String(s._enrollmentKey || s._id || s.id) === String(selectedEnrollmentKey));
@@ -269,5 +269,3 @@ export default function TeacherStudentsTab({
           </div>
   );
 }
-
-

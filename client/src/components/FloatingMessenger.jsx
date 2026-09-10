@@ -18,7 +18,7 @@ import { useLocation } from 'react-router-dom';
 import { useSocket } from '../context/SocketContext';
 import { useData } from '../context/DataContext';
 import { useFloatingMessenger } from '../context/FloatingMessengerContext';
-import { resolveAvatarUrl } from '../utils/defaultAvatars';
+import { isRealAvatar, resolveAvatarUrl } from '../utils/defaultAvatars';
 import { normalizeChatRole } from '../utils/chatConversationId';
 import { getMessagingRole } from '../lib/messagingRoles';
 import { messagesAPI, aiSupportAPI, resolveMediaUrl } from '../services/api';
@@ -414,7 +414,7 @@ function ChatHead({ tab, unread = 0, onOpen, onClose }) {
         <img
           src={resolveAvatarUrl(tab.user)}
           alt=""
-          className="cms-fm-head__avatar"
+          className={`cms-fm-head__avatar ${isRealAvatar(tab.user?.avatar) ? 'cms-fm-avatar--photo' : ''}`}
         />
         {unread > 0 ? (
           <span className="cms-fm-head__badge">{unread > 99 ? '99+' : unread}</span>
@@ -833,7 +833,7 @@ function ChatWindow({
             <img
               src={resolveAvatarUrl({ ...tab.user, role: tab.user.role === 'admin' && !isSuper ? 'staff' : tab.user.role, name: displayName })}
               alt=""
-              className="w-9 h-9 rounded-full object-cover ring-1 ring-slate-200"
+              className={`w-9 h-9 rounded-full object-cover ring-1 ring-slate-200 ${isRealAvatar(tab.user?.avatar) ? 'cms-fm-avatar--photo' : ''}`}
             />
             <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white ${isOnline ? 'bg-emerald-500' : 'bg-slate-300'}`} />
           </span>
@@ -1592,8 +1592,17 @@ export default function FloatingMessenger({ session, role }) {
     const onStatus = (payload) => {
       const cid = String(payload?.conversationId || '');
       if (!cid || !payload?.status) return;
-      setAiStatusMap((prev) => ({ ...prev, [cid]: payload.status }));
-      if (payload.status !== AI_SUPPORT_STATUS.AI_ACTIVE) {
+      const resolvedBySupport = payload.status === AI_SUPPORT_STATUS.SUPPORT_RESOLVED;
+      const nextStatus = resolvedBySupport
+        ? AI_SUPPORT_STATUS.AI_ACTIVE
+        : payload.status;
+      setAiStatusMap((prev) => ({ ...prev, [cid]: nextStatus }));
+      if (resolvedBySupport) {
+        // Support đã đóng yêu cầu: chuyển người dùng về AI ngay, không cần
+        // bấm thêm nút "Hỏi Trợ lý AI".
+        aiSupportAPI.reset(cid).catch(() => {});
+      }
+      if (nextStatus !== AI_SUPPORT_STATUS.AI_ACTIVE) {
         setSendingMap((prev) => {
           if (!prev[cid]) return prev;
           const next = { ...prev };
@@ -1627,9 +1636,28 @@ export default function FloatingMessenger({ session, role }) {
     return () => socket.off('ai-support:status', onStatus);
   }, [socket]);
 
+  useEffect(() => {
+    if (!socket || canUseAiSupport) return undefined;
+    const onEscalated = (payload) => {
+      const peerId = String(payload?.userId || '');
+      if (!peerId || peerId === meId || !payload?.conversationId) return;
+      const peer = {
+        id: peerId,
+        name: payload.userName || 'Học viên',
+        role: normalizeChatRole(payload.userRole || 'student'),
+        avatar: payload.avatar || '',
+        online: true,
+      };
+      setUserOpenedChat(true);
+      openChat(peer, { expand: false });
+    };
+    socket.on('ai-support:escalate', onEscalated);
+    return () => socket.off('ai-support:escalate', onEscalated);
+  }, [socket, canUseAiSupport, meId, openChat, setUserOpenedChat]);
+
   // Tin đến → chat-head + badge (không cướp cửa sổ đang mở); tách khỏi Inbox
   useEffect(() => {
-    if (!onMessageReceive || !meId || isInbox) return undefined;
+    if (!onMessageReceive || !meId) return undefined;
     return onMessageReceive((data) => {
       if (!data) return;
       if (String(data.senderId) === meId) return;
@@ -1678,7 +1706,7 @@ export default function FloatingMessenger({ session, role }) {
       ));
       openChat(peer, { expand: alreadyThis });
     });
-  }, [onMessageReceive, meId, meRole, isInbox, openChat, setSupportOpen]);
+  }, [onMessageReceive, meId, meRole, openChat, setSupportOpen]);
 
   useEffect(() => {
     if (!meId || !activeTabId) return;
@@ -1822,17 +1850,27 @@ export default function FloatingMessenger({ session, role }) {
     });
   }, [openWindowId, latestAiReplyId]);
 
-  if (isInbox || !meId) return null;
+  if (!meId) return null;
 
   const handleSend = async (tab, content) => {
     const body = String(content || '').trim();
     if (!body) return;
 
     const isAi = isAiSupportPeer(tab.user);
-    if (sendingMap[tab.id]) return;
+    const aiStatus = isAi
+      ? (aiStatusMap[tab.id] || AI_SUPPORT_STATUS.AI_ACTIVE)
+      : AI_SUPPORT_STATUS.SUPPORT_ACTIVE;
+    const aiIsProcessing = isAi && aiStatus === AI_SUPPORT_STATUS.AI_ACTIVE;
+    if (sendingMap[tab.id] && aiIsProcessing) return;
+    if (isAi && !aiIsProcessing && sendingMap[tab.id]) {
+      setSendingMap((prev) => {
+        const next = { ...prev };
+        delete next[tab.id];
+        return next;
+      });
+    }
     if (isAi && aiQuestionQuota.applies && !(Number(aiQuestionQuota.remaining) > 0)) {
-      const status = aiStatusMap[tab.id] || AI_SUPPORT_STATUS.AI_ACTIVE;
-      if (status === AI_SUPPORT_STATUS.AI_ACTIVE && !isAiFaqChipLabel(body, meRole)) {
+      if (aiIsProcessing && !isAiFaqChipLabel(body, meRole)) {
         const lim = Number(aiQuestionQuota.limit) || (meRole === 'teacher' ? 25 : 15);
         toast.error(`Hết ${lim} lượt hỏi AI hôm nay. Bấm Cần nhân viên hỗ trợ nếu vẫn cần giúp.`);
         return;
@@ -1868,7 +1906,7 @@ export default function FloatingMessenger({ session, role }) {
       toast.error(err?.message || 'Gửi tin nhắn thất bại');
       return;
     }
-    if (!isAi) {
+    if (!isAi || !aiIsProcessing) {
       setSendingMap((prev) => {
         const next = { ...prev };
         delete next[tab.id];
@@ -2004,7 +2042,48 @@ export default function FloatingMessenger({ session, role }) {
     return ar === 'SUPPORT';
   });
 
-  const fabLabel = canUseAiSupport ? 'Trợ lý AI 24/7' : 'Hỗ trợ viên 24/7';
+  const [fabLabel, setFabLabel] = useState(canUseAiSupport ? '' : 'Hỗ trợ viên 24/7');
+  useEffect(() => {
+    if (!canUseAiSupport) {
+      setFabLabel('Hỗ trợ viên 24/7');
+      return undefined;
+    }
+
+    const labels = ['Trợ lý AI 24/7', 'Nhân viên trực tiếp'];
+    let labelIndex = 0;
+    let charIndex = 0;
+    let deleting = false;
+    let timeoutId;
+    let cancelled = false;
+
+    const tick = () => {
+      if (cancelled) return;
+      const target = labels[labelIndex];
+      if (!deleting) {
+        charIndex += 1;
+        setFabLabel(target.slice(0, charIndex));
+        if (charIndex === target.length) {
+          deleting = true;
+          timeoutId = window.setTimeout(tick, 1500);
+          return;
+        }
+      } else {
+        charIndex -= 1;
+        setFabLabel(target.slice(0, charIndex));
+        if (charIndex === 0) {
+          deleting = false;
+          labelIndex = (labelIndex + 1) % labels.length;
+        }
+      }
+      timeoutId = window.setTimeout(tick, deleting ? 55 : 90);
+    };
+
+    tick();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [canUseAiSupport]);
   const fabExpanded = canUseAiSupport ? showHumanSupportPanel : supportOpen;
 
   return (
@@ -2028,7 +2107,10 @@ export default function FloatingMessenger({ session, role }) {
             onRecall={recallMessage}
             onReact={toggleMessageReaction}
             peerTyping={!!peerTypingMap[openWindow.id]}
-            sending={!!sendingMap[openWindow.id]}
+            sending={Boolean(sendingMap[openWindow.id] && (
+              !isAiSupportPeer(openWindow.user)
+              || openWindowStatus === AI_SUPPORT_STATUS.AI_ACTIVE
+            ))}
             isAiPeer={isAiSupportPeer(openWindow.user)}
             aiStatus={openWindowStatus}
             canShowEscalate={openWindowCanEscalate}
@@ -2107,7 +2189,7 @@ export default function FloatingMessenger({ session, role }) {
                             <img
                               src={resolveAvatarUrl(c.user)}
                               alt=""
-                              className="w-9 h-9 rounded-full object-cover"
+                              className={`w-9 h-9 rounded-full object-cover ${isRealAvatar(c.user?.avatar) ? 'cms-fm-avatar--photo' : ''}`}
                             />
                             <span className="absolute -top-0.5 -right-0.5 min-w-[1rem] h-4 px-1 rounded-full bg-red-600 text-[9px] font-black text-white flex items-center justify-center ring-2 ring-white">
                               {c.unread > 99 ? '99+' : c.unread}
@@ -2157,7 +2239,7 @@ export default function FloatingMessenger({ session, role }) {
                                 <img
                                   src={resolveAvatarUrl({ ...p, role: p.displayRole || p.role })}
                                   alt=""
-                                  className="w-10 h-10 rounded-full object-cover ring-1 ring-slate-200"
+                                  className={`w-10 h-10 rounded-full object-cover ring-1 ring-slate-200 ${isRealAvatar(p.avatar) ? 'cms-fm-avatar--photo' : ''}`}
                                 />
                                 <span
                                   className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white ${online ? 'bg-emerald-500' : 'bg-slate-300'}`}
@@ -2211,18 +2293,22 @@ export default function FloatingMessenger({ session, role }) {
         )}
 
         {/* FAB — HV/GV: mở Trợ lý AI trước; sau escalate mới mở danh bạ SUPPORT */}
-        {!isSuper && (meRole === 'student' || meRole === 'teacher' || meRole === 'staff') && (
+        {!isInbox && !isSuper && (meRole === 'student' || meRole === 'teacher' || meRole === 'staff') && (
           <div className="relative flex items-center gap-2 group">
             {!fabExpanded && (
               <div
                 onClick={handleSupportFabClick}
-                className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-xl shadow-slate-900/10 cursor-pointer hover:scale-105 hover:border-red-200 transition-all duration-200"
+                className="cms-fm-fab-label hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/95 backdrop-blur-md shadow-xl shadow-slate-900/10 cursor-pointer hover:scale-105 transition-all duration-200"
               >
+                <span className="cms-fm-fab-label__border" aria-hidden="true" />
                 <span className="relative flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
-                <span className="text-sm font-black text-slate-800 tracking-tight">{fabLabel}</span>
+                <span className="relative z-10 min-w-[132px] text-sm font-black text-slate-800 tracking-tight" aria-live="polite">
+                  {fabLabel}
+                  <span className="ml-0.5 inline-block w-0.5 h-4 align-[-2px] bg-red-500 animate-pulse" aria-hidden="true" />
+                </span>
               </div>
             )}
 

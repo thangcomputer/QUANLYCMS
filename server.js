@@ -303,6 +303,7 @@ function mapOnlineUser(u) {
     role: u.role,
     adminRole: u.adminRole || null,
     name: u.name,
+    avatar: u.avatar || '',
     branchId: u.branchId,
     connectedAt: u.connectedAt,
   };
@@ -387,6 +388,7 @@ io.on('connection', (socket) => {
       role: messagingRole,
       adminRole: socket.user.adminRole || null,
       name,
+      avatar: socket.user.avatar || '',
       branchId: resolvedBranchId,
       branchCode: resolvedBranchCode,
       connectedAt: new Date().toISOString(),

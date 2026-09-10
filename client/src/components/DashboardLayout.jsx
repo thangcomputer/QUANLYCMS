@@ -1865,7 +1865,7 @@ const DashboardLayout = ({ role, session, onLogout }) => {
                             && n.payload?.kind === 'class_link_updated'
                             && /^https?:\/\//i.test(String(n.payload?.linkHoc || '').trim())
                           ) {
-                            window.open(String(n.payload.linkHoc).trim(), '_blank', 'noopener,noreferrer');
+                            window.location.assign(String(n.payload.linkHoc).trim());
                           } else if (
                             !n.path
                             && String(n.type || '').toLowerCase() === 'message'

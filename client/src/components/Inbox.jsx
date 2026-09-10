@@ -12,7 +12,7 @@ import { useToast } from '../utils/toast';
 import { messagesAPI, aiSupportAPI, resolveMediaUrl } from '../services/api';
 import TeacherStudentWeekSlotSheet from './teacher/TeacherStudentWeekSlotSheet';
 import { displayFileName } from '../utils/validators';
-import { resolveAvatarUrl } from '../utils/defaultAvatars';
+import { isRealAvatar, resolveAvatarUrl } from '../utils/defaultAvatars';
 import { Megaphone, Loader2 } from 'lucide-react';
 import { resolveMessagingActor, displayRoleLabel, DISPLAY_ROLE, isAliveMessagingPeer, isSpecialMessagingPeerId } from '../lib/messagingIdentity';
 import { mergeConversationsById } from '../lib/conversationList';
@@ -1917,7 +1917,7 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
                         <img
                           src={resolveAvatarUrl(conv.user)}
                           alt={conv.user.name || ''}
-                          className="w-full h-full object-cover"
+                          className={`w-full h-full object-cover ${isRealAvatar(conv.user?.avatar) ? 'cms-fm-avatar--photo' : ''}`}
                           onError={(e) => {
                             const el = e.currentTarget;
                             if (el.dataset.fallback === '1') return;
@@ -2113,7 +2113,7 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
                     <ChevronLeft size={22} />
                   </button>
                   <div className="relative shrink-0">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-xs font-semibold overflow-hidden ring-2 ring-white shadow-sm ${activeConv.isGroup ? 'bg-red-500' : 'bg-white'
+                    <div className={`w-11 h-11 rounded-full flex items-center justify-center text-white text-xs font-semibold overflow-hidden ring-2 ring-white shadow-sm ${activeConv.isGroup ? 'bg-red-500' : 'bg-white'
                       }`}>
                       {activeConv.isGroup ? (
                         <Users size={16} />
@@ -2121,7 +2121,7 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
                         <img
                           src={resolveAvatarUrl(activeConv.user)}
                           alt={activeConv.user.name || ''}
-                          className="w-full h-full object-cover"
+                          className={`w-full h-full object-cover ${isRealAvatar(activeConv.user?.avatar) ? 'cms-fm-avatar--photo' : ''}`}
                           onError={(e) => {
                             const el = e.currentTarget;
                             if (el.dataset.fallback === '1') return;
@@ -2224,6 +2224,10 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
                         if (!res?.success) throw new Error(res?.message || 'Không đóng được');
                         setAiHandoffSession(res.data?.session || null);
                         toast.success('Đã đánh dấu xử lý xong');
+                        // Đã kết thúc yêu cầu hỗ trợ: quay về danh bạ thay vì giữ
+                        // người dùng trong cuộc hội thoại AI đã đóng.
+                        setActiveConv(null);
+                        setPinnedMessageObj(null);
                       } catch (err) {
                         toast.error(err.message || 'Không đóng được yêu cầu');
                       }
@@ -3264,8 +3268,6 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
 };
 
 export default Inbox;
-
-
 
 
 

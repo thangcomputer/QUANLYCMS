@@ -364,7 +364,7 @@ export default function NotificationCenterPage({ role = 'admin', session }) {
       && n.payload?.kind === 'class_link_updated'
       && /^https?:\/\//i.test(String(n.payload?.linkHoc || '').trim())
     ) {
-      window.open(String(n.payload.linkHoc).trim(), '_blank', 'noopener,noreferrer');
+      window.location.assign(String(n.payload.linkHoc).trim());
       return;
     }
     const path = resolveNavPath(n.path, n);
@@ -834,8 +834,7 @@ export default function NotificationCenterPage({ role = 'admin', session }) {
                 <button
                   type="button"
                   onClick={() => {
-                    window.open(String(selectedNotif.payload.linkHoc).trim(), '_blank', 'noopener,noreferrer');
-                    setSelectedNotif(null);
+                    window.location.assign(String(selectedNotif.payload.linkHoc).trim());
                   }}
                   className="px-4 py-2 rounded-xl bg-red-600 text-white text-xs font-bold hover:bg-red-700 transition-colors flex items-center gap-1.5"
                 >
