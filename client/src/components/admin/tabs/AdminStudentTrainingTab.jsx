@@ -351,7 +351,7 @@ export default function AdminStudentTrainingTab() {
                               {sTrainingFileUploading ? 'Đang tải...' : 'TẢI TỆP'}
                               <input type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar" onChange={(e) => handleTrainingDocUpload(e, 'student')} />
                             </label>
-                            {sTrainingForm.fileUrl && (
+                            {sTrainingForm.fileUrl && String(sTrainingForm.fileType || '').toUpperCase() !== 'LINK' && (
                               <a
                                 href={buildMediaDownloadUrl(sTrainingForm.fileUrl, sTrainingForm.fileOriginalName)}
                                 target="_blank"
@@ -364,6 +364,35 @@ export default function AdminStudentTrainingTab() {
                               </a>
                             )}
                           </div>
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Hoặc link (Drive / URL)</label>
+                          <div className="flex items-center gap-2">
+                            <Link2 size={16} className="text-slate-400 shrink-0" />
+                            <input
+                              value={
+                                String(sTrainingForm.fileType || '').toUpperCase() === 'LINK'
+                                  || /^https?:\/\//i.test(String(sTrainingForm.fileUrl || ''))
+                                  ? (sTrainingForm.fileUrl || '')
+                                  : (sTrainingForm.linkUrl || '')
+                              }
+                              onChange={(e) => {
+                                const link = e.target.value.trim();
+                                setSTrainingForm({
+                                  ...sTrainingForm,
+                                  linkUrl: link,
+                                  ...(link
+                                    ? { fileUrl: link, fileType: 'LINK', fileSize: '', fileOriginalName: '' }
+                                    : (String(sTrainingForm.fileType || '').toUpperCase() === 'LINK'
+                                      ? { fileUrl: '', fileType: 'PDF' }
+                                      : {})),
+                                });
+                              }}
+                              className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-green-400 outline-none"
+                              placeholder="https://drive.google.com/..."
+                            />
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-1">Nếu điền link, học viên sẽ thấy nút &quot;Mở link&quot; thay vì tải file.</p>
                         </div>
                       </>
                     )}
@@ -417,11 +446,28 @@ export default function AdminStudentTrainingTab() {
                       return;
                     }
                     const sTrainingPayload = sTrainingTab === 'files'
-                      ? { 
-                          ...sTrainingForm, 
+                      ? (() => {
+                        const link = String(sTrainingForm.linkUrl || '').trim()
+                          || (/^https?:\/\//i.test(String(sTrainingForm.fileUrl || '')) ? String(sTrainingForm.fileUrl).trim() : '');
+                        if (link || String(sTrainingForm.fileType || '').toUpperCase() === 'LINK') {
+                          const url = link || String(sTrainingForm.fileUrl || '').trim();
+                          return {
+                            ...sTrainingForm,
+                            fileUrl: url,
+                            url,
+                            fileType: 'LINK',
+                            fileSize: '',
+                            fileOriginalName: '',
+                            linkUrl: undefined,
+                            courseName: sTrainingForm.courseName || 'Tài liệu học tập',
+                          };
+                        }
+                        return {
+                          ...sTrainingForm,
                           fileType: sTrainingForm.fileType || 'PDF',
                           courseName: sTrainingForm.courseName || 'Tài liệu học tập',
-                        }
+                        };
+                      })()
                       : sTrainingForm;
                     if (sTrainingForm.id) {
                       updateStudentTrainingItem(sTrainingTab, sTrainingForm.id, sTrainingPayload);

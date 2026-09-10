@@ -471,31 +471,16 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
     setMessages([]);
   }, [activeConv, contactsLoaded, contacts, students, teachers, staffs]);
   const [pendingImage, setPendingImage] = useState(null);
-    // Fetch pinned message if not in local state
+  // Ghim chỉ lấy từ tin của hội thoại đang mở — tránh dính ghim sang người khác khi đổi chat.
   useEffect(() => {
-    const pinnedId = activeConv?.metadata?.pinnedMessageId;
-    if (pinnedId) {
-      const localMatch = messages.find(m => String(m.id || m._id) === String(pinnedId));
-      if (localMatch) {
-        setPinnedMessageObj(localMatch);
-      } else {
-        messagesAPI.getMessage(pinnedId).then(res => {
-          if (res?.success) setPinnedMessageObj(res.message);
-        }).catch(err => console.log('Failed to fetch pinned message', err));
-      }
-    } else {
-      const localMatch = messages.find(m => m.isPinned);
-      if (localMatch) {
-        setPinnedMessageObj(localMatch);
-        setActiveConv(prev => prev ? ({
-          ...prev,
-          metadata: { ...(prev.metadata || {}), pinnedMessageId: localMatch.id || localMatch._id }
-        }) : prev);
-      } else {
-        setPinnedMessageObj(null);
-      }
+    const convId = activeConv?.id ? String(activeConv.id) : '';
+    if (!convId) {
+      setPinnedMessageObj(null);
+      return;
     }
-  }, [activeConv?.metadata?.pinnedMessageId, messages]);
+    const localPinned = messages.find((m) => m.isPinned);
+    setPinnedMessageObj(localPinned || null);
+  }, [activeConv?.id, messages]);
 
   const resolveGroupSendFlags = (conv) => {
     const convId = String(conv?.id || '');
@@ -513,19 +498,25 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
   const handlePinMessage = async (msgId) => {
     if (!activeConv) return;
     try {
-      const isCurrentlyPinned = activeConv?.metadata?.pinnedMessageId === String(msgId);
+      const isCurrentlyPinned = activeConv?.metadata?.pinnedMessageId === String(msgId)
+        || messages.some((m) => m.isPinned && String(m.id || m._id) === String(msgId));
       const targetMsg = messages.find((m) => String(m.id) === String(msgId));
       const isSchedulePin = Boolean(resolveScheduleMessagePayload(targetMsg));
       const res = await messagesAPI.pinMessage(activeConv.id, msgId);
       if (res?.success) {
         toast.success(res.message || 'Đã cập nhật ghim');
+        const nextPinnedId = res.pinnedMessageId || null;
         setActiveConv(prev => ({
           ...prev,
           metadata: {
             ...prev.metadata,
-            pinnedMessageId: res.pinnedMessageId || null
+            pinnedMessageId: nextPinnedId
           }
         }));
+        setMessages((prev) => prev.map((m) => ({
+          ...m,
+          isPinned: nextPinnedId ? String(m.id || m._id) === String(nextPinnedId) : false,
+        })));
         if (activeConv && activeConv.user && activeConv.user.id) {
           const { isGroup: sendIsGroup, groupId: sendGroupId } = resolveGroupSendFlags(activeConv);
           const pinLabel = isSchedulePin ? 'lịch học' : 'một tin nhắn';
@@ -1261,6 +1252,8 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
 
   // ─── Gửi tin nhắn ────────────────────────────────────────────────────────────
   const selectConversation = (conv) => {
+    setPinnedMessageObj(null);
+    setMessages([]);
     const { isGroup } = resolveGroupSendFlags(conv);
     // Never rebuild group threads as DM conversationIds
     if (isGroup) {

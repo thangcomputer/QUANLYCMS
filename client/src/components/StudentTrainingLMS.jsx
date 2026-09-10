@@ -3,7 +3,7 @@ import {
   Play, CheckCircle, Lock, ChevronRight, Clock, Award, BookOpen,
   ArrowLeft, Shield, Users, BarChart2, RefreshCw, GraduationCap,
   PlayCircle, ChevronDown, ChevronUp, Star, AlertCircle, CheckCircle2,
-  FileBox, Video, Download, FileText, Timer, FileUp, UploadCloud, Link as LinkIcon, X, Crown, Gift,
+  FileBox, Video, Download, FileText, Timer, FileUp, UploadCloud, Link as LinkIcon, X, Crown, Gift, ExternalLink,
 } from 'lucide-react';
 
 import { useData } from '../context/DataContext';
@@ -2033,11 +2033,16 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack, initialMainTab = null, h
                 const hasHtml = /<[a-z][\s\S]*>/i.test(descHtml);
                 const expanded = expandedFileDescKey === fKey;
                 const showToggle = plain.length > 120 || hasHtml;
+                const rawUrl = file.fileUrl || file.url || file.link || '';
+                const isLink = String(file.fileType || file.type || '').toUpperCase() === 'LINK'
+                  || /^https?:\/\//i.test(String(rawUrl));
                 return (
                   <div key={fKey} className="p-4 rounded-xl border border-slate-100 hover:bg-green-50/50 hover:border-green-200 transition-all flex flex-col md:flex-row justify-between md:items-start gap-4 group">
                     <div className="flex items-start gap-4 min-w-0 flex-1">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xs font-black text-white shrink-0 shadow-sm ${file.fileType === 'PDF' ? 'bg-rose-500' : 'bg-green-500'}`}>
-                        {file.fileType || 'FILE'}
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xs font-black text-white shrink-0 shadow-sm ${
+                        isLink ? 'bg-sky-500' : (file.fileType === 'PDF' ? 'bg-rose-500' : 'bg-green-500')
+                      }`}>
+                        {isLink ? 'LINK' : (file.fileType || 'FILE')}
                       </div>
                       <div className="min-w-0 flex-1">
                         <h3 className="font-bold text-slate-800 text-base leading-tight group-hover:text-green-700 transition-colors">{file.title}</h3>
@@ -2062,13 +2067,23 @@ const StudentTrainingLMS = ({ trainingDataProp, onBack, initialMainTab = null, h
                             {expanded ? 'Thu gọn' : 'Xem thêm mô tả / lưu ý'}
                           </button>
                         ) : null}
-                        <p className="text-[10px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 w-fit rounded mt-1">{file.fileSize || 'N/A'}</p>
+                        <p className="text-[10px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 w-fit rounded mt-1">
+                          {isLink ? 'Liên kết ngoài' : (file.fileSize || 'N/A')}
+                        </p>
                       </div>
                     </div>
-                    {!file.fileUrl && !file.url ? (
+                    {!rawUrl ? (
                       <span className="w-full md:w-auto px-5 py-2.5 rounded-[10px] text-sm font-bold text-slate-400 border border-slate-100 bg-slate-50 text-center shrink-0 self-center md:self-start">Chưa có file</span>
+                    ) : isLink ? (
+                      <a
+                        href={resolveMediaUrl(rawUrl)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="w-full md:w-auto px-5 py-2.5 bg-sky-600 text-white border border-transparent rounded-[10px] text-sm font-bold hover:bg-sky-700 hover:shadow-md transition-all shrink-0 flex items-center justify-center gap-2 self-center md:self-start no-underline"
+                      >
+                        <ExternalLink size={16} /> Mở link
+                      </a>
                     ) : (() => {
-                      const rawUrl = file.fileUrl || file.url || '';
                       const href = buildMediaDownloadUrl(
                         rawUrl,
                         file.fileOriginalName || file.title,

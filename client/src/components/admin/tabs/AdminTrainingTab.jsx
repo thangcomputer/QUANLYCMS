@@ -228,7 +228,7 @@ export default function AdminTrainingTab() {
                               {trainingFileUploading ? 'Đang tải...' : 'TẢI TỆP'}
                               <input type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.rar" onChange={(e) => handleTrainingDocUpload(e, 'teacher')} />
                             </label>
-                            {trainingForm.fileUrl && (
+                            {trainingForm.fileUrl && String(trainingForm.fileType || '').toUpperCase() !== 'LINK' && (
                               <a
                                 href={buildMediaDownloadUrl(trainingForm.fileUrl, trainingForm.fileOriginalName)}
                                 target="_blank"
@@ -241,6 +241,35 @@ export default function AdminTrainingTab() {
                               </a>
                             )}
                           </div>
+                        </div>
+                        <div>
+                          <label className="text-xs font-bold text-gray-500 uppercase block mb-1">Hoặc link (Drive / URL)</label>
+                          <div className="flex items-center gap-2">
+                            <Link2 size={16} className="text-slate-400 shrink-0" />
+                            <input
+                              value={
+                                String(trainingForm.fileType || '').toUpperCase() === 'LINK'
+                                  || /^https?:\/\//i.test(String(trainingForm.fileUrl || ''))
+                                  ? (trainingForm.fileUrl || '')
+                                  : (trainingForm.linkUrl || '')
+                              }
+                              onChange={(e) => {
+                                const link = e.target.value.trim();
+                                setTrainingForm({
+                                  ...trainingForm,
+                                  linkUrl: link,
+                                  ...(link
+                                    ? { fileUrl: link, fileType: 'LINK', fileSize: '', fileOriginalName: '' }
+                                    : (String(trainingForm.fileType || '').toUpperCase() === 'LINK'
+                                      ? { fileUrl: '', fileType: 'PDF' }
+                                      : {})),
+                                });
+                              }}
+                              className="w-full border-2 border-gray-200 rounded-xl p-3 text-sm focus:border-purple-400 outline-none"
+                              placeholder="https://drive.google.com/..."
+                            />
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-1">Nếu điền link, học viên/GV sẽ thấy nút &quot;Mở link&quot; thay vì tải file.</p>
                         </div>
                       </>
                     )}
@@ -298,7 +327,23 @@ export default function AdminTrainingTab() {
                       return;
                     }
                     const trainingPayload = trainingTab === 'files'
-                      ? { ...trainingForm, fileType: trainingForm.fileType || 'PDF' }
+                      ? (() => {
+                        const link = String(trainingForm.linkUrl || '').trim()
+                          || (/^https?:\/\//i.test(String(trainingForm.fileUrl || '')) ? String(trainingForm.fileUrl).trim() : '');
+                        if (link || String(trainingForm.fileType || '').toUpperCase() === 'LINK') {
+                          const url = link || String(trainingForm.fileUrl || '').trim();
+                          return {
+                            ...trainingForm,
+                            fileUrl: url,
+                            url,
+                            fileType: 'LINK',
+                            fileSize: '',
+                            fileOriginalName: '',
+                            linkUrl: undefined,
+                          };
+                        }
+                        return { ...trainingForm, fileType: trainingForm.fileType || 'PDF' };
+                      })()
                       : trainingForm;
                     if (trainingForm.id) {
                       updateTrainingItem(trainingTab, trainingForm.id, trainingPayload);
