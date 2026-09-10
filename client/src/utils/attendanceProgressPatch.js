@@ -139,6 +139,22 @@ export function applyAttendanceProgressToStudents(prev, payload, options = {}) {
       patched.can_check_in = false;
       patched.remaining_cooldown_hours = 12;
       patched.last_attendance_at = payload.attendedAt || payload.last_attendance_at || new Date().toISOString();
+      const lockEnrollment = (enrollment) => (
+        course && enrollmentMatches(enrollment, course)
+          ? {
+              ...enrollment,
+              can_check_in: false,
+              remaining_cooldown_hours: 12,
+              last_attendance_at: patched.last_attendance_at,
+            }
+          : enrollment
+      );
+      if (Array.isArray(patched.enrollments)) {
+        patched.enrollments = patched.enrollments.map(lockEnrollment);
+      }
+      if (Array.isArray(patched.courses)) {
+        patched.courses = patched.courses.map(lockEnrollment);
+      }
     }
     return patched;
   });

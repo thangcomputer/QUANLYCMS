@@ -179,6 +179,12 @@ const TeacherFinanceAndTraining = () => {
 
   useEffect(() => {
     if (!isTraining) {
+      if (!teacherId) {
+        setMyPayments([]);
+        setFinanceStats({ totalSessions: 0, unpaidAmount: 0, paidAmount: 0, salaryPerSession: 0 });
+        setIsLoadingFinance(false);
+        return;
+      }
       setIsLoadingFinance(true);
       Promise.all([
         api.transactions.getByTeacher(teacherId).catch(() => ({ success: false })),
@@ -256,7 +262,7 @@ const TeacherFinanceAndTraining = () => {
     try {
       let csvContent = "\uFEFF";
       csvContent += "Tháng,Ngày chuyển,Số tiền (VNĐ),Số buổi,Trạng thái,Ghi chú\n";
-      filteredPayments.forEach(p => {
+      filteredPayments.filter((p) => !p._synthetic).forEach(p => {
           const row = `"${sanitizeCsvField(p.month)}","${sanitizeCsvField(paymentDateLabel(p))}","${p.amount}","${p.sessions || 0}","${paymentStatusLabel(p)}","${sanitizeCsvField(p.note || '').replace(/"/g, '""')}"`;
           csvContent += row + "\n";
       });
@@ -297,7 +303,7 @@ const TeacherFinanceAndTraining = () => {
         totalPending,
         totalSessions,
         filterLabel: filterStatus === 'all' ? '' : filterLabel,
-        rows: filteredPayments,
+        rows: filteredPayments.filter((p) => !p._synthetic),
       });
       mount.style.position = 'fixed';
       mount.style.left = '-12000px';
@@ -347,7 +353,7 @@ const TeacherFinanceAndTraining = () => {
                 <p className="text-2xl sm:text-3xl font-black mt-1 text-emerald-600 tabular-nums">{totalEarned.toLocaleString('vi-VN')}đ</p>
                 <div className="flex items-center gap-1.5 mt-2 text-slate-400">
                   <TrendingUp size={12} aria-hidden="true" />
-                  <span className="text-[11px] sm:text-xs">+12% so với tháng trước</span>
+                  <span className="text-[11px] sm:text-xs">Tổng các giao dịch đã xác nhận</span>
                 </div>
               </div>
               <div className="bg-white shadow-sm border border-slate-100 rounded-2xl p-4 sm:p-6">
@@ -458,14 +464,20 @@ const TeacherFinanceAndTraining = () => {
                       </div>
                       <div className="min-w-0">
                         <p className="font-bold text-slate-800 text-sm sm:text-base tabular-nums">{p.amount ? p.amount.toLocaleString('vi-VN') : 0}đ</p>
-                        <p className="text-xs text-slate-500 mt-0.5 truncate">{p.note || p.description}</p>
+                        <p className="text-xs text-slate-500 mt-0.5 truncate">
+                          {p._synthetic ? 'Tạm tính · ' : ''}{p.note || p.description}
+                        </p>
                         <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
                           <CalendarIcon size={10} /> {p.month} · {p.date || new Date(p.createdAt).toLocaleDateString('vi-VN')}
                         </p>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      {isPaidTxStatus(p.status) ? (
+                      {p._synthetic ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] sm:text-xs font-bold bg-amber-100 text-amber-700 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full">
+                          <Clock size={12} /> Tạm tính
+                        </span>
+                      ) : isPaidTxStatus(p.status) ? (
                         <span className="inline-flex items-center gap-1 text-[10px] sm:text-xs font-bold bg-emerald-100 text-emerald-700 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full">
                           <CheckCircle2 size={12} /> Đã nhận
                         </span>

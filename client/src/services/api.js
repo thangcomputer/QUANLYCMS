@@ -1660,6 +1660,10 @@ export const settingsAPI = {
     const res = await apiFetch('/settings/payment', { skipAuth: true });
     return res.json();
   },
+  getPaymentStatus: async (studentId) => {
+    const res = await apiFetch(`/webhooks/payment-status/${studentId}`);
+    return res.json();
+  },
   getTrainingData: async () => {
     const res = await apiFetch('/settings/training-data');
     return res.json();
@@ -2554,5 +2558,4 @@ export default {
   blog:          blogAPI,
   centerInfo:    centerInfoAPI,
 };
-
 

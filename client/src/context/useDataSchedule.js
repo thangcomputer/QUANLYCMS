@@ -82,11 +82,26 @@ export function useDataSchedule({
       // Optimistic: khóa điểm danh lại, CHƯA cộng buổi (chờ HV xác nhận)
       setStudents(prev => prev.map(s => {
         if (String(s._id || s.id) !== String(studentId)) return s;
+        const patchEnrollment = (enrollment) => {
+          if (!courseName || enrollment?.courseName !== courseName) return enrollment;
+          return {
+            ...enrollment,
+            can_check_in: false,
+            remaining_cooldown_hours: 12,
+            last_attendance_at: new Date().toISOString(),
+          };
+        };
         return {
           ...s,
           can_check_in: false,
           remaining_cooldown_hours: 12,
           last_attendance_at: new Date().toISOString(),
+          ...(Array.isArray(s.enrollments)
+            ? { enrollments: s.enrollments.map(patchEnrollment) }
+            : {}),
+          ...(Array.isArray(s.courses)
+            ? { courses: s.courses.map(patchEnrollment) }
+            : {}),
         };
       }));
 
@@ -136,6 +151,37 @@ export function useDataSchedule({
         };
         const activeSession = getActiveSession();
         const now = new Date();
+        const freshSchedules = await api.schedules.getAll({
+          studentId: String(studentId),
+          date: todayISO,
+        });
+        const serverSchedules = Array.isArray(freshSchedules?.data)
+          ? freshSchedules.data
+          : Array.isArray(freshSchedules)
+            ? freshSchedules
+            : [];
+        const serverMatch = serverSchedules.find((sch) => {
+          const courseOk = !courseName || !sch.course || sch.course === courseName;
+          return scheduleStudentId(sch) === String(studentId)
+            && normalizeScheduleDate(sch.date) === todayISO
+            && sch.status !== 'cancelled'
+            && courseOk;
+        });
+        if (serverMatch) {
+          const sid = serverMatch._id || serverMatch.id;
+          setSchedules(prev => [...prev.filter((s) => String(s._id || s.id) !== String(sid)), serverMatch]);
+          const resSch = await api.schedules.update(sid, schedulePayload);
+          if (!resSch?.success) {
+            throw new Error(resSch?.message || 'Lỗi gửi xác nhận điểm danh');
+          }
+          if (resSch.data) {
+            setSchedules(prev => prev.map(s => String(s._id || s.id) === String(sid)
+              ? { ...s, ...resSch.data }
+              : s));
+          }
+          triggerBackgroundSync();
+          return true;
+        }
         const tempId = 'temp-' + Date.now();
 
         const newSch = {

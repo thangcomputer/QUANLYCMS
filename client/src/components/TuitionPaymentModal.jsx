@@ -68,8 +68,8 @@ export default function TuitionPaymentModal({ student, onClose, onPaid }) {
     // Polling mỗi 3 giây
     pollRef.current = setInterval(async () => {
       try {
-        const res = await api.settings.getPayment && await fetch(
-          `${import.meta.env.VITE_API_URL || ""}/api/webhooks/payment-status/${studentId}`,
+        const res = await api.settings.getPaymentStatus(studentId);
+        /* Legacy polling implementation removed; api.settings.getPaymentStatus is canonical.
           {
             headers: {
               Authorization: `Bearer ${(() => {
@@ -79,12 +79,15 @@ export default function TuitionPaymentModal({ student, onClose, onPaid }) {
                     const d = JSON.parse(localStorage.getItem(k) || 'null');
                     if (d?.token) return d.token;
                   }
-                } catch {}
+                } catch (error) {
+                  console.error('[TuitionPaymentModal] Payment status polling failed:', error);
+                }
                 return '';
               })()}`
             }
           }
         ).then(r => r.json());
+        */
 
         if (res?.paid) {
           clearInterval(pollRef.current);
@@ -97,7 +100,9 @@ export default function TuitionPaymentModal({ student, onClose, onPaid }) {
             onClose?.();
           }, 2500);
         }
-      } catch {}
+      } catch (error) {
+        console.error('[TuitionPaymentModal] Payment status polling failed:', error);
+      }
     }, POLL_INTERVAL);
 
     // Đếm giây chờ
