@@ -78,8 +78,9 @@ export function hasPermission(session, permKey) {
   const perms = Array.isArray(session.permissions) ? session.permissions : [];
   if (perms.includes(permKey)) return true;
 
-  // 3. Fallback theo role admin
-  if (session.role === 'admin') return true;
+  // 3. Legacy admin không có adminRole vẫn được toàn quyền.
+  // HIGH_ADMIN có role vận chuyển là "admin" nhưng phải tuân theo permissions.
+  if (session.role === 'admin' && !session.adminRole) return true;
 
   return false;
 }

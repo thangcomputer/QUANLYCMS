@@ -167,6 +167,29 @@ function isOutgoingMessengerMessage(m, meId) {
   return sid === me;
 }
 
+function AvatarImage({ user, className = '', alt = '' }) {
+  const [src, setSrc] = useState(() => resolveAvatarUrl(user));
+  const fallbackSrc = useMemo(
+    () => resolveAvatarUrl({ ...user, avatar: '' }),
+    [user],
+  );
+
+  useEffect(() => {
+    setSrc(resolveAvatarUrl(user));
+  }, [user]);
+
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      onError={() => {
+        if (src !== fallbackSrc) setSrc(fallbackSrc);
+      }}
+    />
+  );
+}
+
 function ReactionPicker({ msgId, isMine, onReact, myReactions = [] }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -417,9 +440,8 @@ function ChatHead({ tab, unread = 0, onOpen, onClose }) {
             <Users size={22} strokeWidth={2.4} />
           </span>
         ) : (
-          <img
-            src={resolveAvatarUrl(tab.user)}
-            alt=""
+          <AvatarImage
+            user={tab.user}
             className={`cms-fm-head__avatar ${isRealAvatar(tab.user?.avatar) ? 'cms-fm-avatar--photo' : ''}`}
           />
         )}
@@ -846,9 +868,8 @@ function ChatWindow({
                 <Users size={19} strokeWidth={2.4} />
               </span>
             ) : (
-              <img
-                src={resolveAvatarUrl({ ...tab.user, role: tab.user.role === 'admin' && !isSuper ? 'staff' : tab.user.role, name: displayName })}
-                alt=""
+              <AvatarImage
+                user={{ ...tab.user, role: tab.user.role === 'admin' && !isSuper ? 'staff' : tab.user.role, name: displayName }}
                 className={`w-9 h-9 rounded-full object-cover ring-1 ring-slate-200 ${isRealAvatar(tab.user?.avatar) ? 'cms-fm-avatar--photo' : ''}`}
               />
             )}
@@ -1709,6 +1730,12 @@ export default function FloatingMessenger({ session, role }) {
       const group = isGroupMessage
         ? (groups || []).find((item) => String(item?._id || item?.id || '') === groupId)
         : null;
+      const knownPeer = !isGroupMessage
+        ? conversations.find((conversation) => (
+          !conversation.isGroup
+          && String(conversation.user?.id || '') === String(data.senderId)
+        ))
+        : null;
       const peer = isGroupMessage
         ? {
           id: groupId,
@@ -1724,10 +1751,11 @@ export default function FloatingMessenger({ session, role }) {
         ? { ...AI_SUPPORT_PEER }
         : {
           id: String(data.senderId),
-          name: data.sender?.displayName || data.senderName || 'Người dùng',
-          role: normalizeChatRole(data.senderRole || 'student'),
-          adminRole: data.sender?.adminRole || null,
-          avatar: data.sender?.avatar || data.senderAvatar || '',
+          name: knownPeer?.user?.name || data.sender?.displayName || data.senderName || 'Người dùng',
+          role: normalizeChatRole(knownPeer?.user?.role || data.senderRole || 'student'),
+          adminRole: knownPeer?.user?.adminRole || data.sender?.adminRole || null,
+          avatar: knownPeer?.user?.avatar || data.sender?.avatar || data.senderAvatar || '',
+          gender: knownPeer?.user?.gender || data.sender?.gender || '',
         };
 
       if (String(data.senderId) === 'ai_support' && data.conversationId) {
@@ -1771,7 +1799,7 @@ export default function FloatingMessenger({ session, role }) {
       ));
       openChat(peer, { expand: alreadyThis });
     });
-  }, [onMessageReceive, meId, meRole, openChat, closeChat, setSupportOpen, groups]);
+  }, [onMessageReceive, meId, meRole, openChat, closeChat, setSupportOpen, groups, conversations]);
 
   useEffect(() => {
     if (!meId || !activeTabId) return;
@@ -2259,9 +2287,8 @@ export default function FloatingMessenger({ session, role }) {
                           className="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl hover:bg-red-50 text-left transition-colors"
                         >
                           <span className="relative shrink-0">
-                            <img
-                              src={resolveAvatarUrl(c.user)}
-                              alt=""
+                            <AvatarImage
+                              user={c.user}
                               className={`w-9 h-9 rounded-full object-cover ${isRealAvatar(c.user?.avatar) ? 'cms-fm-avatar--photo' : ''}`}
                             />
                             <span className="absolute -top-0.5 -right-0.5 min-w-[1rem] h-4 px-1 rounded-full bg-red-600 text-[9px] font-black text-white flex items-center justify-center ring-2 ring-white">
@@ -2309,9 +2336,8 @@ export default function FloatingMessenger({ session, role }) {
                               className="w-full flex items-center gap-3 px-2.5 py-2 rounded-xl hover:bg-slate-50 text-left transition-colors group"
                             >
                               <span className="relative shrink-0">
-                                <img
-                                  src={resolveAvatarUrl({ ...p, role: p.displayRole || p.role })}
-                                  alt=""
+                                <AvatarImage
+                                  user={{ ...p, role: p.displayRole || p.role }}
                                   className={`w-10 h-10 rounded-full object-cover ring-1 ring-slate-200 ${isRealAvatar(p.avatar) ? 'cms-fm-avatar--photo' : ''}`}
                                 />
                                 <span

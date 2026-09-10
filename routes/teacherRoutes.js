@@ -515,19 +515,20 @@ router.get('/', [authMiddleware, branchFilter, ...teacherRouteGuard('list')], as
 
     const { status, search } = req.query;
     const filter = {};
+    const andConditions = [];
     const bf = req.branchFilter || {};
     if (bf.branchId?.$in) {
       // Tenant scope: vẫn hiển thị GV chưa phân chi nhánh
-      filter.$or = [
+      andConditions.push({ $or: [
         { branchId: { $in: bf.branchId.$in } },
         { branchId: null },
-      ];
+      ] });
     } else if (bf.branchId != null && bf.branchId !== '') {
       // Lọc 1 chi nhánh: gồm GV thuộc chi nhánh đó + GV chưa gán chi nhánh (để vẫn phân công được)
-      filter.$or = [
+      andConditions.push({ $or: [
         { branchId: bf.branchId },
         { branchId: null },
-      ];
+      ] });
     } else {
       Object.assign(filter, bf);
     }
@@ -535,13 +536,14 @@ router.get('/', [authMiddleware, branchFilter, ...teacherRouteGuard('list')], as
     if (status) filter.status = status;
     if (search) {
       const s = sanitizeRegex(search);
-      filter.$or = [
+      andConditions.push({ $or: [
         { name:      { $regex: s, $options: 'i' } },
         { phone:     { $regex: s, $options: 'i' } },
         { specialty: { $regex: s, $options: 'i' } },
         { teacherCode: { $regex: s, $options: 'i' } },
-      ];
+      ] });
     }
+    if (andConditions.length) filter.$and = andConditions;
 
     const Evaluation = require('../models/Evaluation');
     const pageNum = Math.max(1, parseInt(req.query.page, 10) || 1);

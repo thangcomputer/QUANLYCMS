@@ -69,7 +69,14 @@ export function useDataSync({
         const hasPerm = (p) => isSuper || perms.includes(p);
         const dummyRes = { success: true, data: [] };
 
-        promises.push(hasPerm('view_teachers') ? api.teachers.getAll().catch(() => ({ success: false })) : Promise.resolve(dummyRes));
+        const teacherBranchParams = (
+          currentUser.adminRole === 'SUPER_ADMIN'
+          || currentUser.adminRole === 'HIGH_ADMIN'
+          || currentUser.id === 'admin'
+        ) ? { branch_id: 'all' } : {};
+        promises.push(hasPerm('view_teachers')
+          ? api.teachers.getAll(teacherBranchParams).catch(() => ({ success: false }))
+          : Promise.resolve(dummyRes));
         promises.push((hasPerm('manage_staff') || hasPerm('manage_hr') || isSuper) ? api.staff.getAll().catch(() => ({ success: false })) : Promise.resolve(dummyRes));
         promises.push(hasPerm('manage_finance') ? api.transactions.getAll({ limit: 200 }).catch(() => ({ success: false })) : Promise.resolve(dummyRes));
         promises.push((hasPerm('manage_training') || hasPerm('manage_students')) ? api.examResults.getAll({ limit: 200 }).catch(() => ({ success: false })) : Promise.resolve(dummyRes));
