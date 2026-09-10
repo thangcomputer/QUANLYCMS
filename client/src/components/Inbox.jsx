@@ -1666,13 +1666,22 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
     }).slice(0, 8);
   }, [search, conversations, isSupportAgent, handoffUserIds]);
 
-  // Online lên trên; offline / nhóm ở dưới — trong nhóm vẫn ưu tiên tin mới nhất
-  const sortedConvs = [...filteredConvs].sort((a, b) => {
-    const aOn = !a.isGroup && isUserOnline(a.user?.id) ? 1 : 0;
-    const bOn = !b.isGroup && isUserOnline(b.user?.id) ? 1 : 0;
-    if (aOn !== bOn) return bOn - aOn;
-    return new Date(b.lastTime || 0) - new Date(a.lastTime || 0);
-  });
+  // Conversation có hoạt động/tin nhắn luôn lên trước. Các conversation chưa
+  // có hoạt động giữ nguyên thứ tự danh bạ (sort ổn định theo index ban đầu).
+  const sortedConvs = filteredConvs
+    .map((conversation, index) => ({
+      conversation,
+      index,
+      activityTime: toValidActivityDate(conversation.lastTime)?.getTime() || 0,
+    }))
+    .sort((a, b) => {
+      const aHasActivity = a.activityTime > 0 ? 1 : 0;
+      const bHasActivity = b.activityTime > 0 ? 1 : 0;
+      if (aHasActivity !== bHasActivity) return bHasActivity - aHasActivity;
+      if (a.activityTime !== b.activityTime) return b.activityTime - a.activityTime;
+      return a.index - b.index;
+    })
+    .map(({ conversation }) => conversation);
 
   const totalUnread = conversations.reduce((sum, c) => sum + c.unread, 0);
 
@@ -2912,13 +2921,13 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
                   onClick={async () => {
                     try {
                       const newGroup = await createChatGroup(groupName, selectedParticipants);
-                      if (newGroup) {
+                      if (newGroup?.success && newGroup?.data) {
                         setShowCreateGroup(false);
                         setGroupName('');
                         setSelectedParticipants([]);
                         toast?.success('Tạo nhóm thành công!');
                       } else {
-                        toast?.error('Không thể tạo nhóm. Vui lòng thử lại.');
+                        toast?.error(newGroup?.message || 'Không thể tạo nhóm. Vui lòng thử lại.');
                       }
                     } catch (err) {
                       toast?.error('Lỗi kết nối máy chủ.');
@@ -3268,8 +3277,6 @@ const Inbox = ({ currentUserId = 'admin', currentUserName = 'Admin', currentUser
 };
 
 export default Inbox;
-
-
 
 
 

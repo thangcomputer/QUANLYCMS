@@ -25,7 +25,7 @@ function countsAsHumanUnread(msg, viewerId) {
 /**
  * Messages / groups state, socket listeners, and messaging API for DataProvider.
  */
-export function useDataMessaging({ currentUser, students, teachers, staffs, triggerBackgroundSync }) {
+export function useDataMessaging({ currentUser, students, teachers, staffs }) {
   const [messages, setMessages] = useState(() => loadState('thvp_messages', []));
   const [groups, setGroups] = useState(() => loadState('thvp_groups', []));
 
@@ -46,6 +46,19 @@ export function useDataMessaging({ currentUser, students, teachers, staffs, trig
   const upsertServerMessage = useCallback((data) => {
     if (!data?._id && !data?.id) return;
     const serverId = String(data._id || data.id);
+    const n = normalizeMessage(data);
+    const isGrp = Boolean(
+      n.isGroup
+      || data.isGroup
+      || (n.conversationId && String(n.conversationId).startsWith('group_'))
+      || n.groupId
+      || data.groupId
+    );
+    const gId = isGrp
+      ? String(n.groupId || data.groupId || (String(n.conversationId || '').startsWith('group_') ? String(n.conversationId).slice(6) : '') || '') || null
+      : null;
+    const convId = isGrp && gId ? `group_${gId}` : n.conversationId;
+
     setMessages((prev) => {
       if (prev.some((m) => String(m.id) === serverId)) {
         // Already present (other tab / prior HTTP) — drop matching temp only
@@ -56,18 +69,6 @@ export function useDataMessaging({ currentUser, students, teachers, staffs, trig
           && String(m.fileUrl || '') === String(data.fileUrl || '')));
       }
 
-      const n = normalizeMessage(data);
-      const isGrp = Boolean(
-        n.isGroup
-        || data.isGroup
-        || (n.conversationId && String(n.conversationId).startsWith('group_'))
-        || n.groupId
-        || data.groupId
-      );
-      const gId = isGrp
-        ? String(n.groupId || data.groupId || (String(n.conversationId || '').startsWith('group_') ? String(n.conversationId).slice(6) : '') || '') || null
-        : null;
-      const convId = isGrp && gId ? `group_${gId}` : n.conversationId;
       const mappedMsg = {
         id: n.id,
         convId,
@@ -113,6 +114,24 @@ export function useDataMessaging({ currentUser, students, teachers, staffs, trig
       }
       return [...prev, mappedMsg];
     });
+
+    if (isGrp && gId) {
+      const messageTime = n.time instanceof Date ? n.time : new Date(n.time || Date.now());
+      setGroups((prev) => prev.map((group) => (
+        String(group?._id || group?.id) === gId
+          ? {
+              ...group,
+              updatedAt: messageTime,
+              lastMessage: {
+                ...(group.lastMessage || {}),
+                content: n.content || (n.fileUrl ? '[Tệp tin]' : ''),
+                senderName: n.senderName || '',
+                sentAt: messageTime,
+              },
+            }
+          : group
+      )));
+    }
   }, []);
 
   useEffect(() => {
@@ -120,9 +139,11 @@ export function useDataMessaging({ currentUser, students, teachers, staffs, trig
 
     if (onGroupNew) {
       unsubGroup = onGroupNew((newGroup) => {
+        const newGroupId = String(newGroup?._id || newGroup?.id || '');
+        if (!newGroupId) return;
         setGroups((prev) => {
-          if (prev.some((g) => g._id === newGroup._id)) return prev;
-          return [newGroup, ...prev];
+          if (prev.some((g) => String(g?._id || g?.id || '') === newGroupId)) return prev;
+          return [{ ...newGroup, id: newGroupId }, ...prev];
         });
       });
     }
@@ -192,7 +213,6 @@ export function useDataMessaging({ currentUser, students, teachers, staffs, trig
         if (!deletedGroupId) return;
         setGroups((prev) => (Array.isArray(prev) ? prev.filter((g) => String(g._id || g.id) !== deletedGroupId) : []));
         setMessages((prev) => (Array.isArray(prev) ? prev.filter((m) => String(m.convId) !== `group_${deletedGroupId}`) : []));
-        triggerBackgroundSync();
       });
     }
 
@@ -206,7 +226,7 @@ export function useDataMessaging({ currentUser, students, teachers, staffs, trig
       if (unsubRead) unsubRead();
       if (unsubPinned) unsubPinned();
     };
-  }, [onGroupNew, onGroupDelete, onRecallReceive, onMessageReceive, onMessageSent, onReactionReceive, onReadAck, onMessagePinned, upsertServerMessage, currentUser, triggerBackgroundSync]);
+  }, [onGroupNew, onGroupDelete, onRecallReceive, onMessageReceive, onMessageSent, onReactionReceive, onReadAck, onMessagePinned, upsertServerMessage, currentUser]);
 
   useEffect(() => {
     try {
@@ -473,7 +493,11 @@ export function useDataMessaging({ currentUser, students, teachers, staffs, trig
   const createChatGroup = useCallback(async (name, participants) => {
     const res = await api.messages.createGroup(name, participants);
     if (res.success && res.data) {
-      setGroups(prev => [res.data, ...prev]);
+      const createdId = String(res.data._id || res.data.id || '');
+      setGroups(prev => [
+        { ...res.data, id: createdId || res.data.id },
+        ...prev.filter((group) => String(group?._id || group?.id || '') !== createdId),
+      ]);
     }
     return res;
   }, []);
@@ -646,7 +670,11 @@ export function useDataMessaging({ currentUser, students, teachers, staffs, trig
             isGroup: true,
             user: { id: gid, name: g.name, role: 'group', avatar: 'GN', online: true },
             lastMessage: lastMsg ? lastMsg.content : 'Bắt đầu cuộc trò chuyện nhóm',
-            lastTime: lastMsg ? lastMsg.time : (g.createdAt ? new Date(g.createdAt) : null),
+            lastTime: lastMsg?.time
+              || g.lastMessage?.sentAt
+              || g.updatedAt
+              || g.createdAt
+              || null,
             unread: (() => {
               const seen = new Set();
               let n = 0;

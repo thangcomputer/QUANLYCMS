@@ -81,13 +81,21 @@ export function FloatingMessengerProvider({ children, currentUserId, currentUser
   const openChat = useCallback((person, opts = {}) => {
     if (!person?.id || !currentUserId) return null;
     const expand = opts.expand !== false;
+    const isGroup = Boolean(person.isGroup || person.groupId || person.conversationId?.startsWith('group_'));
     const role = normalizeChatRole(person.role || 'admin');
     const myRole = normalizeChatRole(currentUserRole || 'student');
-    const convId = buildConversationId(myRole, currentUserId, role, person.id);
+    const convId = isGroup
+      ? String(person.conversationId || `group_${person.groupId || person.id}`)
+      : buildConversationId(myRole, currentUserId, role, person.id);
     const user = {
       id: String(person.id),
       name: person.name || (role === 'admin' ? 'Admin' : 'Giảng viên'),
-      role,
+      role: isGroup ? 'group' : role,
+      isGroup,
+      groupId: isGroup ? String(person.groupId || person.id) : null,
+      participants: isGroup
+        ? (person.participants || person.user?.participants || [])
+        : undefined,
       adminRole: person.adminRole || person.user?.adminRole || null,
       gender: person.gender || person.user?.gender || '',
       avatar: person.avatar || person.user?.avatar || '',

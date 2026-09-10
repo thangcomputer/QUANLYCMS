@@ -9,7 +9,7 @@ import {
   Headphones, MessageCircle, MessageSquare, Minus, Send, X, Circle,
   ImagePlus, Link2, Loader2, MoreVertical, Edit3, RotateCcw, Bot, UserRound, Check,
   Copy, Scaling, Calendar,
-  Smile,
+  Smile, Users,
 } from 'lucide-react';
 import ScheduleMessagePreviewModal, {
   resolveScheduleMessagePayload,
@@ -402,6 +402,7 @@ function MessageBubble({
 }
 
 function ChatHead({ tab, unread = 0, onOpen, onClose }) {
+  const isGroup = Boolean(tab.user?.isGroup);
   return (
     <div className="cms-fm-head-wrap">
       <button
@@ -411,11 +412,17 @@ function ChatHead({ tab, unread = 0, onOpen, onClose }) {
         title={tab.user.name}
         aria-label={`Mở chat với ${tab.user.name}`}
       >
-        <img
-          src={resolveAvatarUrl(tab.user)}
-          alt=""
-          className={`cms-fm-head__avatar ${isRealAvatar(tab.user?.avatar) ? 'cms-fm-avatar--photo' : ''}`}
-        />
+        {isGroup ? (
+          <span className="cms-fm-head__avatar flex items-center justify-center bg-gradient-to-br from-red-500 to-red-700 text-white">
+            <Users size={22} strokeWidth={2.4} />
+          </span>
+        ) : (
+          <img
+            src={resolveAvatarUrl(tab.user)}
+            alt=""
+            className={`cms-fm-head__avatar ${isRealAvatar(tab.user?.avatar) ? 'cms-fm-avatar--photo' : ''}`}
+          />
+        )}
         {unread > 0 ? (
           <span className="cms-fm-head__badge">{unread > 99 ? '99+' : unread}</span>
         ) : (
@@ -464,6 +471,10 @@ function ChatWindow({
   const resizeRef = useRef({ active: false, x: 0, y: 0, w: 0, h: 0 });
 
   const isOnline = useMemo(() => {
+    if (tab.user?.isGroup) {
+      // Tin nhắn nhóm chỉ tạo chat-head khi có thành viên hoạt động.
+      return true;
+    }
     if (!Array.isArray(onlineUsers)) return Boolean(tab.user.online);
     const peerId = String(tab.user.id || '');
     if (!peerId) return Boolean(tab.user.online);
@@ -830,11 +841,17 @@ function ChatWindow({
       <div className="cms-fm-window__head">
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <span className="relative shrink-0">
-            <img
-              src={resolveAvatarUrl({ ...tab.user, role: tab.user.role === 'admin' && !isSuper ? 'staff' : tab.user.role, name: displayName })}
-              alt=""
-              className={`w-9 h-9 rounded-full object-cover ring-1 ring-slate-200 ${isRealAvatar(tab.user?.avatar) ? 'cms-fm-avatar--photo' : ''}`}
-            />
+            {tab.user?.isGroup ? (
+              <span className="w-9 h-9 rounded-full flex items-center justify-center bg-gradient-to-br from-red-500 to-red-700 text-white ring-1 ring-red-200">
+                <Users size={19} strokeWidth={2.4} />
+              </span>
+            ) : (
+              <img
+                src={resolveAvatarUrl({ ...tab.user, role: tab.user.role === 'admin' && !isSuper ? 'staff' : tab.user.role, name: displayName })}
+                alt=""
+                className={`w-9 h-9 rounded-full object-cover ring-1 ring-slate-200 ${isRealAvatar(tab.user?.avatar) ? 'cms-fm-avatar--photo' : ''}`}
+              />
+            )}
             <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ring-2 ring-white ${isOnline ? 'bg-emerald-500' : 'bg-slate-300'}`} />
           </span>
           <div className="min-w-0">
@@ -1259,7 +1276,7 @@ export default function FloatingMessenger({ session, role }) {
   } = useSocket() || {};
   const {
     sendMessage, getMessages, getConversations, markMessagesRead, recallMessage,
-    syncMessages, toggleMessageReaction,
+    syncMessages, toggleMessageReaction, groups,
   } = useData();
   const {
     supportOpen, setSupportOpen, tabs, activeTabId,
@@ -1341,8 +1358,11 @@ export default function FloatingMessenger({ session, role }) {
   const unreadByPeer = useMemo(() => {
     const map = new Map();
     for (const c of conversations) {
-      if (!c?.user?.id || !(c.unread > 0) || c.isGroup) continue;
-      map.set(`${normalizeChatRole(c.user.role)}_${c.user.id}`, Number(c.unread) || 0);
+      if (!c?.user?.id || !(c.unread > 0)) continue;
+      const key = c.isGroup
+        ? String(c.id)
+        : `${normalizeChatRole(c.user.role)}_${c.user.id}`;
+      map.set(key, Number(c.unread) || 0);
     }
     return map;
   }, [conversations]);
@@ -1661,12 +1681,46 @@ export default function FloatingMessenger({ session, role }) {
     return onMessageReceive((data) => {
       if (!data) return;
       if (String(data.senderId) === meId) return;
+      const myIds = new Set([
+        meId,
+        String(session?.id || ''),
+        String(session?._id || ''),
+      ].filter(Boolean));
+      const receiverId = String(data.receiverId || data.recipientId || data.toUserId || '');
       const forMe = String(data.receiverId) === meId
-        || (meRole === 'admin' && String(data.receiverId) === 'admin')
-        || (meRole === 'support' && String(data.receiverId) === 'support');
-      if (!forMe && !data.isGroup) return;
+        || myIds.has(receiverId)
+        || (meRole === 'admin' && receiverId === 'admin')
+        || (meRole === 'support' && receiverId === 'support');
+      const isGroupMessage = Boolean(
+        data.isGroup
+        || data.groupId
+        || String(data.conversationId || '').startsWith('group_'),
+      );
+      if (!forMe && !isGroupMessage) return;
 
-      const peer = String(data.senderId) === 'ai_support'
+      const groupId = isGroupMessage
+        ? String(
+          data.groupId
+          || (String(data.conversationId || '').startsWith('group_')
+            ? String(data.conversationId).slice(6)
+            : ''),
+        )
+        : '';
+      const group = isGroupMessage
+        ? (groups || []).find((item) => String(item?._id || item?.id || '') === groupId)
+        : null;
+      const peer = isGroupMessage
+        ? {
+          id: groupId,
+          groupId,
+          conversationId: `group_${groupId}`,
+          isGroup: true,
+          name: group?.name || data.groupName || data.receiverName || 'Nhóm chat',
+          role: 'group',
+          avatar: group?.avatar || 'GN',
+          participants: group?.participants || [],
+        }
+        : String(data.senderId) === 'ai_support'
         ? { ...AI_SUPPORT_PEER }
         : {
           id: String(data.senderId),
@@ -1699,14 +1753,25 @@ export default function FloatingMessenger({ session, role }) {
       if (isHumanSupport) setSupportOpen(false);
 
       const current = tabsRef.current;
+      if (isGroupMessage && group?.participants) {
+        const memberIds = new Set(
+          group.participants.map((member) => String(member?.userId || member?.id || '')),
+        );
+        current
+          .filter((tab) => !tab.user?.isGroup && memberIds.has(String(tab.user?.id || '')))
+          .forEach((tab) => closeChat(tab.id));
+      }
       const alreadyThis = current.some((t) => (
-        !t.minimized
-        && t.user.id === peer.id
-        && normalizeChatRole(t.user.role) === peer.role
+        !t.minimized && (
+          (isGroupMessage && t.id === `group_${groupId}`)
+          || (!isGroupMessage
+            && t.user.id === peer.id
+            && normalizeChatRole(t.user.role) === peer.role)
+        )
       ));
       openChat(peer, { expand: alreadyThis });
     });
-  }, [onMessageReceive, meId, meRole, openChat, setSupportOpen]);
+  }, [onMessageReceive, meId, meRole, openChat, closeChat, setSupportOpen, groups]);
 
   useEffect(() => {
     if (!meId || !activeTabId) return;
@@ -1857,6 +1922,7 @@ export default function FloatingMessenger({ session, role }) {
     if (!body) return;
 
     const isAi = isAiSupportPeer(tab.user);
+    const isGroup = Boolean(tab.user?.isGroup);
     const aiStatus = isAi
       ? (aiStatusMap[tab.id] || AI_SUPPORT_STATUS.AI_ACTIVE)
       : AI_SUPPORT_STATUS.SUPPORT_ACTIVE;
@@ -1887,12 +1953,13 @@ export default function FloatingMessenger({ session, role }) {
         senderId: meId,
         senderName: meName,
         senderRole: meRole,
-        receiverId: isAi ? AI_SUPPORT_PEER.id : tab.user.id,
+        receiverId: isAi ? AI_SUPPORT_PEER.id : (isGroup ? tab.user.groupId : tab.user.id),
         receiverName: isAi ? AI_SUPPORT_PEER.name : tab.user.name,
-        receiverRole: isAi ? AI_SUPPORT_PEER.role : tab.user.role,
+        receiverRole: isAi ? AI_SUPPORT_PEER.role : (isGroup ? 'group' : tab.user.role),
         content: body,
         messageType: 'text',
-        isGroup: false,
+        isGroup,
+        groupId: isGroup ? tab.user.groupId : null,
       });
       if (sent?.failed) {
         throw new Error(sent.failReason || 'Gửi tin nhắn thất bại');
@@ -1930,6 +1997,7 @@ export default function FloatingMessenger({ session, role }) {
       return false;
     }
     const isAi = isAiSupportPeer(tab.user);
+    const isGroup = Boolean(tab.user?.isGroup);
     const status = aiStatusMap[tab.id] || AI_SUPPORT_STATUS.AI_ACTIVE;
     const quotaApplies = isAi && status === AI_SUPPORT_STATUS.AI_ACTIVE;
     if (quotaApplies && aiQuestionQuota.applies && !(Number(aiQuestionQuota.remaining) > 0)) {
@@ -1951,14 +2019,15 @@ export default function FloatingMessenger({ session, role }) {
         senderId: meId,
         senderName: meName,
         senderRole: meRole,
-        receiverId: isAi ? AI_SUPPORT_PEER.id : tab.user.id,
+        receiverId: isAi ? AI_SUPPORT_PEER.id : (isGroup ? tab.user.groupId : tab.user.id),
         receiverName: isAi ? AI_SUPPORT_PEER.name : tab.user.name,
-        receiverRole: isAi ? AI_SUPPORT_PEER.role : tab.user.role,
+        receiverRole: isAi ? AI_SUPPORT_PEER.role : (isGroup ? 'group' : tab.user.role),
         content,
         messageType: 'image',
         fileUrl: uploadRes.url,
         fileName: file.name,
-        isGroup: false,
+        isGroup,
+        groupId: isGroup ? tab.user.groupId : null,
       });
       if (sent?.failed) {
         const reason = String(sent.failReason || '');
@@ -1991,6 +2060,7 @@ export default function FloatingMessenger({ session, role }) {
     const url = String(fileUrl || '').trim();
     if (!url) return false;
     const isAi = isAiSupportPeer(tab.user);
+    const isGroup = Boolean(tab.user?.isGroup);
     const status = aiStatusMap[tab.id] || AI_SUPPORT_STATUS.AI_ACTIVE;
     const quotaApplies = isAi && status === AI_SUPPORT_STATUS.AI_ACTIVE;
     if (quotaApplies && aiQuestionQuota.applies && !(Number(aiQuestionQuota.remaining) > 0)) {
@@ -2006,14 +2076,15 @@ export default function FloatingMessenger({ session, role }) {
         senderId: meId,
         senderName: meName,
         senderRole: meRole,
-        receiverId: isAi ? AI_SUPPORT_PEER.id : tab.user.id,
+        receiverId: isAi ? AI_SUPPORT_PEER.id : (isGroup ? tab.user.groupId : tab.user.id),
         receiverName: isAi ? AI_SUPPORT_PEER.name : tab.user.name,
-        receiverRole: isAi ? AI_SUPPORT_PEER.role : tab.user.role,
+        receiverRole: isAi ? AI_SUPPORT_PEER.role : (isGroup ? 'group' : tab.user.role),
         content,
         messageType: 'image',
         fileUrl: url,
         fileName: fileName || 'ảnh',
-        isGroup: false,
+        isGroup,
+        groupId: isGroup ? tab.user.groupId : null,
       });
       if (sent?.failed) {
         toast.error(sent.failReason || 'Gửi ảnh thất bại');
@@ -2085,6 +2156,8 @@ export default function FloatingMessenger({ session, role }) {
     };
   }, [canUseAiSupport]);
   const fabExpanded = canUseAiSupport ? showHumanSupportPanel : supportOpen;
+
+  if (isInbox) return null;
 
   return (
     <div className="cms-fm-root" aria-live="polite">
@@ -2294,7 +2367,7 @@ export default function FloatingMessenger({ session, role }) {
 
         {/* FAB — HV/GV: mở Trợ lý AI trước; sau escalate mới mở danh bạ SUPPORT */}
         {!isInbox && !isSuper && (meRole === 'student' || meRole === 'teacher' || meRole === 'staff') && (
-          <div className="relative flex items-center gap-2 group">
+          <div className="relative flex items-center gap-0 group">
             {!fabExpanded && (
               <div
                 onClick={handleSupportFabClick}

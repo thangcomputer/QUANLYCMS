@@ -894,11 +894,19 @@ router.post('/groups', messagesGuard('group_create'), async (req, res) => {
       return res.status(400).json({ success: false, message: 'Không có thành viên hợp lệ' });
     }
 
+    const uniqueParticipants = [...new Map(
+      sanitizedParticipants.map((participant) => [participant.userId, participant]),
+    ).values()].filter((participant) => participant.userId !== String(req.user.id));
+
+    if (uniqueParticipants.length === 0) {
+      return res.status(400).json({ success: false, message: 'Vui lòng chọn ít nhất một thành viên khác bạn' });
+    }
+
     const creatorRole = normalizeGroupRole(req.user.adminRole) || normalizeGroupRole(req.user.role) || 'admin';
 
     const group = await Group.create({
       name: String(name).trim().slice(0, 100),
-      participants: [...sanitizedParticipants, { userId: req.user.id, name: req.user.name, role: creatorRole }],
+      participants: [...uniqueParticipants, { userId: req.user.id, name: req.user.name, role: creatorRole }],
       createdBy: { userId: req.user.id, name: req.user.name }
     });
 

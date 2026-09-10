@@ -198,6 +198,33 @@ export default function LoginInboxAlertPopup({ role, userId, blocked = false }) 
     };
   }, [lmsOpen, userId, onMessageReceive, socket]);
 
+  // Tin nhắn người thật đến khi đang ở dashboard phải hiện popup ngay,
+  // không chỉ kiểm tra một lần lúc đăng nhập.
+  useEffect(() => {
+    if (role !== 'student' || !userId || typeof onMessageReceive !== 'function') return undefined;
+    let timer = null;
+    const unsubMsg = onMessageReceive((data) => {
+      if (!data || String(data.senderId) === String(userId)) return;
+      if (
+        isAiSupportConversationId(data.conversationId)
+        || String(data.senderId) === AI_SUPPORT_PEER.id
+        || isQuietPath(location.pathname)
+      ) return;
+
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        const convs = typeof convRef.current === 'function' ? (convRef.current(userId) || []) : [];
+        const unread = Math.max(1, inboxUnreadCount(convs));
+        setPayload({ unread, upcoming: [] });
+      }, 350);
+    });
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      if (typeof unsubMsg === 'function') unsubMsg();
+    };
+  }, [role, userId, onMessageReceive, location.pathname]);
+
   useEffect(() => {
     const syncFromGate = () => {
       const ids = getActiveLoginOverlayIds();
